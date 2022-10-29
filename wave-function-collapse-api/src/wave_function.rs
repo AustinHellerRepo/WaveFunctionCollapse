@@ -218,17 +218,20 @@ impl WaveFunction {
         
         //      try to increment the current collapsable node state id index (maybe just going from None to Some(0))
 
-        //      if failed to increment (then we need to try a different state for the most recent parent)
-        //          if current collapsable node index if the first node (then the nodes have been exhausted)
-        //              set error message
-        //          else
-        //              set current collapsable node's state id index to None
-        //              decrement current collapsale node index
-        //              set sort unnecessary
-        //      else
-        //          inform neighbors
+        //      if succeeded to increment
+        //          inform neighbors of new state
         //          increment current collapsable node index
         //          set sort necessary
+        //      else (then we need to try a different state for the most recent parent that has the current node as a neighbor)
+        //          while not yet errored
+        //              if current collapsable node index is the first node (then the nodes have been exhausted)
+        //                  set error message
+        //              else
+        //                  set current collapsable node's state id index to None
+        //                  decrement current collapsale node index
+        //                  if one of the newly current collapsable node's neighbors is the original collapsable node
+        //                      break
+        //          set sort unnecessary
 
         let mut current_collapsable_node_index: usize = 0;
         let mut is_sort_necessary = true;
@@ -323,14 +326,22 @@ impl WaveFunction {
                 is_sort_necessary = true;
             }
             else {
-                if current_collapsable_node_index == 0 {
-                    is_unable_to_collapse = true;
+                let original_collapsable_node_id = collapsable_nodes.get(current_collapsable_node_index).expect("The index should still be within the range of collapsable nodes.").id;
+                while !is_unable_to_collapse {
+                    if current_collapsable_node_index == 0 {
+                        is_unable_to_collapse = true;
+                    }
+                    else {
+                        collapsable_nodes.get_mut(current_collapsable_node_index).expect("The node should exist at this index.").state_id_index = Option::None;
+                        current_collapsable_node_index = current_collapsable_node_index - 1;
+                        for neighbor_node_id in collapsable_nodes.get(current_collapsable_node_index).expect("The node index should exist in the range of collapsable nodes since the earlier if-statement would trigger leaving the while loop.").neighbor_node_ids.iter() {
+                            if *neighbor_node_id == original_collapsable_node_id {
+                                break;
+                            }
+                        }
+                    }
                 }
-                else {
-                    collapsable_nodes.get_mut(current_collapsable_node_index).expect("The node should exist at this index.").state_id_index = Option::None;
-                    current_collapsable_node_index = current_collapsable_node_index - 1;
-                    is_sort_necessary = false;
-                }
+                is_sort_necessary = false;
             }
         }
 
