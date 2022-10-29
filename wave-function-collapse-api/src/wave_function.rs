@@ -2,44 +2,81 @@ use std::collections::{HashMap, HashSet};
 use serde::Deserialize;
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
+use bitvec::prelude::*;
 
 #[derive(Debug, Deserialize)]
 pub struct NodeState {
-    id: String,
-    valid_neighbor_state_ids: Vec<String>
+    id: String
 }
 
 #[derive(Debug, Deserialize)]
 pub struct Node {
     id: String,
-    neighbor_node_ids: Vec<String>,
-    valid_node_state_ids: Vec<String>
+    permitted_node_state_collection_ids_per_neighbor_node_id: HashMap<String, Vec<String>>
+}
+
+pub struct PermittedNodeStateCollection {
+    id: String,
+    node_state_id: String,
+    node_state_ids: Vec<String>
 }
 
 struct CollapsableNode<'a> {
+    // the node id that this collapsable node refers to
     id: &'a str,
+    // this nodes list of neighbor node ids
     neighbor_node_ids: Vec<&'a str>,
-    possible_state_ids: Vec<&'a str>,
-    is_valid_per_state_id: HashMap<&'a str, bool>,
-    state_id_index: Option<usize>,
-    possible_state_ids_length: usize,
+    // the full list of possible node states
+    node_state_ids: &'a Vec<String>,
+    // the length of the node_state_ids object
+    node_state_ids_length: &'a usize,
+    // the possible masks to provide to this node's neighbors based on the current state of this node
+    is_node_state_index_permitted_mask_per_node_state_id_per_neighbor_node_id: HashMap<&'a str, HashMap<&'a str, BitVec>>,
+    // the masks applied to this node from the neighbors, Option::None means that there is no restriction
+    applied_node_state_permitted_mask_per_neighbor_node_id: HashMap<&'a str, Option<&'a BitVec>>,
+    // this holds the result of bitwise-anding the neighbor masks
+    is_valid_per_node_state_id_cache: HashMap<&'a str, bool>,
+    // the current index running over the permitted mask bits, None if not yet started
+    node_state_id_index: Option<usize>,
+    // the index of traversed nodes based on the sorted vector of nodes as they are chosen for state determination
     chosen_from_sort_index: Option<u32>,
+    // a random sort value for adding randomness to the process between runs (if randomized)
     random_sort_index: u32
 }
 
 impl<'a> CollapsableNode<'a> {
-    fn new(node: &'a Node) -> CollapsableNode {
-        let mut neighbor_node_ids: Vec<&str> = Vec::new();
-        for neighbor_node_id in node.neighbor_node_ids.iter() {
-            neighbor_node_ids.push(&neighbor_node_id);
+    fn new(node: &'a Node, permitted_node_state_collections: Vec<PermittedNodeStateCollection>) -> CollapsableNode {
+        let mut permitted_node_state_collection_per_id: HashMap<&str, &PermittedNodeStateCollection> = HashMap::new();
+        for permitted_node_state_collection in permitted_node_state_collections.iter() {
+            permitted_node_state_collection_per_id.insert(&permitted_node_state_collection.id, &permitted_node_state_collection);
         }
-        let mut possible_state_ids_length: usize = 0;
-        let mut possible_state_ids: Vec<&str> = Vec::new();
+
+        let mut neighbor_node_ids: Vec<&str> = Vec::new();
+        let mut possible_node_state_ids_length: usize = 0;
+        let mut permitted_node_state_ids_per_node_state_id_per_neighbor_node_id: HashMap<&'a str, HashMap<&'a str, &'a Vec<String>>> = HashMap::new();
         let mut is_valid_per_state_id: HashMap<&'a str, bool> = HashMap::new();
-        for valid_node_state_id in node.valid_node_state_ids.iter() {
+        for (neighbor_node_id, permitted_node_state_collection_ids) in node.permitted_node_state_collection_ids_per_neighbor_node_id.iter() {
+            // store the neighbor nodes TODO why?
+            neighbor_node_ids.push(&neighbor_node_id);
+
+            // store the possible restrictions for neighbor nodes
+            let permitted_node_state_ids_per_node_state_id: HashMap<&str, &Vec<String>> = HashMap::new();
+            for permitted_node_state_collection_id in permitted_node_state_collection_ids.iter() {
+                let id: &str = &permitted_node_state_collection_id;
+                let permitted_node_state_collection = permitted_node_state_collection_per_id.get(id).unwrap();
+                let node_state_id = &permitted_node_state_collection.node_state_id;
+                permitted_node_state_ids_per_node_state_id.insert(node_state_id, &permitted_node_state_collection.node_state_ids);
+                permitted_node_state_ids_per_node_state_id_per_neighbor_node_id.insert(neighbor_node_id, permitted_node_state_ids_per_node_state_id);
+
+                // store the node state id as a possible node state (if not already added)
+                if !is_valid_per_state_id.contains_key(node_state_id) {
+                    // TODO determine best data structure for checking and reverting neighbor state restrictions
+                }
+            }
+
             is_valid_per_state_id.insert(valid_node_state_id, true);
             possible_state_ids.push(valid_node_state_id);
-            possible_state_ids_length = possible_state_ids_length + 1;
+            possible_node_state_ids_length = possible_node_state_ids_length + 1;
         }
         CollapsableNode {
             id: &node.id,
