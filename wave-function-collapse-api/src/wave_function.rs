@@ -220,6 +220,7 @@ impl WaveFunction {
 
         //      if succeeded to increment
         //          inform neighbors of new state
+        //          TODO react to neighbor no longer having any valid states
         //          increment current collapsable node index
         //          set sort necessary
         //      else (then we need to try a different state for the most recent parent that has the current node as a neighbor)
