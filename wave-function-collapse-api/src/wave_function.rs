@@ -5,14 +5,79 @@ use rand_chacha::ChaCha8Rng;
 use bitvec::prelude::*;
 
 #[derive(Debug, Deserialize)]
-pub struct NodeState {
-    id: String
-}
-
-#[derive(Debug, Deserialize)]
 pub struct Node {
     id: String,
     permitted_node_state_collection_ids_per_neighbor_node_id: HashMap<String, Vec<String>>
+}
+
+impl Node {
+    fn get_possible_node_states(&self, permitted_node_state_collection_per_id: &HashMap<&str, PermittedNodeStateCollection>) -> Result<Vec<&str>, String> {
+        
+        let mut possible_node_state_ids_option: Option<Vec<&str>> = Option::None;
+        let mut possible_node_state_ids_length: usize = 0;
+        
+        for (neighbor_node_id_string, permitted_node_state_collection_ids) in self.permitted_node_state_collection_ids_per_neighbor_node_id.iter() {
+            let neighbor_node_id: &str = neighbor_node_id_string;
+            // either fill the possible node states or verify other permitted node state collections
+            
+            let possible_node_state_ids_vector: Vec<&str> = Vec::new();
+            // store the possible node states
+            
+            if possible_node_state_ids_option.is_none() {
+                for permitted_node_state_collection_id_string in permitted_node_state_collection_ids.iter() {
+                    let permitted_node_state_collection_id: &str = permitted_node_state_collection_id_string;
+                    let permitted_node_state_collection = permitted_node_state_collection_per_id.get(permitted_node_state_collection_id).unwrap();
+                    let node_state_id: &str = &permitted_node_state_collection.node_state_id;
+        
+                    // store this node state as a possible node state
+                    if !possible_node_state_ids_vector.contains(&node_state_id) {
+                        possible_node_state_ids_vector.push(node_state_id);
+                        possible_node_state_ids_length += 1;
+                    }
+                    else {
+                        let node_id = self.id;
+                        return Err(format!("Duplicate node state id found in node {node_id}."));
+                    }
+                }
+            }
+            else {
+                let possible_node_state_ids_vector: Vec<&str> = Vec::new();
+                let possible_node_state_ids_vector_length: usize = 0;
+
+                // store the possible node states
+                for permitted_node_state_collection_id_string in permitted_node_state_collection_ids.iter() {
+                    let permitted_node_state_collection_id: &str = permitted_node_state_collection_id_string;
+                    let permitted_node_state_collection = permitted_node_state_collection_per_id.get(permitted_node_state_collection_id).unwrap();
+                    let node_state_id: &str = &permitted_node_state_collection.node_state_id;
+
+                    // store this node state as a possible node state
+                    if possible_node_state_ids_vector.contains(&node_state_id) {
+                        let node_id = self.id;
+                        return Err(format!("Duplicate node state id found in node {node_id}."));
+                    }
+                    else {
+                        possible_node_state_ids_vector_length += 1;
+                        if !possible_node_state_ids_option.unwrap().contains(&node_state_id) {
+                            return Err(format!("Unexpected node state {node_state_id} in permitted node state collection {permitted_node_state_collection_id}."));
+                        }
+                    }
+                }
+
+                if possible_node_state_ids_vector_length != possible_node_state_ids_length {
+                    return Err(format!("Missing at least one node state in neighbor node {neighbor_node_id}"));
+                }
+            }
+        }
+
+        match possible_node_state_ids_option {
+            Some(possible_node_state_ids) => {
+                return Ok(possible_node_state_ids);
+            }
+            None => {
+                return Err(String::from("This node does not contain any neighbors."));
+            }
+        }
+    }
 }
 
 pub struct PermittedNodeStateCollection {
@@ -27,89 +92,121 @@ struct CollapsableNode<'a> {
     // this nodes list of neighbor node ids
     neighbor_node_ids: Vec<&'a str>,
     // the full list of possible node states
-    node_state_ids: &'a Vec<String>,
+    node_state_ids: Vec<&'a str>,
     // the length of the node_state_ids object
-    node_state_ids_length: &'a usize,
+    node_state_ids_length: usize,
     // the possible masks to provide to this node's neighbors based on the current state of this node
-    is_node_state_index_permitted_mask_per_node_state_id_per_neighbor_node_id: HashMap<&'a str, HashMap<&'a str, BitVec>>,
+    node_state_index_permitted_mask_per_node_state_id_per_neighbor_node_id: HashMap<&'a str, HashMap<&'a str, BitVec>>,
     // the masks applied to this node from the neighbors, Option::None means that there is no restriction
     applied_node_state_permitted_mask_per_neighbor_node_id: HashMap<&'a str, Option<&'a BitVec>>,
     // this holds the result of bitwise-anding the neighbor masks
-    is_valid_per_node_state_id_cache: HashMap<&'a str, bool>,
+    current_is_valid_per_node_state_id: HashMap<&'a str, bool>,
     // the current index running over the permitted mask bits, None if not yet started
-    node_state_id_index: Option<usize>,
+    current_node_state_id_index: Option<usize>,
     // the index of traversed nodes based on the sorted vector of nodes as they are chosen for state determination
-    chosen_from_sort_index: Option<u32>,
+    current_chosen_from_sort_index: Option<u32>,
     // a random sort value for adding randomness to the process between runs (if randomized)
     random_sort_index: u32
 }
 
 impl<'a> CollapsableNode<'a> {
-    fn new(node: &'a Node, permitted_node_state_collections: Vec<PermittedNodeStateCollection>) -> CollapsableNode {
-        let mut permitted_node_state_collection_per_id: HashMap<&str, &PermittedNodeStateCollection> = HashMap::new();
-        for permitted_node_state_collection in permitted_node_state_collections.iter() {
-            permitted_node_state_collection_per_id.insert(&permitted_node_state_collection.id, &permitted_node_state_collection);
-        }
-
+    fn new(node: &'a Node, node_per_id: &'a HashMap<&'a str, Node>, permitted_node_state_collection_per_id: &'a HashMap<&'a str, PermittedNodeStateCollection>) -> CollapsableNode {
+        // get the neighbors for this node
         let mut neighbor_node_ids: Vec<&str> = Vec::new();
+        // get the possible node states; pulled from the possible states and how they impact the node's neighbors
         let mut possible_node_state_ids_length: usize = 0;
-        let mut permitted_node_state_ids_per_node_state_id_per_neighbor_node_id: HashMap<&'a str, HashMap<&'a str, &'a Vec<String>>> = HashMap::new();
-        let mut is_valid_per_state_id: HashMap<&'a str, bool> = HashMap::new();
-        for (neighbor_node_id, permitted_node_state_collection_ids) in node.permitted_node_state_collection_ids_per_neighbor_node_id.iter() {
-            // store the neighbor nodes TODO why?
-            neighbor_node_ids.push(&neighbor_node_id);
+        // contains the possible node states and is None so that only the first neighbor will supply the possible values while the others are checked to ensure that they consistent
+        let mut possible_node_state_ids: Vec<&str> = node.get_possible_node_states(&permitted_node_state_collection_per_id).expect("The node should be able to provide its possible node states if it knows how its states related to its neighbors.");
+        // contains the mask to apply to the neighbor when this node is in a specific state
+        let mut node_state_index_permitted_mask_per_node_state_id_per_neighbor_node_id: HashMap<&'a str, HashMap<&'a str, BitVec>> = HashMap::new();
+        // contains the default (None) applied masks
+        let mut applied_node_state_permitted_mask_per_neighbor_node_id : HashMap<&str, Option<&BitVec>> = HashMap::new();
 
-            // store the possible restrictions for neighbor nodes
-            let permitted_node_state_ids_per_node_state_id: HashMap<&str, &Vec<String>> = HashMap::new();
-            for permitted_node_state_collection_id in permitted_node_state_collection_ids.iter() {
-                let id: &str = &permitted_node_state_collection_id;
-                let permitted_node_state_collection = permitted_node_state_collection_per_id.get(id).unwrap();
-                let node_state_id = &permitted_node_state_collection.node_state_id;
-                permitted_node_state_ids_per_node_state_id.insert(node_state_id, &permitted_node_state_collection.node_state_ids);
-                permitted_node_state_ids_per_node_state_id_per_neighbor_node_id.insert(neighbor_node_id, permitted_node_state_ids_per_node_state_id);
+        // for each neighbor node
+        //      for each possible state for this node
+        //          create a mutable bit vector
+        //          for each possible node state for the neighbor node
+        //              get if the neighbor node state is permitted by this node's possible node state
+        //              push the boolean into bit vector
+        //          push bit vector into hashmap of mask per node state per neighbor node
 
-                // store the node state id as a possible node state (if not already added)
-                if !is_valid_per_state_id.contains_key(node_state_id) {
-                    // TODO determine best data structure for checking and reverting neighbor state restrictions
+        for (neighbor_node_id_string, permitted_node_state_collection_ids) in node.permitted_node_state_collection_ids_per_neighbor_node_id.iter() {
+            let neighbor_node_id: &str = neighbor_node_id_string;
+
+            // store the neighbor nodes in order to have a list that can be randomized
+            neighbor_node_ids.push(neighbor_node_id);
+
+            // determine the masks for this neighbor based on its possible node states
+            let neighbor_node_state_ids = node_per_id.get(neighbor_node_id).expect("The neighbor should exist in the complete list of nodes.").get_possible_node_states(permitted_node_state_collection_per_id).expect("The neighbor node should have some node states.");
+            let neighbor_node_state_ids_length: u32 = neighbor_node_ids.len().try_into().expect("The neighbor node ids length should be castable to a u32.");
+
+            // stores the mask per node state for this node as it pertains to the neighbor
+            let node_state_index_permitted_mask_per_node_state_id: HashMap<&str, BitVec> = HashMap::new();
+
+            // this loop ultimately is over each possible state of this node
+            for permitted_node_state_collection_id_string in permitted_node_state_collection_ids.iter() {
+                let permitted_node_state_collection_id: &str = &permitted_node_state_collection_id_string;
+                let permitted_node_state_collection = permitted_node_state_collection_per_id.get(permitted_node_state_collection_id).expect("The node state collection id should exist in the complete list of node state collections.");
+
+                // each possible node state for this node should have a mask for this neighbor
+                let mask = BitVec::new();
+
+                for neighbor_node_state_id in neighbor_node_state_ids.iter() {
+                    let is_permitted: bool = false;
+                    for permitted_node_state_id_string in permitted_node_state_collection.node_state_ids.iter() {
+                        let permitted_node_state_id: &str = permitted_node_state_id_string;
+                        if permitted_node_state_id == *neighbor_node_state_id {
+                            is_permitted = true;
+                            break;
+                        }
+                    }
+                    mask.push(is_permitted)
                 }
-            }
 
-            is_valid_per_state_id.insert(valid_node_state_id, true);
-            possible_state_ids.push(valid_node_state_id);
-            possible_node_state_ids_length = possible_node_state_ids_length + 1;
+                let possible_node_state_id: &str = &permitted_node_state_collection.node_state_id;
+                node_state_index_permitted_mask_per_node_state_id.insert(possible_node_state_id, mask);
+            }
+            node_state_index_permitted_mask_per_node_state_id_per_neighbor_node_id.insert(neighbor_node_id, node_state_index_permitted_mask_per_node_state_id);
+
+            // insert the default (not affected by) mask by each neighbor
+            applied_node_state_permitted_mask_per_neighbor_node_id.insert(neighbor_node_id, Option::None);
         }
+
+        let current_is_valid_per_node_state_id: HashMap<&str, bool> = HashMap::new();
+        for possible_node_state_id in possible_node_state_ids.iter() {
+            current_is_valid_per_node_state_id.insert(&possible_node_state_id, true);
+        }
+
         CollapsableNode {
             id: &node.id,
             neighbor_node_ids: neighbor_node_ids,
-            possible_state_ids: possible_state_ids,
-            is_valid_per_state_id: is_valid_per_state_id,
-            state_id_index: Option::None,
-            possible_state_ids_length: possible_state_ids_length,
-            chosen_from_sort_index: Option::None,
+            node_state_ids: possible_node_state_ids,
+            node_state_ids_length: possible_node_state_ids_length,
+            node_state_index_permitted_mask_per_node_state_id_per_neighbor_node_id: node_state_index_permitted_mask_per_node_state_id_per_neighbor_node_id,
+            applied_node_state_permitted_mask_per_neighbor_node_id: applied_node_state_permitted_mask_per_neighbor_node_id,
+            current_is_valid_per_node_state_id: current_is_valid_per_node_state_id,
+            current_node_state_id_index: Option::None,
+            current_chosen_from_sort_index: Option::None,
             random_sort_index: 0
         }
     }
     fn randomize(&mut self, seed: u64) {
         let mut random_instance = ChaCha8Rng::seed_from_u64(seed);
         self.neighbor_node_ids.shuffle(&mut random_instance);
-        self.possible_state_ids.shuffle(&mut random_instance);
+        self.node_state_ids.shuffle(&mut random_instance);
         self.random_sort_index = random_instance.next_u32();
-    }
-    fn get_possible_states_count(&self) -> u32 {
-        let possible_states_count: u32 = self.possible_state_ids.len().try_into().expect("The length of self.possible_state_ids should be convertable to a u32.");
-        possible_states_count
     }
     fn try_increment_state_id_index(&mut self) -> bool {
         let mut is_successful: bool;
 
-        if let Some(index) = self.state_id_index {
+        if let Some(index) = self.current_node_state_id_index {
             let mut current_index = index + 1;
             let mut next_index: Option<usize> = Option::None;
 
             let mut current_possible_state: &str;
-            while current_index < self.possible_state_ids_length {
-                current_possible_state = self.possible_state_ids.get(index).expect("The possible state index should be inside the bounds of the vector.");
-                if *self.is_valid_per_state_id.get(current_possible_state).expect("The dictionary should contain all of the same state ids.") {
+            while current_index < self.node_state_ids_length {
+                current_possible_state = self.node_state_ids.get(index).expect("The possible state index should be inside the bounds of the vector.");
+                if *self.current_is_valid_per_node_state_id.get(current_possible_state).expect("The dictionary should contain all of the same state ids.") {
                     next_index = Some(current_index);
                     break;
                 }
@@ -122,16 +219,16 @@ impl<'a> CollapsableNode<'a> {
                 is_successful = false;
             }
             else {
-                self.state_id_index = next_index;
+                self.current_node_state_id_index = next_index;
                 is_successful = true;
             }
         }
         else {
-            if self.possible_state_ids_length == 0 {
+            if self.node_state_ids_length == 0 {
                 is_successful = false;
             }
             else {
-                self.state_id_index = Some(0);
+                self.current_node_state_id_index = Some(0);
                 is_successful = true;
             }
         }
@@ -139,13 +236,13 @@ impl<'a> CollapsableNode<'a> {
         is_successful
     }
     fn invalidate_possible_state(&mut self, state_id: &'a str) {
-        if self.is_valid_per_state_id.contains_key(state_id) {
-            self.is_valid_per_state_id.insert(state_id, false);
+        if self.current_is_valid_per_node_state_id.contains_key(state_id) {
+            self.current_is_valid_per_node_state_id.insert(state_id, false);
         }
     }
     fn revalidate_possible_state(&mut self, state_id: &'a str) {
-        if self.is_valid_per_state_id.contains_key(state_id) {
-            self.is_valid_per_state_id.insert(state_id, true);
+        if self.current_is_valid_per_node_state_id.contains_key(state_id) {
+            self.current_is_valid_per_node_state_id.insert(state_id, true);
         }
     }
 }
@@ -155,22 +252,24 @@ pub struct CollapsedWaveFunction {
 }
 
 pub struct WaveFunction {
-    states: Vec<NodeState>,
     nodes: Vec<Node>,
     nodes_length: usize
 }
 
 impl WaveFunction {
-    pub fn new(states: Vec<NodeState>, nodes: Vec<Node>) -> Self {
+    pub fn new(nodes: Vec<Node>) -> Self {
         let nodes_length: usize = nodes.len();
         WaveFunction {
-            states: states,
             nodes: nodes,
             nodes_length: nodes_length
         }
     }
     pub fn validate(&self) -> Option<String> {
         let mut error_message = Option::None;
+
+        // TODO collect all possible states
+        // TODO ensure that all nodes, for each neighbor, specify how to react to each possible state
+        // TODO ensure that valid states for neighbors do not contain duplicate states
 
         // verify that only one copy of a state exists in the list of possible states
         let mut state_ids = HashSet::<&str>::new();
@@ -291,8 +390,8 @@ impl WaveFunction {
                         comparison = std::cmp::Ordering::Greater
                     }
                     else {
-                        let a_possible_states_count = a.get_possible_states_count();
-                        let b_possible_states_count = b.get_possible_states_count();
+                        let a_possible_states_count = a.node_state_ids_length;
+                        let b_possible_states_count = b.node_state_ids_length;
 
                         if b_possible_states_count < a_possible_states_count {
                             comparison = std::cmp::Ordering::Greater
