@@ -251,80 +251,102 @@ pub struct CollapsedWaveFunction {
     // TODO fill with final nodes and their state
 }
 
-pub struct WaveFunction {
-    nodes: Vec<Node>,
-    nodes_length: usize
+pub struct WaveFunction<'a> {
+    node_per_id: HashMap<&'a str, Node>,
+    nodes_length: usize,
+    permitted_node_state_collection_per_id: HashMap<&'a str, PermittedNodeStateCollection>
 }
 
-impl WaveFunction {
-    pub fn new(nodes: Vec<Node>) -> Self {
+impl<'a> WaveFunction<'a> {
+    pub fn new(nodes: Vec<Node>, permitted_node_state_collections: Vec<PermittedNodeStateCollection>) -> Self {
+        let node_per_id: HashMap<&str, Node> = HashMap::new();
+        for node in nodes {
+            node_per_id.insert(&node.id, node);
+        }
         let nodes_length: usize = nodes.len();
+        let permitted_node_state_collection_per_id: HashMap<&str, PermittedNodeStateCollection> = HashMap::new();
+        for permitted_node_state_collection in permitted_node_state_collections.iter() {
+            permitted_node_state_collection_per_id.insert(&permitted_node_state_collection.id, *permitted_node_state_collection);
+        }
         WaveFunction {
-            nodes: nodes,
-            nodes_length: nodes_length
+            node_per_id: node_per_id,
+            nodes_length: nodes_length,
+            permitted_node_state_collection_per_id: permitted_node_state_collection_per_id
         }
     }
     pub fn validate(&self) -> Option<String> {
         let mut error_message = Option::None;
 
         // TODO collect all possible states
+        // TODO ensure that references neighbors are actually nodes
         // TODO ensure that all nodes, for each neighbor, specify how to react to each possible state
         // TODO ensure that valid states for neighbors do not contain duplicate states
+        
+        let all_possible_node_state_ids: HashSet<&str> = HashSet::new();
+        for (node_id, node) in self.node_per_id.iter() {
+            for (neighbor_node_id_string, permitted_node_state_collection_ids) in node.permitted_node_state_collection_ids_per_neighbor_node_id.iter() {
+                let neighbor_node_id: &str = neighbor_node_id_string;
+                for permitted_node_state_collection_id_string in permitted_node_state_collection_ids {
+                    let permitted_node_state_collection_id: &str = &permitted_node_state_collection_id_string;
+                    let permitted_node_state_collection: &PermittedNodeStateCollection = self.permitted_node_state_collection_per_id.get(permitted_node_state_collection_id).expect("The permitted node state collection should exist for this id.");
+                    let node_state_id: &str = &permitted_node_state_collection.node_state_id;
 
-        // verify that only one copy of a state exists in the list of possible states
-        let mut state_ids = HashSet::<&str>::new();
-        for state in self.states.iter() {
-            let state_id: &str = &state.id;
-            if state_ids.contains(state_id) {
-                error_message = Some(format!("State ID included more than once: {state_id}"));
-                break;
-            }
-            state_ids.insert(state_id);
-        }
-
-        if error_message.is_none() {
-            // verify that all state neighbor IDs reference other state IDs
-            for state in self.states.iter() {
-                for valid_neighbor_state_id in state.valid_neighbor_state_ids.iter() {
-                    let valid_neighbor_state_id_str: &str = &valid_neighbor_state_id;
-                    if !state_ids.contains(valid_neighbor_state_id_str) {
-                        let state_id = &state.id;
-                        error_message = Some(format!("Failed to find a state with ID {valid_neighbor_state_id} in state {state_id}"));
-                        break;
+                    all_possible_node_state_ids.insert(node_state_id);
+                    for node_state_id_string in permitted_node_state_collection.node_state_ids.iter() {
+                        let node_state_id: &str = node_state_id_string;
+                        all_possible_node_state_ids.insert(node_state_id);
                     }
                 }
-                if error_message.is_some() {
+            }
+        }
+        let all_possible_node_state_ids_length: u32 = all_possible_node_state_ids.len().try_into().expect("The length should be castable to u32.");
+
+        // ensure that references neighbors are actually nodes
+        for (node_id, node) in self.node_per_id.iter() {
+            for (neighbor_node_id_string, permitted_node_state_collection_ids) in node.permitted_node_state_collection_ids_per_neighbor_node_id.iter() {
+                let neighbor_node_id: &str = neighbor_node_id_string;
+                if !self.node_per_id.contains_key(neighbor_node_id) {
+                    error_message = Some(format!("Neighbor node {neighbor_node_id} does not exist in main list of nodes."));
                     break;
                 }
+            }
+            if error_message.is_some() {
+                break;
             }
         }
 
         if error_message.is_none() {
-            // verify that only one copy of a node exists in the list of possible nodes
-            let mut node_ids = HashSet::<&str>::new();
-            for node in self.nodes.iter() {
-                let node_id: &str = &node.id;
-                if node_ids.contains(node_id) {
-                    error_message = Some(format!("Node ID included more than once: {node_id}"));
-                    break;
-                }
-                node_ids.insert(node_id);
-            }
-
-            if error_message.is_none() {
-                // verify that all node neighbor IDs reference other node IDs
-                for node in self.nodes.iter() {
-                    for neighbor_node_id in node.neighbor_node_ids.iter() {
-                        let neighbor_node_id_str: &str = &neighbor_node_id;
-                        if !node_ids.contains(neighbor_node_id_str) {
-                            let node_id = &node.id;
-                            error_message = Some(format!("Failed to find a node with ID {neighbor_node_id} in node {node_id}"));
+            // ensure that every node, for each neighbor, accounts for all possible states
+            for (node_id, node) in self.node_per_id.iter() {
+                for (neighbor_node_id_string, permitted_node_state_collection_ids) in node.permitted_node_state_collection_ids_per_neighbor_node_id.iter() {
+                    let neighbor_node_id: &str = neighbor_node_id_string;
+                    let node_state_ids: HashSet<&str> = HashSet::new();
+                    let node_state_ids_length: u32 = 0;
+                    for permitted_node_state_collection_id_string in permitted_node_state_collection_ids {
+                        let permitted_node_state_collection_id: &str = &permitted_node_state_collection_id_string;
+                        let permitted_node_state_collection: &PermittedNodeStateCollection = self.permitted_node_state_collection_per_id.get(permitted_node_state_collection_id).expect("The permitted node state collection should exist for this id.");
+                        let node_state_id: &str = &permitted_node_state_collection.node_state_id;
+                        if node_state_ids.contains(node_state_id) {
+                            error_message = Some(format!("Found duplicate node state when node {node_id} references neighbor node {neighbor_node_id}."));
                             break;
+                        }
+                        else {
+                            node_state_ids.insert(node_state_id);
+                            node_state_ids_length += 1;
                         }
                     }
                     if error_message.is_some() {
                         break;
                     }
+                    else {
+                        if node_state_ids_length != all_possible_node_state_ids_length {
+                            error_message = Some(format!("Missing at least one node state reference when node {node_id} references neighbor node {neighbor_node_id}."));
+                            break;
+                        }
+                    }
+                }
+                if error_message.is_some() {
+                    break;
                 }
             }
         }
@@ -335,8 +357,8 @@ impl WaveFunction {
         let mut collapsable_node_index: usize = 0;
         let mut collapsable_nodes: Vec<CollapsableNode> = Vec::new();
         let mut collapsable_node_index_per_node_id: HashMap<&str, usize> = HashMap::new();
-        for node in self.nodes.iter() {
-            let collapsable_node = CollapsableNode::new(node);
+        for (node_id, node) in self.node_per_id.iter() {
+            let collapsable_node = CollapsableNode::new(node, &self.node_per_id, &self.permitted_node_state_collection_per_id);
             collapsable_nodes.push(collapsable_node);
             collapsable_node_index_per_node_id.insert(&node.id, collapsable_node_index);
             collapsable_node_index = collapsable_node_index + 1;
