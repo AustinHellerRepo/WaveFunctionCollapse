@@ -10,8 +10,8 @@ pub struct Node {
     node_state_collection_ids_per_neighbor_node_id: HashMap<String, Vec<String>>
 }
 
-impl Node {
-    fn get_possible_node_states(&self, node_state_collection_per_id: &HashMap<&str, NodeStateCollection>) -> Result<Vec<&str>, String> {
+impl<'a> Node {
+    fn get_possible_node_states(&self, node_state_collection_per_id: &'a HashMap<&'a str, &'a NodeStateCollection>) -> Result<Vec<&str>, String> {
         
         let mut possible_node_state_ids_option: Option<Vec<&str>> = Option::None;
         let mut possible_node_state_ids_length: usize = 0;
@@ -113,13 +113,13 @@ struct CollapsableNode<'a> {
 }
 
 impl<'a> CollapsableNode<'a> {
-    fn new(node: &'a Node, node_per_id: &'a HashMap<&'a str, Node>, node_state_collection_per_id: &'a HashMap<&'a str, NodeStateCollection>) -> CollapsableNode {
+    fn new(node: &'a Node, node_per_id: &'a HashMap<&'a str, &'a Node>, node_state_collection_per_id: &'a HashMap<&'a str, &'a NodeStateCollection>) -> CollapsableNode {
         // get the neighbors for this node
         let mut neighbor_node_ids: Vec<&str> = Vec::new();
         // get the possible node states; pulled from the possible states and how they impact the node's neighbors
         let mut possible_node_state_ids_length: usize = 0;
         // contains the possible node states and is None so that only the first neighbor will supply the possible values while the others are checked to ensure that they consistent
-        let mut possible_node_state_ids: Vec<&str> = node.get_possible_node_states(&node_state_collection_per_id).expect("The node should be able to provide its possible node states if it knows how its states related to its neighbors.");
+        let mut possible_node_state_ids: Vec<&str> = node.get_possible_node_states(node_state_collection_per_id).expect("The node should be able to provide its possible node states if it knows how its states related to its neighbors.");
         // contains the mask to apply to the neighbor when this node is in a specific state
         let mut node_state_mask_per_node_state_id_per_neighbor_node_id: HashMap<&'a str, HashMap<&'a str, BitVec>> = HashMap::new();
         // contains the default (None) applied masks
@@ -238,63 +238,38 @@ impl<'a> CollapsableNode<'a> {
 
         is_successful
     }
-    fn remove_mask_from_neighbors(&self, collapsable_nodes: &mut Vec<CollapsableNode>) {
-    }
-    fn apply_mask_to_neighbors(&self, collapsable_nodes: &Vec<CollapsableNode>) {
-        let node_state_id: &str = self.node_state_ids[self.current_node_state_id_index.expect("This index must be set prior to trying to apply mask to neighbors.")];
-        for neighbor_node_id in self.neighbor_node_ids.iter() {
-            for collapsable_node in collapsable_nodes.iter() {
-                if collapsable_node.id == *neighbor_node_id {
-                    let mask = self.node_state_mask_per_node_state_id_per_neighbor_node_id[neighbor_node_id][node_state_id];
-                    collapsable_node.applied_node_state_mask_per_neighbor_node_id[self.id] = Option::Some(&mask);
-                    break;
-                }
-            }
-        }
-    }
-    fn is_at_least_neighbor_fully_restricted(&self, collapsable_nodes: &Vec<CollapsableNode>) -> bool {
-        let collapsable_node_per_id: HashMap<&str, &CollapsableNode> = HashMap::new();
-        for collapsable_node in collapsable_nodes.iter() {
-            collapsable_node_per_id.insert(collapsable_node.id, collapsable_node);
-        }
-        for neighbor_node_id in self.neighbor_node_ids.iter() {
-            let collapsable_node = collapsable_node_per_id.get(neighbor_node_id).expect(&format!("The list of collapsable nodes originally provided should contain this neighbor node id {neighbor_node_id}"));
-            if collapsable_node.current_is_fully_restricted {
-                return true;
-            }
-        }
-        return false;
-    }
 }
 
 pub struct CollapsedWaveFunction {
     // TODO fill with final nodes and their state
 }
 
-pub struct WaveFunction<'a> {
-    node_per_id: HashMap<&'a str, Node>,
-    nodes_length: usize,
-    node_state_collection_per_id: HashMap<&'a str, NodeStateCollection>
+pub struct WaveFunction {
+    nodes: Vec<Node>,
+    node_state_collections: Vec<NodeStateCollection>
 }
 
-impl<'a> WaveFunction<'a> {
+impl WaveFunction {
     pub fn new(nodes: Vec<Node>, node_state_collections: Vec<NodeStateCollection>) -> Self {
-        let node_per_id: HashMap<&str, Node> = HashMap::new();
-        for node in nodes {
-            node_per_id.insert(&node.id, node);
-        }
-        let nodes_length: usize = nodes.len();
-        let node_state_collection_per_id: HashMap<&str, NodeStateCollection> = HashMap::new();
-        for node_state_collection in node_state_collections.iter() {
-            node_state_collection_per_id.insert(&node_state_collection.id, *node_state_collection);
-        }
+
         WaveFunction {
-            node_per_id: node_per_id,
-            nodes_length: nodes_length,
-            node_state_collection_per_id: node_state_collection_per_id
+            nodes: nodes,
+            node_state_collections: node_state_collections
         }
     }
     pub fn validate(&self) -> Option<String> {
+        let nodes_length: usize = self.nodes.len();
+        let mut node_per_id: HashMap<&str, &Node> = HashMap::new();
+        let mut node_ids: HashSet<&str> = HashSet::new();
+        self.nodes.iter().for_each(|node: &Node| {
+            node_per_id.insert(&node.id, node);
+            node_ids.insert(&node.id);
+        });
+        let mut node_state_collection_per_id: HashMap<&str, &NodeStateCollection> = HashMap::new();
+        self.node_state_collections.iter().for_each(|node_state_collection| {
+            node_state_collection_per_id.insert(&node_state_collection.id, node_state_collection);
+        });
+
         let mut error_message = Option::None;
 
         // TODO collect all possible states
@@ -302,13 +277,13 @@ impl<'a> WaveFunction<'a> {
         // TODO ensure that all nodes, for each neighbor, specify how to react to each possible state
         // TODO ensure that valid states for neighbors do not contain duplicate states
         
-        let all_possible_node_state_ids: HashSet<&str> = HashSet::new();
-        for (node_id, node) in self.node_per_id.iter() {
+        let mut all_possible_node_state_ids: HashSet<&str> = HashSet::new();
+        for (node_id, node) in node_per_id.iter() {
             for (neighbor_node_id_string, node_state_collection_ids) in node.node_state_collection_ids_per_neighbor_node_id.iter() {
                 let neighbor_node_id: &str = neighbor_node_id_string;
                 for node_state_collection_id_string in node_state_collection_ids {
                     let node_state_collection_id: &str = &node_state_collection_id_string;
-                    let node_state_collection: &NodeStateCollection = self.node_state_collection_per_id.get(node_state_collection_id).expect("The permitted node state collection should exist for this id.");
+                    let node_state_collection: &NodeStateCollection = node_state_collection_per_id.get(node_state_collection_id).expect("The permitted node state collection should exist for this id.");
                     let node_state_id: &str = &node_state_collection.node_state_id;
 
                     all_possible_node_state_ids.insert(node_state_id);
@@ -322,10 +297,10 @@ impl<'a> WaveFunction<'a> {
         let all_possible_node_state_ids_length: u32 = all_possible_node_state_ids.len().try_into().expect("The length should be castable to u32.");
 
         // ensure that references neighbors are actually nodes
-        for (node_id, node) in self.node_per_id.iter() {
+        for (node_id, node) in node_per_id.iter() {
             for (neighbor_node_id_string, node_state_collection_ids) in node.node_state_collection_ids_per_neighbor_node_id.iter() {
                 let neighbor_node_id: &str = neighbor_node_id_string;
-                if !self.node_per_id.contains_key(neighbor_node_id) {
+                if !node_ids.contains(neighbor_node_id) {
                     error_message = Some(format!("Neighbor node {neighbor_node_id} does not exist in main list of nodes."));
                     break;
                 }
@@ -337,14 +312,14 @@ impl<'a> WaveFunction<'a> {
 
         if error_message.is_none() {
             // ensure that every node, for each neighbor, accounts for all possible states
-            for (node_id, node) in self.node_per_id.iter() {
+            for (node_id, node) in node_per_id.iter() {
                 for (neighbor_node_id_string, node_state_collection_ids) in node.node_state_collection_ids_per_neighbor_node_id.iter() {
                     let neighbor_node_id: &str = neighbor_node_id_string;
-                    let node_state_ids: HashSet<&str> = HashSet::new();
-                    let node_state_ids_length: u32 = 0;
+                    let mut node_state_ids: HashSet<&str> = HashSet::new();
+                    let mut node_state_ids_length: u32 = 0;
                     for node_state_collection_id_string in node_state_collection_ids {
                         let node_state_collection_id: &str = &node_state_collection_id_string;
-                        let node_state_collection: &NodeStateCollection = self.node_state_collection_per_id.get(node_state_collection_id).expect("The permitted node state collection should exist for this id.");
+                        let node_state_collection: &NodeStateCollection = node_state_collection_per_id.get(node_state_collection_id).expect("The permitted node state collection should exist for this id.");
                         let node_state_id: &str = &node_state_collection.node_state_id;
                         if node_state_ids.contains(node_state_id) {
                             error_message = Some(format!("Found duplicate node state when node {node_id} references neighbor node {neighbor_node_id}."));
@@ -374,11 +349,21 @@ impl<'a> WaveFunction<'a> {
         return error_message;
     }
     pub fn collapse(&self) -> Result<CollapsedWaveFunction, String> {
+        let nodes_length: usize = self.nodes.len();
+        let mut node_per_id: HashMap<&str, &Node> = HashMap::new();
+        self.nodes.iter().for_each(|node: &Node| {
+            node_per_id.insert(&node.id, node);
+        });
+        let mut node_state_collection_per_id: HashMap<&str, &NodeStateCollection> = HashMap::new();
+        self.node_state_collections.iter().for_each(|node_state_collection| {
+            node_state_collection_per_id.insert(&node_state_collection.id, node_state_collection);
+        });
+
         let mut collapsable_node_index: usize = 0;
         let mut collapsable_nodes: Vec<CollapsableNode> = Vec::new();
         let mut collapsable_node_index_per_node_id: HashMap<&str, usize> = HashMap::new();
-        for (node_id, node) in self.node_per_id.iter() {
-            let collapsable_node = CollapsableNode::new(node, &self.node_per_id, &self.node_state_collection_per_id);
+        for node in self.nodes.iter() {
+            let collapsable_node = CollapsableNode::new(node, &node_per_id, &node_state_collection_per_id);
             collapsable_nodes.push(collapsable_node);
             collapsable_node_index_per_node_id.insert(&node.id, collapsable_node_index);
             collapsable_node_index = collapsable_node_index + 1;
@@ -415,7 +400,7 @@ impl<'a> WaveFunction<'a> {
         let mut current_collapsable_node_index: usize = 0;
         let mut is_sort_necessary = true;
         let mut is_unable_to_collapse = false;
-        while !is_unable_to_collapse && current_collapsable_node_index != self.nodes_length {
+        while !is_unable_to_collapse && current_collapsable_node_index != nodes_length {
             if is_sort_necessary {
                 collapsable_nodes.sort_by(|a, b| {
 
@@ -446,7 +431,7 @@ impl<'a> WaveFunction<'a> {
                         }
                     }
                     comparison
-                })
+                });
             }
 
             // if the current collapsable node has a chosen state, invalidate the mask in the neighbors
@@ -467,7 +452,7 @@ impl<'a> WaveFunction<'a> {
                     for neighbor_node_id in neighbor_node_ids.iter() {
                         for collapsable_node in collapsable_nodes.iter_mut() {
                             if collapsable_node.id == *neighbor_node_id {
-                                collapsable_node.applied_node_state_mask_per_neighbor_node_id[current_collapsable_node_id] = Option::None;
+                                collapsable_node.applied_node_state_mask_per_neighbor_node_id.insert(current_collapsable_node_id, Option::None);
                                 break;
                             }
                         }
@@ -480,10 +465,54 @@ impl<'a> WaveFunction<'a> {
 
             if is_incremented {
 
-                let current_collapsable_node = collapsable_nodes.get(current_collapsable_node_index).expect("The collapsable node index should be within range.");
-                current_collapsable_node.apply_mask_to_neighbors(&collapsable_nodes);
+                let mut mask_per_neighbor_node_id: HashMap<&str, &BitVec> = HashMap::new();
+                let current_collapsable_node_id: &str;
 
-                if current_collapsable_node.is_at_least_neighbor_fully_restricted(&collapsable_nodes) {
+                {
+                    let current_collapsable_node = collapsable_nodes.get(current_collapsable_node_index).expect("The collapsable node index should be within range.");
+                    current_collapsable_node_id = current_collapsable_node.id;
+                    let node_state_id: &str = current_collapsable_node.node_state_ids[current_collapsable_node.current_node_state_id_index.expect("This index must be set prior to trying to apply mask to neighbors.")];
+                    for neighbor_node_id in current_collapsable_node.neighbor_node_ids.iter() {
+                        for collapsable_node in collapsable_nodes.iter() {
+                            if collapsable_node.id == *neighbor_node_id {
+                                let mask: &BitVec = current_collapsable_node.node_state_mask_per_node_state_id_per_neighbor_node_id[neighbor_node_id][node_state_id].as_ref();
+                                mask_per_neighbor_node_id.insert(neighbor_node_id, mask);
+                                //collapsable_node.applied_node_state_mask_per_neighbor_node_id.insert(current_collapsable_node.id, Option::Some(mask));
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                {
+                    for collapsable_node in collapsable_nodes.iter() {
+                        if mask_per_neighbor_node_id.contains_key(collapsable_node.id) {
+                            let mask: &BitVec = mask_per_neighbor_node_id[collapsable_node.id];
+                            collapsable_node.applied_node_state_mask_per_neighbor_node_id.insert(current_collapsable_node_id, Option::Some(mask));
+                        }
+                    }
+                }
+
+                let mut is_at_least_one_neighbor_fully_restricted = false;
+
+                {
+                    let mut collapsable_node_per_id: HashMap<&str, &CollapsableNode> = HashMap::new();
+                    for collapsable_node in collapsable_nodes.iter() {
+                        collapsable_node_per_id.insert(collapsable_node.id, collapsable_node);
+                    }
+
+                    let current_collapsable_node = collapsable_nodes.get(current_collapsable_node_index).expect("The collapsable node index should be within range.");
+
+                    for neighbor_node_id in current_collapsable_node.neighbor_node_ids.iter() {
+                        let collapsable_node = collapsable_node_per_id.get(neighbor_node_id).expect(&format!("The list of collapsable nodes originally provided should contain this neighbor node id {neighbor_node_id}"));
+                        if collapsable_node.current_is_fully_restricted {
+                            is_at_least_one_neighbor_fully_restricted = true;
+                            break;
+                        }
+                    }
+                }
+
+                if is_at_least_one_neighbor_fully_restricted {
                     // this node needs to be attempted again
                 }
                 else {
@@ -492,7 +521,7 @@ impl<'a> WaveFunction<'a> {
                 }
             }
             else {
-                let original_collapsable_node_id = collapsable_nodes.get(current_collapsable_node_index).expect("The index should still be within the range of collapsable nodes.").id;
+                let original_collapsable_node_id = collapsable_nodes.get_mut(current_collapsable_node_index).expect("The index should still be within the range of collapsable nodes.").id;
                 while !is_unable_to_collapse {
                     if current_collapsable_node_index == 0 {
                         is_unable_to_collapse = true;
@@ -500,7 +529,7 @@ impl<'a> WaveFunction<'a> {
                     else {
                         collapsable_nodes.get_mut(current_collapsable_node_index).expect("The node should exist at this index.").current_node_state_id_index = Option::None;
                         current_collapsable_node_index = current_collapsable_node_index - 1;
-                        for neighbor_node_id in collapsable_nodes.get(current_collapsable_node_index).expect("The node index should exist in the range of collapsable nodes since the earlier if-statement would trigger leaving the while loop.").neighbor_node_ids.iter() {
+                        for neighbor_node_id in collapsable_nodes.get_mut(current_collapsable_node_index).expect("The node index should exist in the range of collapsable nodes since the earlier if-statement would trigger leaving the while loop.").neighbor_node_ids.iter() {
                             if *neighbor_node_id == original_collapsable_node_id {
                                 break;
                             }
