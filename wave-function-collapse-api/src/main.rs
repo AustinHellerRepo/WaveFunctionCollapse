@@ -15,8 +15,8 @@ struct ApiState {
 
 #[derive(Debug, Deserialize)]
 struct RequestCommand {
-    states: Vec<wave_function::NodeState>,
-    nodes: Vec<wave_function::Node>
+    nodes: Vec<wave_function::Node>,
+    node_state_collections: Vec<wave_function::NodeStateCollection>
 }
 
 #[derive(Debug, Deserialize)]
@@ -61,9 +61,9 @@ async fn post_request(mut req: tide::Request<MultiThreadState>) -> tide::Result 
     //let RequestCommand { url, http_type, query, data, headers } = req.body_json().await?;
     let request_command: RequestCommand = req.body_json().await?;
     println!("received command and parsed to struct");
-    dbg!(&request_command.states);
+    dbg!(&request_command.nodes);
 
-    let wave_function = wave_function::WaveFunction::new(request_command.states, request_command.nodes);
+    let wave_function = wave_function::WaveFunction::new(request_command.nodes, request_command.node_state_collections);
     let error_message = wave_function.validate();
 
     if let Some(message) = error_message {
