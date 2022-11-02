@@ -1,3 +1,5 @@
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::{cell::Cell, collections::HashMap};
 use bitvec::prelude::*;
 use rand::{seq::SliceRandom, Rng};
@@ -5,26 +7,26 @@ use super::mapped_view::MappedView;
 use std::cmp::Eq;
 use std::hash::Hash;
 
-pub struct IndexedView<'a, TItem, TViewKey: Eq + Hash, TKey: Eq + Hash> {
+pub struct IndexedView<TNodeState, TViewKey: Eq + Hash, TKey: Eq + Hash + Copy> {
     // items are states of the node
-    items: Vec<TItem>,
-    items_length: usize,
+    node_state_ids: Vec<TNodeState>,
+    node_state_ids_length: usize,
     index: Option<usize>,
-    masks: Vec<&'a MappedView<TViewKey, TKey, BitVec>>,
+    masks: Vec<Rc<RefCell<MappedView<TViewKey, TKey, BitVec>>>>,
     masks_key: TKey,
     index_mapping: HashMap<usize, usize>
 }
 
-impl<'a, TItem, TViewKey: Eq + Hash, TKey: Eq + Hash> IndexedView<'a, TItem, TViewKey, TKey> {
-    pub fn new(items: Vec<TItem>, masks: Vec<&'a MappedView<TViewKey, TKey, BitVec>>, masks_key: TKey) -> Self {
-        let items_length: usize = items.len();
+impl<TNodeState, TViewKey: Eq + Hash, TKey: Eq + Hash + Copy> IndexedView<TNodeState, TViewKey, TKey> {
+    pub fn new(node_state_ids: Vec<TNodeState>, masks: Vec<Rc<RefCell<MappedView<TViewKey, TKey, BitVec>>>>, masks_key: TKey) -> Self {
+        let node_state_ids_length: usize = node_state_ids.len();
         let mut index_mapping = HashMap::new();
-        for index in 0..items_length {
+        for index in 0..node_state_ids_length {
             index_mapping.insert(index, index);
         }
         IndexedView {
-            items: items,
-            items_length: items_length,
+            node_state_ids: node_state_ids,
+            node_state_ids_length: node_state_ids_length,
             index: Option::None,
             masks: masks,
             masks_key: masks_key,
@@ -35,16 +37,16 @@ impl<'a, TItem, TViewKey: Eq + Hash, TKey: Eq + Hash> IndexedView<'a, TItem, TVi
         if self.index.is_some() {
             panic!("Can only be shuffled prior to use.");
         }
-        let mut shuffled_values: Vec<usize> = (0..self.items_length).collect();
+        let mut shuffled_values: Vec<usize> = (0..self.node_state_ids_length).collect();
         shuffled_values.shuffle(rng);
-        for index in 0..self.items_length {
+        for index in 0..self.node_state_ids_length {
             self.index_mapping.insert(index, shuffled_values[index]);
         }
     }
     pub fn try_move_next(&mut self) -> bool {
         let mut is_unmasked = false;
         let mut next_index: usize;
-        while self.index.is_none() || (self.index.unwrap() < self.items_length && !is_unmasked) {
+        while self.index.is_none() || (self.index.unwrap() < self.node_state_ids_length && !is_unmasked) {
             if let Some(index) = self.index {
                 next_index = index + 1;
             }
@@ -54,7 +56,7 @@ impl<'a, TItem, TViewKey: Eq + Hash, TKey: Eq + Hash> IndexedView<'a, TItem, TVi
             is_unmasked = self.is_unmasked_at_index(next_index);
             self.index = Some(next_index);
         }
-        self.index.unwrap() != self.items_length
+        self.index.unwrap() != self.node_state_ids_length
     }
     pub fn try_move_previous(&mut self) -> bool {
         let mut is_unmasked = false;
@@ -74,8 +76,8 @@ impl<'a, TItem, TViewKey: Eq + Hash, TKey: Eq + Hash> IndexedView<'a, TItem, TVi
         self.index.is_some()
     }
     fn is_unmasked_at_index(&self, index: usize) -> bool {
-        for mask_option in self.masks.iter() {
-            if let Some(mask) = mask_option.get(&self.masks_key) {
+        for mask_mapped_view in self.masks.iter() {
+            if let Some(mask) = mask_mapped_view.as_ref().borrow().get(&self.masks_key) {
                 if !mask[index] {
                     return false;
                 }
@@ -83,8 +85,8 @@ impl<'a, TItem, TViewKey: Eq + Hash, TKey: Eq + Hash> IndexedView<'a, TItem, TVi
         }
         return true;
     }
-    pub fn get(&self) -> &TItem {
-        self.items.get(self.index.unwrap()).unwrap()
+    pub fn get(&self) -> &TNodeState {
+        self.node_state_ids.get(self.index.unwrap()).unwrap()
     }
     pub fn is_in_some_state(&self) -> bool {
         self.index.is_some()

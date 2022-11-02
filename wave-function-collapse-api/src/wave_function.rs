@@ -1,4 +1,4 @@
-use std::{collections::{HashMap, HashSet}, cell::{Cell, RefCell}};
+use std::{collections::{HashMap, HashSet}, cell::{Cell, RefCell}, rc::Rc};
 use serde::Deserialize;
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
@@ -100,11 +100,11 @@ struct CollapsableNode<'a> {
     // this nodes list of neighbor node ids
     neighbor_node_ids: Vec<&'a str>,
     // the full list of possible node states, masked by internal references to neighbor masks
-    node_state_indexed_view: Option<IndexedView<'a, &'a str, &'a str, &'a str>>,
+    node_state_indexed_view: IndexedView<&'a str, &'a str, &'a str>,
     // the length of the node_state_ids object
     node_state_ids_length: usize,
     // the mapped view that this node's neighbors will have a reference to and pull their masks from
-    neighbor_mask_mapped_view: MappedView<&'a str, &'a str, BitVec>,
+    neighbor_mask_mapped_view: Rc<RefCell<MappedView<&'a str, &'a str, BitVec>>>,
     // the index of traversed nodes based on the sorted vector of nodes as they are chosen for state determination
     current_chosen_from_sort_index: Option<u32>,
     // if the collapsable node is fully restricted and is a simplification of current_is_valid_per_node_state_id being all false
@@ -114,7 +114,7 @@ struct CollapsableNode<'a> {
 }
 
 impl<'a> CollapsableNode<'a> {
-    fn new(node: &'a Node, node_per_id: &'a HashMap<&'a str, &'a Node>, node_state_collection_per_id: &'a HashMap<&'a str, &'a NodeStateCollection>, neighbor_mask_mapped_view: MappedView<&'a str, &'a str, BitVec>) -> CollapsableNode<'a> {
+    fn new(node: &'a Node, node_per_id: &'a HashMap<&'a str, &'a Node>, node_state_collection_per_id: &'a HashMap<&'a str, &'a NodeStateCollection>, neighbor_mask_mapped_view: Rc<RefCell<MappedView<&'a str, &'a str, BitVec>>>, node_state_indexed_view: IndexedView<&'a str, &'a str, &'a str>) -> CollapsableNode<'a> {
         // get the neighbors for this node
         let mut neighbor_node_ids: Vec<&str> = Vec::new();
         // contains the possible node states and is None so that only the first neighbor will supply the possible values while the others are checked to ensure that they consistent
@@ -134,26 +134,12 @@ impl<'a> CollapsableNode<'a> {
             node_state_ids: node_state_ids,
             node_state_ids_length: node_state_ids_length,
             neighbor_node_ids: neighbor_node_ids,
-            node_state_indexed_view: None,
+            node_state_indexed_view: node_state_indexed_view,
             neighbor_mask_mapped_view: neighbor_mask_mapped_view,
             current_chosen_from_sort_index: None,
             current_is_fully_restricted: (node_state_ids_length == 0),
             random_sort_index: 0
         }
-    }
-    fn construct_node_states_from_neighbors(&mut self, collapsable_nodes: Vec<CollapsableNode>) {
-        let mut masks: Vec<&MappedView<&str, &str, BitVec>>;
-        // TODO fill masks with MappedView references from CollaspableNode instances which have this node as a neighbor
-        for collapsable_node in collapsable_nodes.iter() {
-            for neighbor_node_id in collapsable_node.neighbor_node_ids.iter() {
-                if self.id == *neighbor_node_id {
-                    let mapped_view = &collapsable_node.neighbor_mask_mapped_view;
-                    masks.push(mapped_view);
-                }
-            }
-        }
-
-        let node_state_indexed_view = IndexedView::new(self.node_state_ids, masks, &self.id);
     }
     fn randomize(&mut self, seed: u64) {
         let mut random_instance = ChaCha8Rng::seed_from_u64(seed);
@@ -163,9 +149,9 @@ impl<'a> CollapsableNode<'a> {
     }
     fn try_increment_state_id_index(&mut self) -> bool {
 
-        if self.node_state_indexed_view.unwrap().try_move_next() {
-            let current_possible_state: &str = self.node_state_indexed_view.unwrap().get();
-            self.neighbor_mask_mapped_view.orient(current_possible_state);
+        if self.node_state_indexed_view.try_move_next() {
+            let current_possible_state: &str = self.node_state_indexed_view.get();
+            self.neighbor_mask_mapped_view.borrow_mut().orient(current_possible_state);
             
             return true;
         }
@@ -279,7 +265,7 @@ impl<'a> CollapsableWaveFunction<'a> {
     }
     fn is_current_collapsable_node_in_some_state(&self) -> bool {
         let current_collapsable_node = self.collapsable_nodes.get(self.current_collapsable_node_index).expect("The collapsable node index should be within range.");
-        current_collapsable_node.node_state_indexed_view.unwrap().is_in_some_state()
+        current_collapsable_node.node_state_indexed_view.is_in_some_state()
     }
     fn retract_current_collapsable_node_state_restrictions_from_neighbors(&self) {
 
@@ -330,7 +316,7 @@ impl<'a> CollapsableWaveFunction<'a> {
         // TODO return false if previous turns out to be index 0
         // TODO set sort unnecessary
 
-        self.collapsable_nodes.get_mut(self.current_collapsable_node_index).expect("The node should exist at this index.").node_state_indexed_view.unwrap().reset();
+        self.collapsable_nodes.get_mut(self.current_collapsable_node_index).expect("The node should exist at this index.").node_state_indexed_view.reset();
         self.current_collapsable_node_index -= 1;
         self.current_collapsable_node_index != 0
     }
@@ -465,20 +451,90 @@ impl WaveFunction {
             cell_per_neighbor_node_id_per_node_id.insert(node_id, cell_per_neighbor_node_id);
         }
 
+        // for each neighbor node
+        //      for each possible state for this node
+        //          create a mutable bit vector
+        //          for each possible node state for the neighbor node
+        //              get if the neighbor node state is permitted by this node's possible node state
+        //              push the boolean into bit vector
+        //          push bit vector into hashmap of mask per node state per neighbor node
+
+        let mut neighbor_mask_mapped_view_per_node_id: HashMap<&str, Rc<RefCell<MappedView<&str, &str, BitVec>>>> = HashMap::new();
+
+        for node in self.nodes.iter() {
+
+            let mut neighbor_mask_mapped_view: MappedView<&str, &str, BitVec> = MappedView::new();
+
+            for (neighbor_node_id_string, node_state_collection_ids) in node.node_state_collection_ids_per_neighbor_node_id.iter() {
+                let neighbor_node_id: &str = neighbor_node_id_string;
+
+                // determine the masks for this neighbor based on its possible node states
+                let neighbor_node_state_ids = node_per_id.get(neighbor_node_id).expect("The neighbor should exist in the complete list of nodes.").get_possible_node_states(&node_state_collection_per_id).expect("The neighbor node should have some node states.");
+
+                // stores the mask per node state for this node as it pertains to the neighbor
+                let mut node_state_mask_per_node_state_id: HashMap<&str, BitVec> = HashMap::new();
+
+                // this loop ultimately is over each possible state of this node
+                for node_state_collection_id_string in node_state_collection_ids.iter() {
+                    let node_state_collection_id: &str = &node_state_collection_id_string;
+                    let node_state_collection = node_state_collection_per_id.get(node_state_collection_id).expect("The node state collection id should exist in the complete list of node state collections.");
+
+                    // each possible node state for this node should have a mask for this neighbor
+                    let mut mask = BitVec::new();
+
+                    for neighbor_node_state_id in neighbor_node_state_ids.iter() {
+                        let mut is_permitted: bool = false;
+                        for node_state_id_string in node_state_collection.node_state_ids.iter() {
+                            let node_state_id: &str = node_state_id_string;
+                            if node_state_id == *neighbor_node_state_id {
+                                is_permitted = true;
+                                break;
+                            }
+                        }
+                        mask.push(is_permitted)
+                    }
+
+                    let possible_node_state_id: &str = &node_state_collection.node_state_id;
+                    node_state_mask_per_node_state_id.insert(possible_node_state_id, mask);
+                }
+
+                neighbor_mask_mapped_view.insert_individual(neighbor_node_id, node_state_mask_per_node_state_id);
+            }
+
+            neighbor_mask_mapped_view_per_node_id.insert(&node.id, Rc::new(RefCell::new(neighbor_mask_mapped_view)));
+        }
+
+        let mut node_state_indexed_view_per_node_id: HashMap<&str, IndexedView<&str, &str, &str>> = HashMap::new();
+
+        for node in self.nodes.iter() {
+            let node_id: &str = &node.id;
+            let mut masks: Vec<Rc<RefCell<MappedView<&str, &str, BitVec>>>> = Vec::new();
+            for (neighbor_node_id_string, node_state_collection_ids) in node.node_state_collection_ids_per_neighbor_node_id.iter() {
+                let neighbor_node_id: &str = neighbor_node_id_string;
+                let mask: Rc<RefCell<MappedView<&str, &str, BitVec>>> = neighbor_mask_mapped_view_per_node_id.remove(neighbor_node_id).unwrap();
+                masks.push(mask);
+            }
+
+            let node_state_ids: Vec<&str> = node.get_possible_node_states(&node_state_collection_per_id).unwrap();
+            let node_state_indexed_view = IndexedView::new(node_state_ids, masks, node_id);
+            node_state_indexed_view_per_node_id.insert(node_id, node_state_indexed_view);
+        }
+
         let mut collapsable_node_index: usize = 0;
         let mut collapsable_nodes: Vec<CollapsableNode> = Vec::new();
         let mut collapsable_node_index_per_node_id: HashMap<&str, usize> = HashMap::new();
         // contains the mask to apply to the neighbor when this node is in a specific state
         for node in self.nodes.iter() {
+            let node_id: &str = &node.id;
+
+            let neighber_masked_mapped_view: Rc<RefCell<MappedView<&str, &str, BitVec>>> = neighbor_mask_mapped_view_per_node_id.remove(node_id).unwrap();
+            let node_state_indexed_view: IndexedView<&str, &str, &str> = node_state_indexed_view_per_node_id.remove(node_id).unwrap();
+
             let node_state_mask_per_node_state_id_per_neighbor_node_id: HashMap<&str, HashMap<&str, BitVec>> = CollapsableNode::get_node_state_mask_per_node_state_id_per_neighbor_node_id(&node, &node_per_id, &node_state_collection_per_id);
-            let collapsable_node = CollapsableNode::new(node, &node_per_id, &node_state_collection_per_id, &cell_per_neighbor_node_id_per_node_id, node_state_mask_per_node_state_id_per_neighbor_node_id);
+            let collapsable_node = CollapsableNode::new(node, &node_per_id, &node_state_collection_per_id, neighber_masked_mapped_view, node_state_indexed_view);
             collapsable_nodes.push(collapsable_node);
             collapsable_node_index_per_node_id.insert(&node.id, collapsable_node_index.clone());
             collapsable_node_index = collapsable_node_index + 1;
-        }
-
-        for collapsable_node in collapsable_nodes.iter() {
-            collapsable_node.construct_node_states_from_neighbors(collapsable_nodes);
         }
 
         // TODO use the provided cells in cell_per_neighbor_node_id_per_node_id during construction of CollapsableNode
