@@ -94,4 +94,14 @@ impl<TNodeState, TViewKey: Eq + Hash, TKey: Eq + Hash + Copy> IndexedView<TNodeS
     pub fn reset(&mut self) {
         self.index = Option::None;
     }
+    pub fn is_fully_restricted(&self) -> bool {
+        let mut is_at_least_one_node_state_possible: bool = false;
+        for index in 0..self.node_state_ids_length {
+            if self.is_unmasked_at_index(index) {
+                is_at_least_one_node_state_possible = true;
+                break;
+            }
+        }
+        !is_at_least_one_node_state_possible
+    }
 }

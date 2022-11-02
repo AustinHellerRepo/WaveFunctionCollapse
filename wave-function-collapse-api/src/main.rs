@@ -63,20 +63,32 @@ async fn post_request(mut req: tide::Request<MultiThreadState>) -> tide::Result 
     println!("received command and parsed to struct");
     dbg!(&request_command.nodes);
 
-    let wave_function = wave_function::WaveFunction::new(request_command.nodes, request_command.node_state_collections);
-    let error_message = wave_function.validate();
+    let mut response: Response;
 
-    if let Some(message) = error_message {
-        let mut response = Response::new(400);
-        response.set_body(message);
-        return Ok(response);
+    let wave_function_result = wave_function::WaveFunction::new(request_command.nodes, request_command.node_state_collections);
+    match wave_function_result {
+        Ok(wave_function) => {
+
+            let error_message = wave_function.validate();
+
+            if let Some(message) = error_message {
+                let mut response = Response::new(400);
+                response.set_body(message);
+                return Ok(response);
+            }
+        
+            let collapsed_wave_function = wave_function.collapse().expect("The wave function should collapse to a set of nodes with specific states.");
+
+            // TODO convert the collapsed wave function to a JSON object
+
+            response = Response::new(500);
+            response.set_body("Not Implemented");
+        },
+        Err(error_message) => {
+            response = Response::new(400);
+            response.set_body(format!("Error: {error_message}"));
+        }
     }
 
-    let collapsed_wave_function = wave_function.collapse().expect("The wave function should collapse to a set of nodes with specific states.");
-
-    // TODO convert the collapsed wave function to a JSON object
-
-    let mut response = Response::new(500);
-    response.set_body("not implemented");
     return Ok(response);
 }
