@@ -512,7 +512,8 @@ impl WaveFunction {
             for (neighbor_node_id_string, node_state_collection_ids) in node.node_state_collection_ids_per_neighbor_node_id.iter() {
                 let neighbor_node_id: &str = neighbor_node_id_string;
                 let mask: Rc<RefCell<MappedView<&str, &str, BitVec>>> = neighbor_mask_mapped_view_per_node_id.remove(neighbor_node_id).unwrap();
-                masks.push(mask);
+                masks.push(mask.clone());  // create another owner
+                neighbor_mask_mapped_view_per_node_id.insert(neighbor_node_id, mask);
             }
 
             let node_state_ids: Vec<&str> = node.get_possible_node_states(&node_state_collection_per_id).unwrap();
