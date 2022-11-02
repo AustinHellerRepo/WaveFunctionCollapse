@@ -696,3 +696,15 @@ impl WaveFunction {
         Err(String::from("Not Implemented"))
     }
 }
+
+#[cfg(test)]
+mod unit_tests {
+    use super::*;
+
+    #[test]
+    fn initialize() {
+        let nodes: Vec<Node> = Vec::new();
+        let node_state_collections: Vec<NodeStateCollection> = Vec::new();
+        let wave_function = WaveFunction::new(nodes, node_state_collections);
+    }
+}
