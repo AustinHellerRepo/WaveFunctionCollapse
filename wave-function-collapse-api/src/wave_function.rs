@@ -4,6 +4,8 @@ use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use bitvec::prelude::*;
 use uuid::Uuid;
+use log::debug;
+extern crate pretty_env_logger;
 
 mod indexed_view;
 use self::indexed_view::IndexedView;
@@ -101,8 +103,6 @@ struct CollapsableNode<'a> {
     neighbor_node_ids: Vec<&'a str>,
     // the full list of possible node states, masked by internal references to neighbor masks
     node_state_indexed_view: IndexedView<&'a str, &'a str, &'a str>,
-    // the length of the node_state_ids object
-    node_state_ids_length: usize,
     // the mapped view that this node's neighbors will have a reference to and pull their masks from
     neighbor_mask_mapped_view: Rc<RefCell<MappedView<&'a str, &'a str, BitVec>>>,
     // the index of traversed nodes based on the sorted vector of nodes as they are chosen for state determination
@@ -112,13 +112,9 @@ struct CollapsableNode<'a> {
 }
 
 impl<'a> CollapsableNode<'a> {
-    fn new(node: &'a Node, node_state_collection_per_id: &'a HashMap<&'a str, &'a NodeStateCollection>, neighbor_mask_mapped_view: Rc<RefCell<MappedView<&'a str, &'a str, BitVec>>>, node_state_indexed_view: IndexedView<&'a str, &'a str, &'a str>) -> CollapsableNode<'a> {
+    fn new(node: &'a Node, neighbor_mask_mapped_view: Rc<RefCell<MappedView<&'a str, &'a str, BitVec>>>, node_state_indexed_view: IndexedView<&'a str, &'a str, &'a str>) -> CollapsableNode<'a> {
         // get the neighbors for this node
         let mut neighbor_node_ids: Vec<&str> = Vec::new();
-        // contains the possible node states and is None so that only the first neighbor will supply the possible values while the others are checked to ensure that they consistent
-        let node_state_ids: Vec<&str> = node.get_possible_node_states(node_state_collection_per_id).expect("The node should be able to provide its possible node states if it knows how its states related to its neighbors.");
-        // get the possible node states; pulled from the possible states and how they impact the node's neighbors
-        let node_state_ids_length: usize = node_state_ids.len();
 
         for neighbor_node_id_string in node.node_state_collection_ids_per_neighbor_node_id.keys() {
             let neighbor_node_id: &str = neighbor_node_id_string;
@@ -127,7 +123,6 @@ impl<'a> CollapsableNode<'a> {
 
         CollapsableNode {
             id: &node.id,
-            node_state_ids_length: node_state_ids_length,
             neighbor_node_ids: neighbor_node_ids,
             node_state_indexed_view: node_state_indexed_view,
             neighbor_mask_mapped_view: neighbor_mask_mapped_view,
@@ -147,6 +142,14 @@ impl<'a> CollapsableNode<'a> {
         }
         else {
             self.node_state_indexed_view.is_fully_restricted()
+        }
+    }
+    fn get_restriction_ratio(&self) -> f32 {
+        if self.node_state_indexed_view.is_in_some_state() {
+            1.0
+        }
+        else {
+            self.node_state_indexed_view.get_restriction_ratio()
         }
     }
 }
@@ -221,13 +224,13 @@ impl<'a> CollapsableWaveFunction<'a> {
                 comparison = std::cmp::Ordering::Greater
             }
             else {
-                let a_possible_states_count = a.node_state_ids_length;
-                let b_possible_states_count = b.node_state_ids_length;
+                let a_restriction_ratio = a.get_restriction_ratio();
+                let b_restriction_ratio = b.get_restriction_ratio();
 
-                if b_possible_states_count < a_possible_states_count {
+                if b_restriction_ratio < a_restriction_ratio {
                     comparison = std::cmp::Ordering::Greater
                 }
-                else if b_possible_states_count == a_possible_states_count {
+                else if b_restriction_ratio == a_restriction_ratio {
                     comparison = a.random_sort_index.cmp(&b.random_sort_index);
                 }
                 else {
@@ -236,20 +239,6 @@ impl<'a> CollapsableWaveFunction<'a> {
             }
             comparison
         });
-    }
-    fn get_current_collapsable_node_id(&self) -> &str {
-        let current_collapsable_node = self.collapsable_nodes.get(self.current_collapsable_node_index).expect("The collapsable node index should be within range.");
-        current_collapsable_node.id
-    }
-    fn is_current_collapsable_node_the_first_node(&self) -> bool {
-        self.current_collapsable_node_index == 0
-    }
-    fn reset_current_collapsable_node_state(&mut self) {
-        let current_collapsable_node = self.collapsable_nodes.get_mut(self.current_collapsable_node_index).expect("The collapsable node index should be within range.");
-        current_collapsable_node.node_state_indexed_view.reset();
-    }
-    fn move_to_previous_collapsable_node(&mut self) {
-        self.current_collapsable_node_index -= 1;
     }
     fn try_move_to_previous_collapsable_node_neighbor(&mut self) -> bool {
         let original_collapsable_node_id = self.collapsable_nodes.get(self.current_collapsable_node_index).expect("The collapsable node index should be within range.").id;
@@ -516,7 +505,7 @@ impl WaveFunction {
             let neighber_masked_mapped_view: Rc<RefCell<MappedView<&str, &str, BitVec>>> = neighbor_mask_mapped_view_per_node_id.remove(node_id).unwrap();
             let node_state_indexed_view: IndexedView<&str, &str, &str> = node_state_indexed_view_per_node_id.remove(node_id).unwrap();
 
-            let collapsable_node = CollapsableNode::new(node, &node_state_collection_per_id, neighber_masked_mapped_view, node_state_indexed_view);
+            let collapsable_node = CollapsableNode::new(node, neighber_masked_mapped_view, node_state_indexed_view);
             collapsable_nodes.push(collapsable_node);
             collapsable_node_index_per_node_id.insert(&node.id, collapsable_node_index.clone());
             collapsable_node_index = collapsable_node_index + 1;
@@ -562,21 +551,37 @@ impl WaveFunction {
 
         let mut is_unable_to_collapse = false;
         while !is_unable_to_collapse && !collapsable_wave_function.is_fully_collapsed() {
+            debug!("starting while loop");
             if collapsable_wave_function.try_increment_current_collapsable_node_state() {
+                debug!("incremented node");
                 collapsable_wave_function.alter_reference_to_current_collapsable_node_mask();
+                debug!("altered reference");
                 if !collapsable_wave_function.is_at_least_one_neighbor_fully_restricted() {
+                    debug!("all neighbors have at least one valid state");
                     collapsable_wave_function.move_to_next_collapsable_node();
+                    debug!("moved to next collapsable node");
                     if !collapsable_wave_function.is_fully_collapsed() {
+                        debug!("not yet fully collapsed");
                         collapsable_wave_function.sort_collapsable_nodes();
+                        debug!("sorted nodes");
                     }
+                }
+                else {
+                    debug!("at least one neighbor is fully restricted");
                 }
             }
             else {
+                debug!("failed to incremented node");
                 if !collapsable_wave_function.try_move_to_previous_collapsable_node_neighbor() {
+                    debug!("moved back to first node");
                     is_unable_to_collapse = true;
+                }
+                else {
+                    debug!("moved back to previous neighbor");
                 }
             }
         }
+        debug!("finished while loop");
 
         if is_unable_to_collapse {
             Err(String::from("Cannot collapse wave function."))
@@ -593,6 +598,10 @@ mod unit_tests {
     use std::hash::Hash;
 
     use super::*;
+
+    fn init() {
+        let _ = pretty_env_logger::formatted_builder().is_test(true).try_init();
+    }
 
     #[test]
     fn initialize() {
@@ -680,6 +689,8 @@ mod unit_tests {
 
     #[test]
     fn two_nodes_both_as_neighbors() {
+        init();
+
         let mut nodes: Vec<Node> = Vec::new();
         let mut node_state_collections: Vec<NodeStateCollection> = Vec::new();
 
@@ -712,6 +723,11 @@ mod unit_tests {
 
         let wave_function = WaveFunction::new(nodes, node_state_collections);
         let collapsed_wave_function_result = wave_function.collapse();
+
+        if let Err(error_message) = collapsed_wave_function_result {
+            panic!("Error: {error_message}");
+        }
+
         let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
 
         assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());

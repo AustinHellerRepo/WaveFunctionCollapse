@@ -7,6 +7,8 @@ use std::sync::{Mutex, RwLock};
 use async_std::sync::Arc;
 type MultiThreadState = Arc<Mutex<ApiState>>;
 mod wave_function;
+extern crate pretty_env_logger;
+#[macro_use] extern crate log;
 
 #[derive(Debug, Clone)]
 struct ApiState {
@@ -28,6 +30,9 @@ struct ResponseCommand {
 }
 #[async_std::main]
 async fn main() -> tide::Result<()> {
+
+    pretty_env_logger::init();
+    info!("started");
 
     let state = Arc::new(Mutex::new(ApiState {
     }));

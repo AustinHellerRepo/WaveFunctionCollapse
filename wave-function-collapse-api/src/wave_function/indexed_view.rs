@@ -104,4 +104,13 @@ impl<TNodeState, TViewKey: Eq + Hash, TKey: Eq + Hash + Copy> IndexedView<TNodeS
         }
         !is_at_least_one_node_state_possible
     }
+    pub fn get_restriction_ratio(&self) -> f32 {
+        let mut masked_bits_total: u32 = 0;
+        for index in 0..self.node_state_ids_length {
+            if !self.is_unmasked_at_index(index) {
+                masked_bits_total += 1;
+            }
+        }
+        (masked_bits_total as f32) / (self.node_state_ids_length as f32)
+    }
 }
