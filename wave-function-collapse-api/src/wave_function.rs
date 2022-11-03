@@ -549,11 +549,13 @@ impl WaveFunction {
 
         let mut collapsable_wave_function = CollapsableWaveFunction::new(collapsable_nodes);
 
+        debug!("test debug log");
         let mut is_unable_to_collapse = false;
+        debug!("starting while loop");
         while !is_unable_to_collapse && !collapsable_wave_function.is_fully_collapsed() {
-            debug!("starting while loop");
+            debug!("incrementing node state");
             if collapsable_wave_function.try_increment_current_collapsable_node_state() {
-                debug!("incremented node");
+                debug!("incremented node state");
                 collapsable_wave_function.alter_reference_to_current_collapsable_node_mask();
                 debug!("altered reference");
                 if !collapsable_wave_function.is_at_least_one_neighbor_fully_restricted() {
@@ -595,12 +597,12 @@ impl WaveFunction {
 
 #[cfg(test)]
 mod unit_tests {
-    use std::hash::Hash;
 
     use super::*;
 
     fn init() {
-        let _ = pretty_env_logger::formatted_builder().is_test(true).try_init();
+        std::env::set_var("RUST_LOG", "trace");
+        pretty_env_logger::init();
     }
 
     #[test]
@@ -608,6 +610,7 @@ mod unit_tests {
         let nodes: Vec<Node> = Vec::new();
         let node_state_collections: Vec<NodeStateCollection> = Vec::new();
         let wave_function = WaveFunction::new(nodes, node_state_collections);
+        debug!("Succeeded to initialize WaveFunction instance.");
     }
 
     #[test]
