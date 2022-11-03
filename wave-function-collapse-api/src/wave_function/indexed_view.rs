@@ -85,8 +85,15 @@ impl<TNodeState, TViewKey: Eq + Hash, TKey: Eq + Hash + Copy> IndexedView<TNodeS
         }
         return true;
     }
-    pub fn get(&self) -> &TNodeState {
-        self.node_state_ids.get(self.index.unwrap()).unwrap()
+    pub fn get(&self) -> Option<&TNodeState> {
+        let value: Option<&TNodeState>;
+        if let Some(index) = self.index {
+            value = self.node_state_ids.get(index);
+        }
+        else {
+            value = None;
+        }
+        value
     }
     pub fn is_in_some_state(&self) -> bool {
         self.index.is_some()

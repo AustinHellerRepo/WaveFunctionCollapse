@@ -1,4 +1,4 @@
-use std::{collections::{HashMap, HashSet, BTreeSet}, cell::{Cell, RefCell}, rc::Rc};
+use std::{collections::{HashMap, HashSet, BTreeSet}, cell::{Cell, RefCell}, rc::Rc, fmt::Display};
 use serde::{Deserialize, Serialize};
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
@@ -152,6 +152,23 @@ impl<'a> CollapsableNode<'a> {
             self.node_state_indexed_view.get_restriction_ratio()
         }
     }
+    fn get_ids(collapsable_nodes: &Vec<Self>) -> String {
+        let mut string_builder = string_builder::Builder::new(0);
+        for collapsable_node in collapsable_nodes.iter() {
+            let node_id: &str = collapsable_node.id;
+            if string_builder.len() != 0 {
+                string_builder.append(", ");
+            }
+            string_builder.append(node_id);
+        }
+        string_builder.string().unwrap()
+    }
+}
+
+impl<'a> Display for CollapsableNode<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.id)
+    }
 }
 
 #[derive(Serialize)]
@@ -177,11 +194,34 @@ impl<'a> CollapsableWaveFunction<'a> {
     }
     fn try_increment_current_collapsable_node_state(&mut self) -> bool {
         let current_collapsable_node = self.collapsable_nodes.get_mut(self.current_collapsable_node_index).expect("The collapsable node should exist at this index.");
-        current_collapsable_node.node_state_indexed_view.try_move_next()
+        let node_id: &str = current_collapsable_node.id;
+        let current_state_id_option: Option<&&str> = current_collapsable_node.node_state_indexed_view.get();
+        let current_state_id_display: String;
+        if let Some(current_state_id) = current_state_id_option {
+            current_state_id_display = String::from(*current_state_id);
+        }
+        else {
+            current_state_id_display = String::from("None");
+        }
+        debug!("incrementing node {node_id} from {current_state_id_display}.");
+
+        let is_successful = current_collapsable_node.node_state_indexed_view.try_move_next();
+
+        let next_state_id_option: Option<&&str> = current_collapsable_node.node_state_indexed_view.get();
+        let next_state_id_display: String;
+        if let Some(next_state_id) = next_state_id_option {
+            next_state_id_display = String::from(*next_state_id);
+        }
+        else {
+            next_state_id_display = String::from("None");
+        }
+        debug!("incremented node {node_id} to {next_state_id_display}.");
+
+        is_successful
     }
     fn alter_reference_to_current_collapsable_node_mask(&mut self) {
         let current_collapsable_node = self.collapsable_nodes.get_mut(self.current_collapsable_node_index).expect("The collapsable node should exist at this index.");
-        let current_possible_state: &str = current_collapsable_node.node_state_indexed_view.get();
+        let current_possible_state: &str = current_collapsable_node.node_state_indexed_view.get().unwrap();
         current_collapsable_node.neighbor_mask_mapped_view.borrow_mut().orient(current_possible_state);
     }
     fn is_at_least_one_neighbor_fully_restricted(&self) -> bool {
@@ -203,12 +243,23 @@ impl<'a> CollapsableWaveFunction<'a> {
         is_at_least_one_neighbor_fully_restricted
     }
     fn move_to_next_collapsable_node(&mut self) {
+        let current_node_id: &str = self.collapsable_nodes.get(self.current_collapsable_node_index).unwrap().id;
+        let current_collapsable_node_index: &usize = &self.current_collapsable_node_index;
+        debug!("moving from {current_node_id} at index {current_collapsable_node_index}");
+
         self.current_collapsable_node_index += 1;
+
+        let next_node_id: &str = self.collapsable_nodes.get(self.current_collapsable_node_index).unwrap().id;
+        let next_collapsable_node_index: &usize = &self.current_collapsable_node_index;
+        debug!("moved to {next_node_id} at index {next_collapsable_node_index}");
     }
     fn is_fully_collapsed(&self) -> bool {
         self.current_collapsable_node_index == self.collapsable_nodes_length
     }
     fn sort_collapsable_nodes(&mut self) {
+        let current_collapsable_nodes_display = CollapsableNode::get_ids(&self.collapsable_nodes);
+        debug!("current sort order: {current_collapsable_nodes_display}.");
+
         self.collapsable_nodes.sort_by(|a, b| {
 
             let comparison: std::cmp::Ordering;
@@ -239,6 +290,9 @@ impl<'a> CollapsableWaveFunction<'a> {
             }
             comparison
         });
+
+        let next_collapsable_nodes_display = CollapsableNode::get_ids(&self.collapsable_nodes);
+        debug!("next sort order: {next_collapsable_nodes_display}.");
     }
     fn try_move_to_previous_collapsable_node_neighbor(&mut self) -> bool {
         let original_collapsable_node_id = self.collapsable_nodes.get(self.current_collapsable_node_index).expect("The collapsable node index should be within range.").id;
@@ -253,7 +307,7 @@ impl<'a> CollapsableWaveFunction<'a> {
     fn get_collapsed_wave_function(&self) -> CollapsedWaveFunction {
         let mut node_state_per_node: HashMap<String, String> = HashMap::new();
         for collapsable_node in self.collapsable_nodes.iter() {
-            let node_state: String = String::from(*collapsable_node.node_state_indexed_view.get());
+            let node_state: String = String::from(*collapsable_node.node_state_indexed_view.get().unwrap());
             let node: String = String::from(collapsable_node.id);
             node_state_per_node.insert(node, node_state);
         }
@@ -549,7 +603,10 @@ impl WaveFunction {
 
         let mut collapsable_wave_function = CollapsableWaveFunction::new(collapsable_nodes);
 
-        debug!("test debug log");
+        debug!("sorting initial list of collapsable nodes");
+        collapsable_wave_function.sort_collapsable_nodes();
+        debug!("sorted initial list of collapsable nodes");
+
         let mut is_unable_to_collapse = false;
         debug!("starting while loop");
         while !is_unable_to_collapse && !collapsable_wave_function.is_fully_collapsed() {
