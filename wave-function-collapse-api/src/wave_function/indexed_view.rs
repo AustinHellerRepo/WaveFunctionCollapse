@@ -33,12 +33,12 @@ impl<TNodeState, TViewKey: Eq + Hash, TKey: Eq + Hash + Copy> IndexedView<TNodeS
             index_mapping: index_mapping
         }
     }
-    pub fn shuffle<R: Rng + ?Sized>(&mut self, rng: &mut R) {
+    pub fn shuffle<R: Rng + ?Sized>(&mut self, random_instance: &mut R) {
         if self.index.is_some() {
             panic!("Can only be shuffled prior to use.");
         }
         let mut shuffled_values: Vec<usize> = (0..self.node_state_ids_length).collect();
-        shuffled_values.shuffle(rng);
+        shuffled_values.shuffle(random_instance);
         for index in 0..self.node_state_ids_length {
             self.index_mapping.insert(index, shuffled_values[index]);
         }

@@ -19,74 +19,7 @@ pub struct Node {
 }
 
 impl<'a> Node {
-    fn get_possible_node_states(&self, node_state_collection_per_id: &'a HashMap<&'a str, &'a NodeStateCollection>) -> Result<Vec<&'a str>, String> {
-        
-        let mut possible_node_state_ids_option: Option<Vec<&str>> = Option::None;
-        let mut possible_node_state_ids_length: usize = 0;
-        
-        for (neighbor_node_id_string, node_state_collection_ids) in self.node_state_collection_ids_per_neighbor_node_id.iter() {
-            let neighbor_node_id: &str = neighbor_node_id_string;
-            // either fill the possible node states or verify other permitted node state collections
-            
-            let mut possible_node_state_ids_vector: Vec<&str> = Vec::new();
-            // store the possible node states
-            
-            if possible_node_state_ids_option.is_none() {
-                for node_state_collection_id_string in node_state_collection_ids.iter() {
-                    let node_state_collection_id: &str = node_state_collection_id_string;
-                    let node_state_collection = node_state_collection_per_id.get(node_state_collection_id).unwrap();
-                    let node_state_id: &str = &node_state_collection.node_state_id;
-        
-                    // store this node state as a possible node state
-                    if !possible_node_state_ids_vector.contains(&node_state_id) {
-                        possible_node_state_ids_vector.push(node_state_id);
-                        possible_node_state_ids_length += 1;
-                    }
-                    else {
-                        let node_id = &self.id;
-                        return Err(format!("Duplicate node state id found in node {node_id}."));
-                    }
-                }
-                possible_node_state_ids_option = Some(possible_node_state_ids_vector);
-            }
-            else {
-                let possible_node_state_ids_vector: Vec<&str> = Vec::new();
-                let mut possible_node_state_ids_vector_length: usize = 0;
-
-                // store the possible node states
-                for node_state_collection_id_string in node_state_collection_ids.iter() {
-                    let node_state_collection_id: &str = node_state_collection_id_string;
-                    let node_state_collection = node_state_collection_per_id.get(node_state_collection_id).unwrap();
-                    let node_state_id: &str = &node_state_collection.node_state_id;
-
-                    // store this node state as a possible node state
-                    if possible_node_state_ids_vector.contains(&node_state_id) {
-                        let node_id = &self.id;
-                        return Err(format!("Duplicate node state id found in node {node_id}."));
-                    }
-                    else {
-                        possible_node_state_ids_vector_length += 1;
-                        if !possible_node_state_ids_option.as_ref().unwrap().contains(&node_state_id) {
-                            return Err(format!("Unexpected node state {node_state_id} in permitted node state collection {node_state_collection_id}."));
-                        }
-                    }
-                }
-
-                if possible_node_state_ids_vector_length != possible_node_state_ids_length {
-                    return Err(format!("Missing at least one node state in neighbor node {neighbor_node_id}"));
-                }
-            }
-        }
-
-        match &possible_node_state_ids_option {
-            Some(possible_node_state_ids) => {
-                return Ok(possible_node_state_ids.to_owned());
-            }
-            None => {
-                return Err(String::from("This node does not contain any neighbors."));
-            }
-        }
-    }
+    
 }
 
 #[derive(Debug, Deserialize)]
@@ -130,10 +63,9 @@ impl<'a> CollapsableNode<'a> {
             random_sort_index: 0
         }
     }
-    fn randomize(&mut self, seed: u64) {
-        let mut random_instance = ChaCha8Rng::seed_from_u64(seed);
-        self.neighbor_node_ids.shuffle(&mut random_instance);
-        self.node_state_indexed_view.shuffle(&mut random_instance);
+    fn randomize<R: Rng + ?Sized>(&mut self, random_instance: &mut R) {
+        self.neighbor_node_ids.shuffle(random_instance);
+        self.node_state_indexed_view.shuffle(random_instance);
         self.random_sort_index = random_instance.next_u32();
     }
     fn is_fully_restricted(&self) -> bool {
@@ -362,13 +294,43 @@ impl<'a> CollapsableWaveFunction<'a> {
 pub struct WaveFunction {
     nodes: Vec<Node>,
     node_state_collections: Vec<NodeStateCollection>,
+    all_possible_node_state_ids: HashSet<String>
 }
 
 impl WaveFunction {
     pub fn new(nodes: Vec<Node>, node_state_collections: Vec<NodeStateCollection>) -> Self {
+        
+        let mut node_state_collection_per_id: HashMap<&str, &NodeStateCollection> = HashMap::new();
+        node_state_collections.iter().for_each(|node_state_collection| {
+            node_state_collection_per_id.insert(&node_state_collection.id, node_state_collection);
+        });
+
+        let mut all_possible_node_state_ids: HashSet<String> = HashSet::new();
+        for node in nodes.iter() {
+            let node_id: &str = &node.id;
+            for (neighbor_node_id_string, node_state_collection_ids) in node.node_state_collection_ids_per_neighbor_node_id.iter() {
+                let neighbor_node_id: &str = neighbor_node_id_string;
+
+                debug!("Node {node_id} has neighbor {neighbor_node_id}.");
+
+                for node_state_collection_id_string in node_state_collection_ids {
+                    let node_state_collection_id: &str = &node_state_collection_id_string;
+                    let node_state_collection: &NodeStateCollection = node_state_collection_per_id.get(node_state_collection_id).expect("The permitted node state collection should exist for this id. Verify that all node state collections are being provided.");
+                    let node_state_id: &str = &node_state_collection.node_state_id;
+
+                    all_possible_node_state_ids.insert(String::from(node_state_id));
+                    for node_state_id_string in node_state_collection.node_state_ids.iter() {
+                        let node_state_id: &str = node_state_id_string;
+                        all_possible_node_state_ids.insert(String::from(node_state_id));
+                    }
+                }
+            }
+        }
+
         WaveFunction {
             nodes: nodes,
             node_state_collections: node_state_collections,
+            all_possible_node_state_ids: all_possible_node_state_ids
         }
     }
     fn validate(&self) -> Result<(), String> {
@@ -392,24 +354,7 @@ impl WaveFunction {
         let mut error_message = Option::None;
         
         // collect all possible states for later usage
-        let mut all_possible_node_state_ids: HashSet<&str> = HashSet::new();
-        for (node_id, node) in node_per_id.iter() {
-            for (neighbor_node_id_string, node_state_collection_ids) in node.node_state_collection_ids_per_neighbor_node_id.iter() {
-                let neighbor_node_id: &str = neighbor_node_id_string;
-                for node_state_collection_id_string in node_state_collection_ids {
-                    let node_state_collection_id: &str = &node_state_collection_id_string;
-                    let node_state_collection: &NodeStateCollection = node_state_collection_per_id.get(node_state_collection_id).expect("The permitted node state collection should exist for this id. Verify that all node state collections are being provided.");
-                    let node_state_id: &str = &node_state_collection.node_state_id;
-
-                    all_possible_node_state_ids.insert(node_state_id);
-                    for node_state_id_string in node_state_collection.node_state_ids.iter() {
-                        let node_state_id: &str = node_state_id_string;
-                        all_possible_node_state_ids.insert(node_state_id);
-                    }
-                }
-            }
-        }
-        let all_possible_node_state_ids_length: u32 = all_possible_node_state_ids.len().try_into().expect("The length should be castable to u32.");
+        let all_possible_node_state_ids_length: u32 = self.all_possible_node_state_ids.len().try_into().expect("The length should be castable to u32.");
 
         // ensure that references neighbors are actually nodes
         for (node_id, node) in node_per_id.iter() {
@@ -506,7 +451,7 @@ impl WaveFunction {
             Ok(())
         }
     }
-    pub fn collapse(&self) -> Result<CollapsedWaveFunction, String> {
+    pub fn collapse(&self, random_seed: Option<u64>) -> Result<CollapsedWaveFunction, String> {
         let validation_result = self.validate();
 
         if let Err(error_message) = validation_result {
@@ -533,15 +478,18 @@ impl WaveFunction {
         let mut neighbor_mask_mapped_view_per_node_id: HashMap<&str, Rc<RefCell<MappedView<&str, &str, BitVec>>>> = HashMap::new();
 
         for node in self.nodes.iter() {
+            let node_id: &str = &node.id;
 
             let mut neighbor_mask_mapped_view: MappedView<&str, &str, BitVec> = MappedView::new();
 
             for (neighbor_node_id_string, node_state_collection_ids) in node.node_state_collection_ids_per_neighbor_node_id.iter() {
                 let neighbor_node_id: &str = neighbor_node_id_string;
 
+                debug!("creating neighbor mask for node {node_id} neighbor {neighbor_node_id}.");
+
                 // determine the masks for this neighbor based on its possible node states
-                let node = node_per_id.get(neighbor_node_id).expect("The neighbor should exist in the complete list of nodes.");
-                let neighbor_node_state_ids = node.get_possible_node_states(&node_state_collection_per_id).expect("The neighbor node should have some node states.");
+                let neighbor_node = node_per_id.get(neighbor_node_id).expect("The neighbor should exist in the complete list of nodes.");
+                let neighbor_node_state_ids = &self.all_possible_node_state_ids;
 
                 // stores the mask per node state for this node as it pertains to the neighbor
                 let mut node_state_mask_per_node_state_id: HashMap<&str, BitVec> = HashMap::new();
@@ -588,10 +536,16 @@ impl WaveFunction {
                 neighbor_mask_mapped_view_per_node_id.insert(neighbor_node_id, mask);
             }
 
-            let node_state_ids: Vec<&str> = node.get_possible_node_states(&node_state_collection_per_id).unwrap();
+            let mut node_state_ids: Vec<&str> = Vec::new();
+            for node_state_id_string in self.all_possible_node_state_ids.iter() {
+                let node_state_id: &str = node_state_id_string;
+                node_state_ids.push(node_state_id);
+            }
             let node_state_indexed_view = IndexedView::new(node_state_ids, masks, node_id);
             node_state_indexed_view_per_node_id.insert(node_id, node_state_indexed_view);
         }
+
+        let mut random_instance: Option<ChaCha8Rng> = None;
 
         let mut collapsable_node_index: usize = 0;
         let mut collapsable_nodes: Vec<CollapsableNode> = Vec::new();
@@ -603,7 +557,15 @@ impl WaveFunction {
             let neighber_masked_mapped_view: Rc<RefCell<MappedView<&str, &str, BitVec>>> = neighbor_mask_mapped_view_per_node_id.remove(node_id).unwrap();
             let node_state_indexed_view: IndexedView<&str, &str, &str> = node_state_indexed_view_per_node_id.remove(node_id).unwrap();
 
-            let collapsable_node = CollapsableNode::new(node, neighber_masked_mapped_view, node_state_indexed_view);
+            let mut collapsable_node = CollapsableNode::new(node, neighber_masked_mapped_view, node_state_indexed_view);
+
+            if let Some(seed) = random_seed {
+                if random_instance.is_none() {
+                    random_instance = Some(ChaCha8Rng::seed_from_u64(seed));
+                }
+                collapsable_node.randomize(random_instance.as_mut().unwrap());
+            }
+
             collapsable_nodes.push(collapsable_node);
             collapsable_node_index_per_node_id.insert(&node.id, collapsable_node_index.clone());
             collapsable_node_index = collapsable_node_index + 1;
@@ -703,11 +665,13 @@ mod unit_tests {
 
     fn init() {
         std::env::set_var("RUST_LOG", "trace");
-        pretty_env_logger::init();
+        pretty_env_logger::try_init();
     }
 
     #[test]
     fn initialize() {
+        init();
+
         let nodes: Vec<Node> = Vec::new();
         let node_state_collections: Vec<NodeStateCollection> = Vec::new();
         let wave_function = WaveFunction::new(nodes, node_state_collections);
@@ -716,15 +680,19 @@ mod unit_tests {
 
     #[test]
     fn no_nodes() {
+        init();
+
         let nodes: Vec<Node> = Vec::new();
         let node_state_collections: Vec<NodeStateCollection> = Vec::new();
         let wave_function = WaveFunction::new(nodes, node_state_collections);
-        let collapsed_wave_function_result = wave_function.collapse();
+        let collapsed_wave_function_result = wave_function.collapse(None);
         assert_eq!("There must be two or more nodes.", collapsed_wave_function_result.err().unwrap());
     }
 
     #[test]
     fn one_node() {
+        init();
+
         let mut nodes: Vec<Node> = Vec::new();
         let node_state_collections: Vec<NodeStateCollection> = Vec::new();
 
@@ -734,12 +702,14 @@ mod unit_tests {
         });
 
         let wave_function = WaveFunction::new(nodes, node_state_collections);
-        let collapsed_wave_function_result = wave_function.collapse();
+        let collapsed_wave_function_result = wave_function.collapse(None);
         assert_eq!("There must be two or more nodes.", collapsed_wave_function_result.err().unwrap());
     }
 
     #[test]
     fn two_nodes_without_neighbors() {
+        init();
+
         let mut nodes: Vec<Node> = Vec::new();
         let node_state_collections: Vec<NodeStateCollection> = Vec::new();
 
@@ -753,12 +723,14 @@ mod unit_tests {
         });
 
         let wave_function = WaveFunction::new(nodes, node_state_collections);
-        let collapsed_wave_function_result = wave_function.collapse();
+        let collapsed_wave_function_result = wave_function.collapse(None);
         assert_eq!("Not all nodes connect together. At least one node must be able to traverse to all other nodes.", collapsed_wave_function_result.err().unwrap());
     }
 
     #[test]
     fn two_nodes_with_only_one_is_a_neighbor() {
+        init();
+
         let mut nodes: Vec<Node> = Vec::new();
         let mut node_state_collections: Vec<NodeStateCollection> = Vec::new();
 
@@ -787,8 +759,11 @@ mod unit_tests {
         nodes[0].node_state_collection_ids_per_neighbor_node_id.get_mut(&second_node_id).unwrap().push(same_node_state_collection_id.clone());
 
         let wave_function = WaveFunction::new(nodes, node_state_collections);
-        let collapsed_wave_function_result = wave_function.collapse();
-        assert_eq!("There must be two or more nodes.", collapsed_wave_function_result.err().unwrap());
+        let collapsed_wave_function_result = wave_function.collapse(None);
+        let collapsed_wave_function = collapsed_wave_function_result.unwrap();
+
+        assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
+        assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap());
     }
 
     #[test]
@@ -826,7 +801,7 @@ mod unit_tests {
         nodes[1].node_state_collection_ids_per_neighbor_node_id.get_mut(&first_node_id).unwrap().push(same_node_state_collection_id.clone());
 
         let wave_function = WaveFunction::new(nodes, node_state_collections);
-        let collapsed_wave_function_result = wave_function.collapse();
+        let collapsed_wave_function_result = wave_function.collapse(None);
 
         if let Err(error_message) = collapsed_wave_function_result {
             panic!("Error: {error_message}");
@@ -837,5 +812,125 @@ mod unit_tests {
         assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
         assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap());
 
+    }
+
+    #[test]
+    fn two_nodes_both_as_neighbors_and_different_states() {
+        init();
+
+        let mut nodes: Vec<Node> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection> = Vec::new();
+
+        nodes.push(Node { 
+            id: Uuid::new_v4().to_string(),
+            node_state_collection_ids_per_neighbor_node_id: HashMap::new()
+        });
+        nodes.push(Node { 
+            id: Uuid::new_v4().to_string(),
+            node_state_collection_ids_per_neighbor_node_id: HashMap::new()
+        });
+
+        let one_node_state_id: String = Uuid::new_v4().to_string();
+        let two_node_state_id: String = Uuid::new_v4().to_string();
+        let first_node_id: String = nodes[0].id.clone();
+        let second_node_id: String = nodes[1].id.clone();
+
+        let if_one_not_two_node_state_collection_id: String = Uuid::new_v4().to_string();
+        let if_one_not_two_node_state_collection = NodeStateCollection {
+            id: if_one_not_two_node_state_collection_id.clone(),
+            node_state_id: one_node_state_id.clone(),
+            node_state_ids: vec![two_node_state_id.clone()]
+        };
+        node_state_collections.push(if_one_not_two_node_state_collection);
+
+        let if_two_not_one_node_state_collection_id: String = Uuid::new_v4().to_string();
+        let if_two_not_one_node_state_collection = NodeStateCollection {
+            id: if_two_not_one_node_state_collection_id.clone(),
+            node_state_id: two_node_state_id.clone(),
+            node_state_ids: vec![one_node_state_id.clone()]
+        };
+        node_state_collections.push(if_two_not_one_node_state_collection);
+
+        nodes[0].node_state_collection_ids_per_neighbor_node_id.insert(second_node_id.clone(), Vec::new());
+        nodes[0].node_state_collection_ids_per_neighbor_node_id.get_mut(&second_node_id).unwrap().push(if_one_not_two_node_state_collection_id.clone());
+        nodes[0].node_state_collection_ids_per_neighbor_node_id.get_mut(&second_node_id).unwrap().push(if_two_not_one_node_state_collection_id.clone());
+
+        nodes[1].node_state_collection_ids_per_neighbor_node_id.insert(first_node_id.clone(), Vec::new());
+        nodes[1].node_state_collection_ids_per_neighbor_node_id.get_mut(&first_node_id).unwrap().push(if_one_not_two_node_state_collection_id.clone());
+        nodes[1].node_state_collection_ids_per_neighbor_node_id.get_mut(&first_node_id).unwrap().push(if_two_not_one_node_state_collection_id.clone());
+
+        let wave_function = WaveFunction::new(nodes, node_state_collections);
+        let collapsed_wave_function_result = wave_function.collapse(None);
+
+        if let Err(error_message) = collapsed_wave_function_result {
+            panic!("Error: {error_message}");
+        }
+
+        let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
+
+        assert_ne!(collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap(), collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
+
+    }
+
+    #[test]
+    fn two_nodes_both_as_neighbors_and_different_states_with_random_runs() {
+        init();
+
+        let mut rng = rand::thread_rng();
+
+        for _ in 0..100 {
+            let mut nodes: Vec<Node> = Vec::new();
+            let mut node_state_collections: Vec<NodeStateCollection> = Vec::new();
+
+            nodes.push(Node { 
+                id: Uuid::new_v4().to_string(),
+                node_state_collection_ids_per_neighbor_node_id: HashMap::new()
+            });
+            nodes.push(Node { 
+                id: Uuid::new_v4().to_string(),
+                node_state_collection_ids_per_neighbor_node_id: HashMap::new()
+            });
+
+            let one_node_state_id: String = Uuid::new_v4().to_string();
+            let two_node_state_id: String = Uuid::new_v4().to_string();
+            let first_node_id: String = nodes[0].id.clone();
+            let second_node_id: String = nodes[1].id.clone();
+
+            let if_one_not_two_node_state_collection_id: String = Uuid::new_v4().to_string();
+            let if_one_not_two_node_state_collection = NodeStateCollection {
+                id: if_one_not_two_node_state_collection_id.clone(),
+                node_state_id: one_node_state_id.clone(),
+                node_state_ids: vec![two_node_state_id.clone()]
+            };
+            node_state_collections.push(if_one_not_two_node_state_collection);
+
+            let if_two_not_one_node_state_collection_id: String = Uuid::new_v4().to_string();
+            let if_two_not_one_node_state_collection = NodeStateCollection {
+                id: if_two_not_one_node_state_collection_id.clone(),
+                node_state_id: two_node_state_id.clone(),
+                node_state_ids: vec![one_node_state_id.clone()]
+            };
+            node_state_collections.push(if_two_not_one_node_state_collection);
+
+            nodes[0].node_state_collection_ids_per_neighbor_node_id.insert(second_node_id.clone(), Vec::new());
+            nodes[0].node_state_collection_ids_per_neighbor_node_id.get_mut(&second_node_id).unwrap().push(if_one_not_two_node_state_collection_id.clone());
+            nodes[0].node_state_collection_ids_per_neighbor_node_id.get_mut(&second_node_id).unwrap().push(if_two_not_one_node_state_collection_id.clone());
+
+            nodes[1].node_state_collection_ids_per_neighbor_node_id.insert(first_node_id.clone(), Vec::new());
+            nodes[1].node_state_collection_ids_per_neighbor_node_id.get_mut(&first_node_id).unwrap().push(if_one_not_two_node_state_collection_id.clone());
+            nodes[1].node_state_collection_ids_per_neighbor_node_id.get_mut(&first_node_id).unwrap().push(if_two_not_one_node_state_collection_id.clone());
+
+            let wave_function = WaveFunction::new(nodes, node_state_collections);
+            let random_seed = Some(rng.gen::<u64>());
+            let collapsed_wave_function_result = wave_function.collapse(random_seed);
+
+            if let Err(error_message) = collapsed_wave_function_result {
+                panic!("Error: {error_message}");
+            }
+
+            let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
+
+            assert_ne!(collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap(), collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
+        }
     }
 }
