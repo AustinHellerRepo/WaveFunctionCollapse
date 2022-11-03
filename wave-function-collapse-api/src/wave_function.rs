@@ -106,7 +106,7 @@ struct CollapsableNode<'a> {
     // the mapped view that this node's neighbors will have a reference to and pull their masks from
     neighbor_mask_mapped_view: Rc<RefCell<MappedView<&'a str, &'a str, BitVec>>>,
     // the index of traversed nodes based on the sorted vector of nodes as they are chosen for state determination
-    current_chosen_from_sort_index: Option<u32>,
+    current_chosen_from_sort_index: Option<usize>,
     // a random sort value for adding randomness to the process between runs (if randomized)
     random_sort_index: u32
 }
@@ -206,6 +206,12 @@ impl<'a> CollapsableWaveFunction<'a> {
         debug!("incrementing node {node_id} from {current_state_id_display}.");
 
         let is_successful = current_collapsable_node.node_state_indexed_view.try_move_next();
+        if is_successful {
+            current_collapsable_node.current_chosen_from_sort_index = Some(self.current_collapsable_node_index);
+        }
+        else {
+            current_collapsable_node.current_chosen_from_sort_index = None;
+        }
 
         let next_state_id_option: Option<&&str> = current_collapsable_node.node_state_indexed_view.get();
         let next_state_id_display: String;
@@ -249,9 +255,14 @@ impl<'a> CollapsableWaveFunction<'a> {
 
         self.current_collapsable_node_index += 1;
 
-        let next_node_id: &str = self.collapsable_nodes.get(self.current_collapsable_node_index).unwrap().id;
         let next_collapsable_node_index: &usize = &self.current_collapsable_node_index;
-        debug!("moved to {next_node_id} at index {next_collapsable_node_index}");
+        if self.current_collapsable_node_index == self.collapsable_nodes_length {
+            debug!("moved outside of bounds at index {next_collapsable_node_index}");
+        }
+        else {
+            let next_node_id: &str = self.collapsable_nodes.get(self.current_collapsable_node_index).unwrap().id;
+            debug!("moved to {next_node_id} at index {next_collapsable_node_index}");
+        }
     }
     fn is_fully_collapsed(&self) -> bool {
         self.current_collapsable_node_index == self.collapsable_nodes_length
@@ -262,30 +273,63 @@ impl<'a> CollapsableWaveFunction<'a> {
 
         self.collapsable_nodes.sort_by(|a, b| {
 
+            let a_node_id: &str = a.id;
+            let b_node_id: &str = b.id;
+
             let comparison: std::cmp::Ordering;
             if let Some(a_chosen_from_sort_index) = a.current_chosen_from_sort_index {
                 if let Some(b_chosen_from_sort_index) = b.current_chosen_from_sort_index {
                     comparison = a_chosen_from_sort_index.cmp(&b_chosen_from_sort_index);
+                    match &comparison {
+                        std::cmp::Ordering::Less => {
+                            debug!("node {a_node_id} is less than node {b_node_id} after finding both have a chosen sort index.");
+                        },
+                        std::cmp::Ordering::Equal => {
+                            debug!("node {a_node_id} are equal to node {b_node_id} after finding both have a chosen sort index.");
+                        }
+                        std::cmp::Ordering::Greater => {
+                            debug!("node {a_node_id} is greater than node {b_node_id} after finding both have a chosen sort index.");
+                        }
+                    }
                 }
                 else {
-                    comparison = std::cmp::Ordering::Less
+                    debug!("node {a_node_id} is less than node {b_node_id} since the latter has not yet been chosen.");
+                    comparison = std::cmp::Ordering::Less;
                 }
             }
             else if b.current_chosen_from_sort_index.is_some() {
-                comparison = std::cmp::Ordering::Greater
+                debug!("node {a_node_id} is greater than node {b_node_id} since the former has not yet been chosen.");
+                comparison = std::cmp::Ordering::Greater;
             }
             else {
                 let a_restriction_ratio = a.get_restriction_ratio();
                 let b_restriction_ratio = b.get_restriction_ratio();
 
                 if b_restriction_ratio < a_restriction_ratio {
-                    comparison = std::cmp::Ordering::Greater
+                    debug!("node {a_node_id} is greater than node {b_node_id} after comparing restriction ratios {a_restriction_ratio} to {b_restriction_ratio}.");
+                    comparison = std::cmp::Ordering::Greater;
                 }
                 else if b_restriction_ratio == a_restriction_ratio {
-                    comparison = a.random_sort_index.cmp(&b.random_sort_index);
+
+                    let a_random_sort_index = a.random_sort_index;
+                    let b_random_sort_index = b.random_sort_index;
+
+                    comparison = a_random_sort_index.cmp(&b_random_sort_index);
+                    match &comparison {
+                        std::cmp::Ordering::Less => {
+                            debug!("node {a_node_id} is less than node {b_node_id} after comparing random sort indexes {a_random_sort_index} to {b_random_sort_index}.");
+                        },
+                        std::cmp::Ordering::Equal => {
+                            debug!("node {a_node_id} are equal to node {b_node_id} after comparing random sort indexes {a_random_sort_index} to {b_random_sort_index}.");
+                        }
+                        std::cmp::Ordering::Greater => {
+                            debug!("node {a_node_id} is greater than node {b_node_id} after comparing random sort indexes {a_random_sort_index} to {b_random_sort_index}.");
+                        }
+                    }
                 }
                 else {
-                    comparison = std::cmp::Ordering::Less
+                    debug!("node {a_node_id} is less than node {b_node_id} after comparing restriction ratios {a_restriction_ratio} to {b_restriction_ratio}.");
+                    comparison = std::cmp::Ordering::Less;
                 }
             }
             comparison
