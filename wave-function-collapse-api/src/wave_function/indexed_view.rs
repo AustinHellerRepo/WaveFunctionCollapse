@@ -46,6 +46,15 @@ impl<TNodeState, TViewKey: Eq + Hash, TKey: Eq + Hash + Copy> IndexedView<TNodeS
     pub fn try_move_next(&mut self) -> bool {
         let mut is_unmasked = false;
         let mut next_index: usize;
+
+        let node_state_ids_length = &self.node_state_ids_length;
+        if let Some(index) = self.index {
+            debug!("trying to get next state starting with {index} and ending prior to {node_state_ids_length}.");
+        }
+        else {
+            debug!("trying to get next state starting with None and ending prior to {node_state_ids_length}.");
+        }
+
         while self.index.is_none() || (self.index.unwrap() < self.node_state_ids_length && !is_unmasked) {
             if let Some(index) = self.index {
                 next_index = index + 1;
@@ -53,8 +62,14 @@ impl<TNodeState, TViewKey: Eq + Hash, TKey: Eq + Hash + Copy> IndexedView<TNodeS
             else {
                 next_index = 0;
             }
-            is_unmasked = self.is_unmasked_at_index(next_index);
+
+            debug!("incrementing index to {next_index}.");
+
             self.index = Some(next_index);
+
+            if next_index != self.node_state_ids_length {
+                is_unmasked = self.is_unmasked_at_index(next_index);
+            }
         }
         self.index.unwrap() != self.node_state_ids_length
     }
@@ -101,14 +116,25 @@ impl<TNodeState, TViewKey: Eq + Hash, TKey: Eq + Hash + Copy> IndexedView<TNodeS
     pub fn reset(&mut self) {
         self.index = Option::None;
     }
-    pub fn is_fully_restricted(&self) -> bool {
+    pub fn is_fully_restricted_or_current_state_is_restricted(&self) -> bool {
+
         let mut is_at_least_one_node_state_possible: bool = false;
-        for index in 0..self.node_state_ids_length {
-            if self.is_unmasked_at_index(index) {
-                is_at_least_one_node_state_possible = true;
-                break;
+
+        'block: {
+            if let Some(index) = self.index {
+                if !self.is_unmasked_at_index(index) {
+                    break 'block;
+                }
+            }
+
+            for index in 0..self.node_state_ids_length {
+                if self.is_unmasked_at_index(index) {
+                    is_at_least_one_node_state_possible = true;
+                    break;
+                }
             }
         }
+
         !is_at_least_one_node_state_possible
     }
     pub fn get_restriction_ratio(&self) -> f32 {
