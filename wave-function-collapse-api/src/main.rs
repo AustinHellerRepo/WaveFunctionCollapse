@@ -69,20 +69,19 @@ async fn post_request(mut req: tide::Request<MultiThreadState>) -> tide::Result 
     match wave_function_result {
         Ok(wave_function) => {
 
-            let error_message = wave_function.validate();
+            let error_message_result = wave_function.validate();
 
-            if let Some(message) = error_message {
+            if let Err(error_message) = error_message_result {
                 let mut response = Response::new(400);
-                response.set_body(message);
+                response.set_body(error_message);
                 return Ok(response);
             }
         
             let collapsed_wave_function = wave_function.collapse().expect("The wave function should collapse to a set of nodes with specific states.");
 
-            // TODO convert the collapsed wave function to a JSON object
-
-            response = Response::new(500);
-            response.set_body("Not Implemented");
+            response = Response::new(200);
+            let response_body: String = serde_json::to_string(&collapsed_wave_function).unwrap();
+            response.set_body(response_body);
         },
         Err(error_message) => {
             response = Response::new(400);

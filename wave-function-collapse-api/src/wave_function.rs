@@ -1,5 +1,5 @@
 use std::{collections::{HashMap, HashSet}, cell::{Cell, RefCell}, rc::Rc};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use bitvec::prelude::*;
@@ -17,7 +17,7 @@ pub struct Node {
 }
 
 impl<'a> Node {
-    fn get_possible_node_states(&self, node_state_collection_per_id: &'a HashMap<&'a str, &'a NodeStateCollection>) -> Result<Vec<&str>, String> {
+    fn get_possible_node_states(&self, node_state_collection_per_id: &'a HashMap<&'a str, &'a NodeStateCollection>) -> Result<Vec<&'a str>, String> {
         
         let mut possible_node_state_ids_option: Option<Vec<&str>> = Option::None;
         let mut possible_node_state_ids_length: usize = 0;
@@ -45,6 +45,7 @@ impl<'a> Node {
                         return Err(format!("Duplicate node state id found in node {node_id}."));
                     }
                 }
+                possible_node_state_ids_option = Some(possible_node_state_ids_vector);
             }
             else {
                 let possible_node_state_ids_vector: Vec<&str> = Vec::new();
@@ -125,8 +126,6 @@ impl<'a> CollapsableNode<'a> {
             let neighbor_node_id: &str = neighbor_node_id_string;
             neighbor_node_ids.push(neighbor_node_id);
         }
-
-        let node_id: &str = &node.id;
 
         CollapsableNode {
             id: &node.id,
@@ -212,12 +211,13 @@ impl<'a> CollapsableNode<'a> {
     }
 }
 
+#[derive(Serialize)]
 pub struct CollapsedWaveFunction {
     node_state_per_node: HashMap<String, String>
 }
 
 pub struct CollapsableWaveFunction<'a> {
-    // TODO represents a wave function that only has "collapse" as the main function
+    // represents a wave function with all of the necessary steps to collapse
     collapsable_nodes: Vec<CollapsableNode<'a>>,
     collapsable_nodes_length: usize,
     current_collapsable_node_index: usize
@@ -288,7 +288,7 @@ impl<'a> CollapsableWaveFunction<'a> {
                     comparison = std::cmp::Ordering::Greater
                 }
                 else if b_possible_states_count == a_possible_states_count {
-                    comparison = std::cmp::Ordering::Equal
+                    comparison = a.random_sort_index.cmp(&b.random_sort_index);
                 }
                 else {
                     comparison = std::cmp::Ordering::Less
@@ -349,7 +349,7 @@ impl WaveFunction {
             })
         }
     }
-    pub fn validate(&self) -> Option<String> {
+    pub fn validate(&self) -> Result<(), String> {
         let nodes_length: usize = self.nodes.len();
         let mut node_per_id: HashMap<&str, &Node> = HashMap::new();
         let mut node_ids: HashSet<&str> = HashSet::new();
@@ -438,10 +438,14 @@ impl WaveFunction {
             }
         }
 
-        return error_message;
+        if error_message.is_some() {
+            Err(error_message.unwrap())
+        }
+        else {
+            Ok(())
+        }
     }
     pub fn collapse(&self) -> Result<CollapsedWaveFunction, String> {
-        let nodes_length: usize = self.nodes.len();
         let mut node_per_id: HashMap<&str, &Node> = HashMap::new();
         self.nodes.iter().for_each(|node: &Node| {
             node_per_id.insert(&node.id, node);
@@ -450,20 +454,6 @@ impl WaveFunction {
         self.node_state_collections.iter().for_each(|node_state_collection| {
             node_state_collection_per_id.insert(&node_state_collection.id, node_state_collection);
         });
-
-        let mut cell_per_neighbor_node_id_per_node_id: HashMap<&str, HashMap<&str, Cell<Option<&BitVec>>>> = HashMap::new();
-        for node in self.nodes.iter() {
-            let node_id: &str = &node.id;
-            let mut cell_per_neighbor_node_id: HashMap<&str, Cell<Option<&BitVec>>> = HashMap::new();
-            for neighbor_node_id_string in node.node_state_collection_ids_per_neighbor_node_id.keys() {
-                let neighbor_node_id: &str = neighbor_node_id_string;
-
-                let cell: Cell<Option<&BitVec>> = Cell::new(Option::None);
-                
-                cell_per_neighbor_node_id.insert(neighbor_node_id, cell);
-            }
-            cell_per_neighbor_node_id_per_node_id.insert(node_id, cell_per_neighbor_node_id);
-        }
 
         // for each neighbor node
         //      for each possible state for this node
@@ -483,7 +473,8 @@ impl WaveFunction {
                 let neighbor_node_id: &str = neighbor_node_id_string;
 
                 // determine the masks for this neighbor based on its possible node states
-                let neighbor_node_state_ids = node_per_id.get(neighbor_node_id).expect("The neighbor should exist in the complete list of nodes.").get_possible_node_states(&node_state_collection_per_id).expect("The neighbor node should have some node states.");
+                let node = node_per_id.get(neighbor_node_id).expect("The neighbor should exist in the complete list of nodes.");
+                let neighbor_node_state_ids = node.get_possible_node_states(&node_state_collection_per_id).expect("The neighbor node should have some node states.");
 
                 // stores the mask per node state for this node as it pertains to the neighbor
                 let mut node_state_mask_per_node_state_id: HashMap<&str, BitVec> = HashMap::new();
@@ -545,7 +536,6 @@ impl WaveFunction {
             let neighber_masked_mapped_view: Rc<RefCell<MappedView<&str, &str, BitVec>>> = neighbor_mask_mapped_view_per_node_id.remove(node_id).unwrap();
             let node_state_indexed_view: IndexedView<&str, &str, &str> = node_state_indexed_view_per_node_id.remove(node_id).unwrap();
 
-            let node_state_mask_per_node_state_id_per_neighbor_node_id: HashMap<&str, HashMap<&str, BitVec>> = CollapsableNode::get_node_state_mask_per_node_state_id_per_neighbor_node_id(&node, &node_per_id, &node_state_collection_per_id);
             let collapsable_node = CollapsableNode::new(node, &node_per_id, &node_state_collection_per_id, neighber_masked_mapped_view, node_state_indexed_view);
             collapsable_nodes.push(collapsable_node);
             collapsable_node_index_per_node_id.insert(&node.id, collapsable_node_index.clone());
@@ -587,115 +577,6 @@ impl WaveFunction {
         //                  decrement current collapsale node index
         //                  if one of the newly current collapsable node's neighbors is the original collapsable node
         //                      set found neighbor to true
-
-        /*let mut current_collapsable_node_index: usize = 0;
-        let mut is_sort_necessary = true;
-        let mut is_unable_to_collapse = false;
-        while !is_unable_to_collapse && current_collapsable_node_index != nodes_length {
-            if is_sort_necessary {
-                collapsable_nodes.sort_by(|a, b| {
-
-                    let comparison: std::cmp::Ordering;
-                    if let Some(a_chosen_from_sort_index) = a.current_chosen_from_sort_index {
-                        if let Some(b_chosen_from_sort_index) = b.current_chosen_from_sort_index {
-                            comparison = a_chosen_from_sort_index.cmp(&b_chosen_from_sort_index);
-                        }
-                        else {
-                            comparison = std::cmp::Ordering::Less
-                        }
-                    }
-                    else if b.current_chosen_from_sort_index.is_some() {
-                        comparison = std::cmp::Ordering::Greater
-                    }
-                    else {
-                        let a_possible_states_count = a.node_state_ids_length;
-                        let b_possible_states_count = b.node_state_ids_length;
-
-                        if b_possible_states_count < a_possible_states_count {
-                            comparison = std::cmp::Ordering::Greater
-                        }
-                        else if b_possible_states_count == a_possible_states_count {
-                            comparison = std::cmp::Ordering::Equal
-                        }
-                        else {
-                            comparison = std::cmp::Ordering::Less
-                        }
-                    }
-                    comparison
-                });
-            }
-
-            // if the current collapsable node has a chosen state, invalidate the mask in the neighbors
-            {
-                let mut neighbor_node_ids: Vec<&str> = Vec::new();
-                let mut current_collapsable_node_id_option: Option<&str> = Option::None;
-
-                let current_collapsable_node = collapsable_nodes.get(current_collapsable_node_index).expect("The collapsable node index should be within range.");
-                if current_collapsable_node.current_node_state_id_index.get().is_some() {
-                    current_collapsable_node_id_option = Some(current_collapsable_node.id);
-                    for neighbor_node_id in current_collapsable_node.neighbor_node_ids.iter() {
-                        neighbor_node_ids.push(neighbor_node_id);
-                    }
-                }
-
-                if let Some(current_collapsable_node_id) = current_collapsable_node_id_option {
-                    for (neighbor_node_id, mask_box) in current_collapsable_node.current_node_state_mask_per_neighbor_node_id.iter() {
-                        //mask_box.write(Option::None);
-                    }
-                }
-            }
-
-            // try to increment the state of the current collapsable node
-            let is_incremented = collapsable_nodes.get(current_collapsable_node_index).expect("The collapsable node should exist at this index.").try_increment_state_id_index();
-
-            if is_incremented {
-
-                let mut is_at_least_one_neighbor_fully_restricted = false;
-
-                {
-                    let mut collapsable_node_per_id: HashMap<&str, &CollapsableNode> = HashMap::new();
-                    for collapsable_node in collapsable_nodes.iter() {
-                        collapsable_node_per_id.insert(collapsable_node.id, collapsable_node);
-                    }
-
-                    let current_collapsable_node = collapsable_nodes.get(current_collapsable_node_index).expect("The collapsable node index should be within range.");
-
-                    for neighbor_node_id in current_collapsable_node.neighbor_node_ids.iter() {
-                        let collapsable_node = collapsable_node_per_id.get(neighbor_node_id).expect(&format!("The list of collapsable nodes originally provided should contain this neighbor node id {neighbor_node_id}"));
-                        if collapsable_node.current_is_fully_restricted {
-                            is_at_least_one_neighbor_fully_restricted = true;
-                            break;
-                        }
-                    }
-                }
-
-                if is_at_least_one_neighbor_fully_restricted {
-                    // this node needs to be attempted again
-                }
-                else {
-                    current_collapsable_node_index = current_collapsable_node_index + 1;
-                    is_sort_necessary = true;
-                }
-            }
-            else {
-                let original_collapsable_node_id = collapsable_nodes.get(current_collapsable_node_index).expect("The index should still be within the range of collapsable nodes.").id;
-                while !is_unable_to_collapse {
-                    if current_collapsable_node_index == 0 {
-                        is_unable_to_collapse = true;
-                    }
-                    else {
-                        collapsable_nodes.get(current_collapsable_node_index).expect("The node should exist at this index.").current_node_state_id_index.set(Option::None);
-                        current_collapsable_node_index = current_collapsable_node_index - 1;
-                        for neighbor_node_id in collapsable_nodes.get(current_collapsable_node_index).expect("The node index should exist in the range of collapsable nodes since the earlier if-statement would trigger leaving the while loop.").neighbor_node_ids.iter() {
-                            if *neighbor_node_id == original_collapsable_node_id {
-                                break;
-                            }
-                        }
-                    }
-                }
-                is_sort_necessary = false;
-            }
-        }*/
 
         let mut collapsable_wave_function = CollapsableWaveFunction::new(collapsable_nodes);
 
@@ -765,7 +646,7 @@ mod unit_tests {
     }
 
     #[test]
-    fn two_nodes() {
+    fn two_nodes_without_neighbors() {
         let mut nodes: Vec<Node> = Vec::new();
         let node_state_collections: Vec<NodeStateCollection> = Vec::new();
 
@@ -778,10 +659,79 @@ mod unit_tests {
             node_state_collection_ids_per_neighbor_node_id: HashMap::new()
         });
 
-        
+        let wave_function_result = WaveFunction::new(nodes, node_state_collections);
+
+        assert_eq!("There must be two or more nodes.", wave_function_result.err().unwrap());
+    }
+
+    #[test]
+    fn two_nodes_with_only_one_is_a_neighbor() {
+        let mut nodes: Vec<Node> = Vec::new();
+        let node_state_collections: Vec<NodeStateCollection> = Vec::new();
+
+        nodes.push(Node { 
+            id: Uuid::new_v4().to_string(),
+            node_state_collection_ids_per_neighbor_node_id: HashMap::new()
+        });
+        nodes.push(Node { 
+            id: Uuid::new_v4().to_string(),
+            node_state_collection_ids_per_neighbor_node_id: HashMap::new()
+        });
+
+        let node_id: String = nodes[1].id.clone();
+        nodes[0].node_state_collection_ids_per_neighbor_node_id.insert(node_id.clone(), Vec::new());
+        let node_state_id: String = Uuid::new_v4().to_string();
+        nodes[0].node_state_collection_ids_per_neighbor_node_id.get_mut(&node_id).unwrap().push(node_state_id);
 
         let wave_function_result = WaveFunction::new(nodes, node_state_collections);
 
         assert_eq!("There must be two or more nodes.", wave_function_result.err().unwrap());
+    }
+
+    #[test]
+    fn two_nodes_both_as_neighbors() {
+        let mut nodes: Vec<Node> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection> = Vec::new();
+
+        nodes.push(Node { 
+            id: Uuid::new_v4().to_string(),
+            node_state_collection_ids_per_neighbor_node_id: HashMap::new()
+        });
+        nodes.push(Node { 
+            id: Uuid::new_v4().to_string(),
+            node_state_collection_ids_per_neighbor_node_id: HashMap::new()
+        });
+
+        let node_state_id: String = Uuid::new_v4().to_string();
+        let first_node_id: String = nodes[0].id.clone();
+        let second_node_id: String = nodes[1].id.clone();
+
+        let same_node_state_collection_id: String = Uuid::new_v4().to_string();
+        let same_node_state_collection = NodeStateCollection {
+            id: same_node_state_collection_id.clone(),
+            node_state_id: node_state_id.clone(),
+            node_state_ids: vec![node_state_id.clone()]
+        };
+        node_state_collections.push(same_node_state_collection);
+
+        nodes[0].node_state_collection_ids_per_neighbor_node_id.insert(second_node_id.clone(), Vec::new());
+        nodes[0].node_state_collection_ids_per_neighbor_node_id.get_mut(&second_node_id).unwrap().push(same_node_state_collection_id.clone());
+
+        nodes[1].node_state_collection_ids_per_neighbor_node_id.insert(first_node_id.clone(), Vec::new());
+        nodes[1].node_state_collection_ids_per_neighbor_node_id.get_mut(&first_node_id).unwrap().push(same_node_state_collection_id.clone());
+
+        let wave_function_result = WaveFunction::new(nodes, node_state_collections);
+
+        let wave_function = wave_function_result.ok().unwrap();
+
+        wave_function.validate().unwrap();
+
+        let collapsed_wave_function_result = wave_function.collapse();
+
+        let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
+
+        assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
+        assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap());
+
     }
 }
