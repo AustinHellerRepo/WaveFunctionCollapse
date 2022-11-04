@@ -300,7 +300,7 @@ impl<'a> CollapsableWaveFunction<'a> {
 pub struct WaveFunction {
     nodes: Vec<Node>,
     node_state_collections: Vec<NodeStateCollection>,
-    all_possible_node_state_ids: HashSet<String>
+    all_possible_node_state_ids: Vec<String>
 }
 
 impl WaveFunction {
@@ -311,7 +311,7 @@ impl WaveFunction {
             node_state_collection_per_id.insert(&node_state_collection.id, node_state_collection);
         });
 
-        let mut all_possible_node_state_ids: HashSet<String> = HashSet::new();
+        let mut all_possible_node_state_ids: Vec<String> = Vec::new();
         for node in nodes.iter() {
             let node_id: &str = &node.id;
             for (neighbor_node_id_string, node_state_collection_ids) in node.node_state_collection_ids_per_neighbor_node_id.iter() {
@@ -324,10 +324,14 @@ impl WaveFunction {
                     let node_state_collection: &NodeStateCollection = node_state_collection_per_id.get(node_state_collection_id).expect("The permitted node state collection should exist for this id. Verify that all node state collections are being provided.");
                     let node_state_id: &str = &node_state_collection.node_state_id;
 
-                    all_possible_node_state_ids.insert(String::from(node_state_id));
+                    if !all_possible_node_state_ids.contains(&node_state_collection.node_state_id) {
+                        all_possible_node_state_ids.push(String::from(node_state_id));
+                    }
                     for node_state_id_string in node_state_collection.node_state_ids.iter() {
                         let node_state_id: &str = node_state_id_string;
-                        all_possible_node_state_ids.insert(String::from(node_state_id));
+                        if !all_possible_node_state_ids.contains(node_state_id_string) {
+                            all_possible_node_state_ids.push(String::from(node_state_id));
+                        }
                     }
                 }
             }
@@ -1111,10 +1115,8 @@ mod unit_tests {
         }
     }
 
-    
-
     #[test]
-    fn three_nodes_as_neighbors() {
+    fn three_nodes_as_neighbors_all_same_state() {
         init();
 
         let mut nodes: Vec<Node> = Vec::new();
@@ -1167,6 +1169,99 @@ mod unit_tests {
         assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
         assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap());
         assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&third_node_id).unwrap());
+
+    }
+
+    #[test]
+    fn three_nodes_as_dense_neighbors_all_different_states() {
+        init();
+
+        let mut nodes: Vec<Node> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection> = Vec::new();
+
+        nodes.push(Node { 
+            id: String::from("node_1"),
+            node_state_collection_ids_per_neighbor_node_id: HashMap::new()
+        });
+        nodes.push(Node { 
+            id: String::from("node_2"),
+            node_state_collection_ids_per_neighbor_node_id: HashMap::new()
+        });
+        nodes.push(Node { 
+            id: String::from("node_3"),
+            node_state_collection_ids_per_neighbor_node_id: HashMap::new()
+        });
+
+        let first_node_state_id: String = String::from("state_A");
+        let second_node_state_id: String = String::from("state_B");
+        let third_node_state_id: String = String::from("state_C");
+        let first_node_id: String = nodes[0].id.clone();
+        let second_node_id: String = nodes[1].id.clone();
+        let third_node_id: String = nodes[2].id.clone();
+
+        let all_but_first_node_state_collection_id: String = String::from("nsc_1");
+        let all_but_first_node_state_collection = NodeStateCollection {
+            id: all_but_first_node_state_collection_id.clone(),
+            node_state_id: first_node_state_id.clone(),
+            node_state_ids: vec![second_node_state_id.clone(), third_node_state_id.clone()]
+        };
+        node_state_collections.push(all_but_first_node_state_collection);
+
+        let all_but_second_node_state_collection_id: String = String::from("nsc_2");
+        let all_but_second_node_state_collection = NodeStateCollection {
+            id: all_but_second_node_state_collection_id.clone(),
+            node_state_id: second_node_state_id.clone(),
+            node_state_ids: vec![first_node_state_id.clone(), third_node_state_id.clone()]
+        };
+        node_state_collections.push(all_but_second_node_state_collection);
+
+        let all_but_third_node_state_collection_id: String = String::from("nsc_3");
+        let all_but_third_node_state_collection = NodeStateCollection {
+            id: all_but_third_node_state_collection_id.clone(),
+            node_state_id: third_node_state_id.clone(),
+            node_state_ids: vec![first_node_state_id.clone(), second_node_state_id.clone()]
+        };
+        node_state_collections.push(all_but_third_node_state_collection);
+
+        nodes[0].node_state_collection_ids_per_neighbor_node_id.insert(second_node_id.clone(), Vec::new());
+        nodes[0].node_state_collection_ids_per_neighbor_node_id.get_mut(&second_node_id).unwrap().push(all_but_first_node_state_collection_id.clone());
+        nodes[0].node_state_collection_ids_per_neighbor_node_id.get_mut(&second_node_id).unwrap().push(all_but_second_node_state_collection_id.clone());
+        nodes[0].node_state_collection_ids_per_neighbor_node_id.get_mut(&second_node_id).unwrap().push(all_but_third_node_state_collection_id.clone());
+        nodes[0].node_state_collection_ids_per_neighbor_node_id.insert(third_node_id.clone(), Vec::new());
+        nodes[0].node_state_collection_ids_per_neighbor_node_id.get_mut(&third_node_id).unwrap().push(all_but_first_node_state_collection_id.clone());
+        nodes[0].node_state_collection_ids_per_neighbor_node_id.get_mut(&third_node_id).unwrap().push(all_but_second_node_state_collection_id.clone());
+        nodes[0].node_state_collection_ids_per_neighbor_node_id.get_mut(&third_node_id).unwrap().push(all_but_third_node_state_collection_id.clone());
+
+        nodes[1].node_state_collection_ids_per_neighbor_node_id.insert(first_node_id.clone(), Vec::new());
+        nodes[1].node_state_collection_ids_per_neighbor_node_id.get_mut(&first_node_id).unwrap().push(all_but_first_node_state_collection_id.clone());
+        nodes[1].node_state_collection_ids_per_neighbor_node_id.get_mut(&first_node_id).unwrap().push(all_but_second_node_state_collection_id.clone());
+        nodes[1].node_state_collection_ids_per_neighbor_node_id.get_mut(&first_node_id).unwrap().push(all_but_third_node_state_collection_id.clone());
+        nodes[1].node_state_collection_ids_per_neighbor_node_id.insert(third_node_id.clone(), Vec::new());
+        nodes[1].node_state_collection_ids_per_neighbor_node_id.get_mut(&third_node_id).unwrap().push(all_but_first_node_state_collection_id.clone());
+        nodes[1].node_state_collection_ids_per_neighbor_node_id.get_mut(&third_node_id).unwrap().push(all_but_second_node_state_collection_id.clone());
+        nodes[1].node_state_collection_ids_per_neighbor_node_id.get_mut(&third_node_id).unwrap().push(all_but_third_node_state_collection_id.clone());
+
+        nodes[2].node_state_collection_ids_per_neighbor_node_id.insert(first_node_id.clone(), Vec::new());
+        nodes[2].node_state_collection_ids_per_neighbor_node_id.get_mut(&first_node_id).unwrap().push(all_but_first_node_state_collection_id.clone());
+        nodes[2].node_state_collection_ids_per_neighbor_node_id.get_mut(&first_node_id).unwrap().push(all_but_second_node_state_collection_id.clone());
+        nodes[2].node_state_collection_ids_per_neighbor_node_id.get_mut(&first_node_id).unwrap().push(all_but_third_node_state_collection_id.clone());
+        nodes[2].node_state_collection_ids_per_neighbor_node_id.insert(second_node_id.clone(), Vec::new());
+        nodes[2].node_state_collection_ids_per_neighbor_node_id.get_mut(&second_node_id).unwrap().push(all_but_first_node_state_collection_id.clone());
+        nodes[2].node_state_collection_ids_per_neighbor_node_id.get_mut(&second_node_id).unwrap().push(all_but_second_node_state_collection_id.clone());
+        nodes[2].node_state_collection_ids_per_neighbor_node_id.get_mut(&second_node_id).unwrap().push(all_but_third_node_state_collection_id.clone());
+
+        let wave_function = WaveFunction::new(nodes, node_state_collections);
+        let collapsed_wave_function_result = wave_function.collapse(None);
+
+        if let Err(error_message) = collapsed_wave_function_result {
+            panic!("Error: {error_message}");
+        }
+
+        let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
+
+        assert_eq!(&first_node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
+        assert_eq!(&second_node_state_id, collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap());
+        assert_eq!(&third_node_state_id, collapsed_wave_function.node_state_per_node.get(&third_node_id).unwrap());
 
     }
 }
