@@ -7,6 +7,7 @@ use rand::{seq::SliceRandom, Rng};
 use super::mapped_view::MappedView;
 use std::cmp::Eq;
 use std::hash::Hash;
+use rayon::prelude::*;
 
 pub struct IndexedView<TNodeState, TViewKey: Eq + Hash, TKey: Eq + Hash + Copy> {
     // items are states of the node
@@ -44,6 +45,7 @@ impl<TNodeState, TViewKey: Eq + Hash + Display + Debug, TKey: Eq + Hash + Copy +
             self.index_mapping.insert(index, shuffled_values[index]);
         }
     }
+    #[time_graph::instrument]
     pub fn try_move_next(&mut self) -> bool {
         let mut is_unmasked = false;
         let mut next_index: usize;
@@ -91,21 +93,21 @@ impl<TNodeState, TViewKey: Eq + Hash + Display + Debug, TKey: Eq + Hash + Copy +
         }
         self.index.is_some()
     }
+    #[time_graph::instrument]
     fn is_unmasked_at_index(&self, index: usize) -> bool {
-        let mask_key: TKey = self.masks_key;
-        debug!("checking if unmasked at index {index} for node {mask_key}.");
+        //debug!("checking if unmasked at index {index} for node {mask_key}.");
 
         for mask_mapped_view in self.masks.iter() {
-            debug!("checking mapped view");
+            //debug!("checking mapped view");
             if let Some(mask) = mask_mapped_view.borrow().get(&self.masks_key) {
-                debug!("checking mask");
+                //debug!("checking mask");
                 if !mask[index] {
-                    debug!("state is masked");
+                    //debug!("state is masked");
                     return false;
                 }
             }
         }
-        debug!("state is unmasked");
+        //debug!("state is unmasked");
         return true;
     }
     pub fn get(&self) -> Option<&TNodeState> {
@@ -121,9 +123,11 @@ impl<TNodeState, TViewKey: Eq + Hash + Display + Debug, TKey: Eq + Hash + Copy +
     pub fn is_in_some_state(&self) -> bool {
         self.index.is_some()
     }
+    #[time_graph::instrument]
     pub fn reset(&mut self) {
         self.index = Option::None;
     }
+    #[time_graph::instrument]
     pub fn is_fully_restricted_or_current_state_is_restricted(&self) -> bool {
 
         let mut is_at_least_one_node_state_possible: bool = false;

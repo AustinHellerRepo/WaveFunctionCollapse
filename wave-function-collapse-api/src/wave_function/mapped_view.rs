@@ -45,7 +45,7 @@ impl<TViewKey: Eq + Hash + Display + Debug, TKey: Eq + Hash + Copy + Display + D
         if self.view_key.is_some() {
             let view_key_ref: &TViewKey = self.view_key.as_ref().unwrap();
             let value_per_key = self.value_per_key_per_view_key.get(view_key_ref).unwrap();
-            debug!("get mask for state {view_key_ref} for neighbor {key} in {:?}.", value_per_key);
+            //debug!("get mask for state {view_key_ref} for neighbor {key} in {:?}.", value_per_key);
             let value = value_per_key.get(key).unwrap();
             Some(value)
         }
