@@ -130,7 +130,7 @@ impl<'a> CollapsableWaveFunction<'a> {
         else {
             current_state_id_display = String::from("None");
         }
-        debug!("incrementing node {node_id} from {current_state_id_display}.");
+        debug!("incrementing node {node_id} from state {current_state_id_display}.");
 
         let is_successful = current_collapsable_node.node_state_indexed_view.try_move_next();
         if is_successful {
@@ -148,7 +148,7 @@ impl<'a> CollapsableWaveFunction<'a> {
         else {
             next_state_id_display = String::from("None");
         }
-        debug!("incremented node {node_id} to {next_state_id_display}.");
+        debug!("incremented node {node_id} to state {next_state_id_display}.");
 
         is_successful
     }
@@ -229,8 +229,12 @@ impl<'a> CollapsableWaveFunction<'a> {
                 comparison = std::cmp::Ordering::Greater;
             }
             else {
+                debug!("determining restriction ratio for node {a_node_id}.");
                 let a_restriction_ratio = a.get_restriction_ratio();
+                debug!("determined restriction ratio for node {a_node_id} as {a_restriction_ratio}.");
+                debug!("determining restriction ratio for node {b_node_id}.");
                 let b_restriction_ratio = b.get_restriction_ratio();
+                debug!("determined restriction ratio for node {b_node_id} as {b_restriction_ratio}.");
 
                 if b_restriction_ratio < a_restriction_ratio {
                     debug!("node {a_node_id} is greater than node {b_node_id} after comparing restriction ratios {a_restriction_ratio} to {b_restriction_ratio}.");
@@ -477,10 +481,19 @@ impl WaveFunction {
         //              push the boolean into bit vector
         //          push bit vector into hashmap of mask per node state per neighbor node
 
+        // the mapped view, oriented by the node's state, returning a specific BitVec for the provided neighbor node id, per node
         let mut neighbor_mask_mapped_view_per_node_id: HashMap<&str, Rc<RefCell<MappedView<&str, &str, BitVec>>>> = HashMap::new();
+        let mut inverse_neighbor_mask_mapped_views_per_node_id: HashMap<&str, Vec<Rc<RefCell<MappedView<&str, &str, BitVec>>>>> = HashMap::new();
 
         for node in self.nodes.iter() {
             let node_id: &str = &node.id;
+            inverse_neighbor_mask_mapped_views_per_node_id.insert(node_id, Vec::new());
+        }
+
+        for node in self.nodes.iter() {
+            let node_id: &str = &node.id;
+
+            debug!("creating masks for node {node_id}.");
 
             let mut neighbor_mask_mapped_view: MappedView<&str, &str, BitVec> = MappedView::new();
 
@@ -490,7 +503,6 @@ impl WaveFunction {
                 debug!("creating neighbor mask for node {node_id} neighbor {neighbor_node_id}.");
 
                 // determine the masks for this neighbor based on its possible node states
-                let neighbor_node = node_per_id.get(neighbor_node_id).expect("The neighbor should exist in the complete list of nodes.");
                 let neighbor_node_state_ids = &self.all_possible_node_state_ids;
 
                 // stores the mask per node state for this node as it pertains to the neighbor
@@ -516,34 +528,46 @@ impl WaveFunction {
                         mask.push(is_permitted)
                     }
 
+                    let node_state_id: &str = &node_state_collection.node_state_id;
+                    debug!("created mask {mask} for node {node_id} when in state {node_state_id} for neighbor {neighbor_node_id}.");
+
                     let possible_node_state_id: &str = &node_state_collection.node_state_id;
                     node_state_mask_per_node_state_id.insert(possible_node_state_id, mask);
                 }
 
+                debug!("storing for neighbor node {neighbor_node_id} neighbor_mask_mapped_view {:?}.", node_state_mask_per_node_state_id);
                 neighbor_mask_mapped_view.insert_individual(neighbor_node_id, node_state_mask_per_node_state_id);
             }
 
-            neighbor_mask_mapped_view_per_node_id.insert(&node.id, Rc::new(RefCell::new(neighbor_mask_mapped_view)));
+            debug!("created masks for node {node_id} as neighbor_mask_mapped_view {:?}.", neighbor_mask_mapped_view);
+
+            let boxed_neighbor_mask_mapped_view = Rc::new(RefCell::new(neighbor_mask_mapped_view));
+            neighbor_mask_mapped_view_per_node_id.insert(node_id, boxed_neighbor_mask_mapped_view.clone());
+            
+            for neighbor_node_id_string in node.node_state_collection_ids_per_neighbor_node_id.keys() {
+                let neighbor_node_id: &str = neighbor_node_id_string;
+                inverse_neighbor_mask_mapped_views_per_node_id.get_mut(neighbor_node_id).unwrap().push(boxed_neighbor_mask_mapped_view.clone());
+            }
         }
 
         let mut node_state_indexed_view_per_node_id: HashMap<&str, IndexedView<&str, &str, &str>> = HashMap::new();
 
+        // store all of the masks that my neighbors will be orienting so that this node can check for restrictions
         for node in self.nodes.iter() {
             let node_id: &str = &node.id;
-            let mut masks: Vec<Rc<RefCell<MappedView<&str, &str, BitVec>>>> = Vec::new();
-            for (neighbor_node_id_string, node_state_collection_ids) in node.node_state_collection_ids_per_neighbor_node_id.iter() {
-                let neighbor_node_id: &str = neighbor_node_id_string;
-                let mask: Rc<RefCell<MappedView<&str, &str, BitVec>>> = neighbor_mask_mapped_view_per_node_id.remove(neighbor_node_id).unwrap();
-                masks.push(mask.clone());  // create another owner
-                neighbor_mask_mapped_view_per_node_id.insert(neighbor_node_id, mask);
-            }
+
+            debug!("storing for node {node_id} restrictive masks into node state indexed view.");
+
+            let masks: Vec<Rc<RefCell<MappedView<&str, &str, BitVec>>>> = inverse_neighbor_mask_mapped_views_per_node_id.remove(node_id).unwrap();
 
             let mut node_state_ids: Vec<&str> = Vec::new();
             for node_state_id_string in self.all_possible_node_state_ids.iter() {
                 let node_state_id: &str = node_state_id_string;
                 node_state_ids.push(node_state_id);
             }
+
             let node_state_indexed_view = IndexedView::new(node_state_ids, masks, node_id);
+            debug!("stored for node {node_id} node state indexed view {:?}", node_state_indexed_view);
             node_state_indexed_view_per_node_id.insert(node_id, node_state_indexed_view);
         }
 
@@ -1085,5 +1109,64 @@ mod unit_tests {
 
             assert_eq!("Cannot collapse wave function.", collapsed_wave_function_result.err().unwrap());
         }
+    }
+
+    
+
+    #[test]
+    fn three_nodes_as_neighbors() {
+        init();
+
+        let mut nodes: Vec<Node> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection> = Vec::new();
+
+        nodes.push(Node { 
+            id: String::from("node_1"),
+            node_state_collection_ids_per_neighbor_node_id: HashMap::new()
+        });
+        nodes.push(Node { 
+            id: String::from("node_2"),
+            node_state_collection_ids_per_neighbor_node_id: HashMap::new()
+        });
+        nodes.push(Node { 
+            id: String::from("node_3"),
+            node_state_collection_ids_per_neighbor_node_id: HashMap::new()
+        });
+
+        let node_state_id: String = String::from("state_A");
+        let first_node_id: String = nodes[0].id.clone();
+        let second_node_id: String = nodes[1].id.clone();
+        let third_node_id: String = nodes[2].id.clone();
+
+        let same_node_state_collection_id: String = String::from("nsc_1");
+        let same_node_state_collection = NodeStateCollection {
+            id: same_node_state_collection_id.clone(),
+            node_state_id: node_state_id.clone(),
+            node_state_ids: vec![node_state_id.clone()]
+        };
+        node_state_collections.push(same_node_state_collection);
+
+        nodes[0].node_state_collection_ids_per_neighbor_node_id.insert(second_node_id.clone(), Vec::new());
+        nodes[0].node_state_collection_ids_per_neighbor_node_id.get_mut(&second_node_id).unwrap().push(same_node_state_collection_id.clone());
+
+        nodes[1].node_state_collection_ids_per_neighbor_node_id.insert(third_node_id.clone(), Vec::new());
+        nodes[1].node_state_collection_ids_per_neighbor_node_id.get_mut(&third_node_id).unwrap().push(same_node_state_collection_id.clone());
+
+        nodes[2].node_state_collection_ids_per_neighbor_node_id.insert(first_node_id.clone(), Vec::new());
+        nodes[2].node_state_collection_ids_per_neighbor_node_id.get_mut(&first_node_id).unwrap().push(same_node_state_collection_id.clone());
+
+        let wave_function = WaveFunction::new(nodes, node_state_collections);
+        let collapsed_wave_function_result = wave_function.collapse(None);
+
+        if let Err(error_message) = collapsed_wave_function_result {
+            panic!("Error: {error_message}");
+        }
+
+        let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
+
+        assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
+        assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap());
+        assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&third_node_id).unwrap());
+
     }
 }

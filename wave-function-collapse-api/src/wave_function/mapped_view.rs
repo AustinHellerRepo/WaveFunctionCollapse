@@ -1,14 +1,19 @@
 use std::collections::HashMap;
 use std::cmp::Eq;
+use std::fmt::{Display, Debug};
 use std::hash::Hash;
 
+use async_std::stream::Map;
 
+// TViewKey is the node state of the node
+// TKey is the neighbor node id
+// TValue is the BitVec
 pub struct MappedView<TViewKey: Eq + Hash, TKey: Eq + Hash + Copy, TValue> {
     value_per_key_per_view_key: HashMap<TViewKey, HashMap<TKey, TValue>>,
     view_key: Option<TViewKey>
 }
 
-impl<TViewKey: Eq + Hash, TKey: Eq + Hash + Copy, TValue> MappedView<TViewKey, TKey, TValue> {
+impl<TViewKey: Eq + Hash + Display + Debug, TKey: Eq + Hash + Copy + Display + Debug, TValue: Debug> MappedView<TViewKey, TKey, TValue> {
     pub fn new() -> Self {
         MappedView {
             value_per_key_per_view_key: HashMap::new(),
@@ -39,7 +44,10 @@ impl<TViewKey: Eq + Hash, TKey: Eq + Hash + Copy, TValue> MappedView<TViewKey, T
     pub fn get(&self, key: &TKey) -> Option<&TValue> {
         if self.view_key.is_some() {
             let view_key_ref: &TViewKey = self.view_key.as_ref().unwrap();
-            Some(self.value_per_key_per_view_key.get(view_key_ref).unwrap().get(key).unwrap())
+            let value_per_key = self.value_per_key_per_view_key.get(view_key_ref).unwrap();
+            debug!("get mask for state {view_key_ref} for neighbor {key} in {:?}.", value_per_key);
+            let value = value_per_key.get(key).unwrap();
+            Some(value)
         }
         else {
             None
@@ -50,5 +58,11 @@ impl<TViewKey: Eq + Hash, TKey: Eq + Hash + Copy, TValue> MappedView<TViewKey, T
     }
     pub fn reset(&mut self) {
         self.view_key = None;
+    }
+}
+
+impl<TViewKey: Eq + Hash + Display + Debug, TKey: Eq + Hash + Copy + Display + Debug, TValue: Debug> Debug for MappedView<TViewKey, TKey, TValue> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "MappedView with current state {:?} has value_per_key_per_view_key {:?}", self.view_key, self.value_per_key_per_view_key)
     }
 }

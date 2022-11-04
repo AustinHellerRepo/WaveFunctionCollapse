@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::fmt::{Display, Debug};
 use std::rc::Rc;
 use std::{cell::Cell, collections::HashMap};
 use bitvec::prelude::*;
@@ -17,7 +18,7 @@ pub struct IndexedView<TNodeState, TViewKey: Eq + Hash, TKey: Eq + Hash + Copy> 
     index_mapping: HashMap<usize, usize>
 }
 
-impl<TNodeState, TViewKey: Eq + Hash, TKey: Eq + Hash + Copy> IndexedView<TNodeState, TViewKey, TKey> {
+impl<TNodeState, TViewKey: Eq + Hash + Display + Debug, TKey: Eq + Hash + Copy + Display + Debug> IndexedView<TNodeState, TViewKey, TKey> {
     pub fn new(node_state_ids: Vec<TNodeState>, masks: Vec<Rc<RefCell<MappedView<TViewKey, TKey, BitVec>>>>, masks_key: TKey) -> Self {
         let node_state_ids_length: usize = node_state_ids.len();
         let mut index_mapping = HashMap::new();
@@ -91,13 +92,20 @@ impl<TNodeState, TViewKey: Eq + Hash, TKey: Eq + Hash + Copy> IndexedView<TNodeS
         self.index.is_some()
     }
     fn is_unmasked_at_index(&self, index: usize) -> bool {
+        let mask_key: TKey = self.masks_key;
+        debug!("checking if unmasked at index {index} for node {mask_key}.");
+
         for mask_mapped_view in self.masks.iter() {
-            if let Some(mask) = mask_mapped_view.as_ref().borrow().get(&self.masks_key) {
+            debug!("checking mapped view");
+            if let Some(mask) = mask_mapped_view.borrow().get(&self.masks_key) {
+                debug!("checking mask");
                 if !mask[index] {
+                    debug!("state is masked");
                     return false;
                 }
             }
         }
+        debug!("state is unmasked");
         return true;
     }
     pub fn get(&self) -> Option<&TNodeState> {
@@ -145,5 +153,12 @@ impl<TNodeState, TViewKey: Eq + Hash, TKey: Eq + Hash + Copy> IndexedView<TNodeS
             }
         }
         (masked_bits_total as f32) / (self.node_state_ids_length as f32)
+    }
+}
+
+impl<TNodeState, TViewKey: Eq + Hash + Display + Debug, TKey: Eq + Hash + Copy + Display + Debug> Debug for IndexedView<TNodeState, TViewKey, TKey> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mask_key = self.masks_key;
+        write!(f, "IndexedView for MaskKey {mask_key} and masks {:?}.", self.masks)
     }
 }
