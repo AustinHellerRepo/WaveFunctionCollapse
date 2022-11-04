@@ -7,7 +7,6 @@ use rand::{seq::SliceRandom, Rng};
 use super::mapped_view::MappedView;
 use std::cmp::Eq;
 use std::hash::Hash;
-use rayon::prelude::*;
 
 pub struct IndexedView<TNodeState, TViewKey: Eq + Hash, TKey: Eq + Hash + Copy> {
     // items are states of the node
@@ -97,11 +96,13 @@ impl<TNodeState, TViewKey: Eq + Hash + Display + Debug, TKey: Eq + Hash + Copy +
     fn is_unmasked_at_index(&self, index: usize) -> bool {
         //debug!("checking if unmasked at index {index} for node {mask_key}.");
 
+        let mapped_index = self.index_mapping[&index];
+
         for mask_mapped_view in self.masks.iter() {
             //debug!("checking mapped view");
             if let Some(mask) = mask_mapped_view.borrow().get(&self.masks_key) {
                 //debug!("checking mask");
-                if !mask[index] {
+                if !mask[mapped_index] {
                     //debug!("state is masked");
                     return false;
                 }
@@ -149,7 +150,9 @@ impl<TNodeState, TViewKey: Eq + Hash + Display + Debug, TKey: Eq + Hash + Copy +
 
         !is_at_least_one_node_state_possible
     }
+    #[time_graph::instrument]
     pub fn get_restriction_ratio(&self) -> f32 {
+        return 0.0;
         let mut masked_bits_total: u32 = 0;
         for index in 0..self.node_state_ids_length {
             if !self.is_unmasked_at_index(index) {

@@ -749,7 +749,7 @@ mod unit_tests {
 
     fn init() {
         std::env::set_var("RUST_LOG", "trace");
-        pretty_env_logger::try_init();
+        //pretty_env_logger::try_init();
     }
 
     #[test]
@@ -1365,7 +1365,7 @@ mod unit_tests {
 
         for _ in 0..10 {
 
-            let nodes_total = 50;
+            let nodes_total = 20;
 
             let mut nodes: Vec<Node> = Vec::new();
             let mut node_ids: Vec<String> = Vec::new();
@@ -1454,9 +1454,9 @@ mod unit_tests {
 
         // TODO add random
 
-        let nodes_height = 9;
-        let nodes_width = 9;
-        let nodes_depth = 9;
+        let nodes_height = 25;
+        let nodes_width = 25;
+        let nodes_depth = 25;
         let nodes_total = nodes_height * nodes_width * nodes_depth;
         let node_states_total = 12;
 
@@ -1646,29 +1646,27 @@ mod unit_tests {
                 collapsed_wave_function_result = wave_function.collapse(random_seed);
             });
 
-            time_graph::spanned!("check results", {
+            println!("{}", time_graph::get_full_graph().as_dot());
 
-                if let Err(error_message) = collapsed_wave_function_result {
-                    println!("{}", time_graph::get_full_graph().as_dot());
-                    panic!("Error: {error_message}");
-                }
+            if let Err(error_message) = collapsed_wave_function_result {
+                panic!("Error: {error_message}");
+            }
 
-                let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
+            let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
 
-                for (node_index, node_id) in std::iter::zip(0..nodes_total, node_ids.iter()) {
-                    let node_x: i32 = node_index % nodes_width;
-                    let node_y: i32 = (node_index / nodes_width) % nodes_height;
-                    let node_z: i32 = (node_index / (nodes_width * nodes_height)) % nodes_depth;
-                    for (other_node_index, other_node_id) in std::iter::zip(0..nodes_total, node_ids.iter()) {
-                        let other_node_x: i32 = other_node_index % nodes_width;
-                        let other_node_y: i32 = (other_node_index / nodes_width) % nodes_height;
-                        let other_node_z: i32 = (other_node_index / (nodes_width * nodes_height)) % nodes_depth;
-                        if node_index != other_node_index && (node_x - other_node_x).abs() <= 1 && (node_y - other_node_y).abs() <= 1 && (node_z - other_node_z).abs() <= 1 {
-                            assert_ne!(collapsed_wave_function.node_state_per_node.get(node_id), collapsed_wave_function.node_state_per_node.get(other_node_id));
-                        }
+            for (node_index, node_id) in std::iter::zip(0..nodes_total, node_ids.iter()) {
+                let node_x: i32 = node_index % nodes_width;
+                let node_y: i32 = (node_index / nodes_width) % nodes_height;
+                let node_z: i32 = (node_index / (nodes_width * nodes_height)) % nodes_depth;
+                for (other_node_index, other_node_id) in std::iter::zip(0..nodes_total, node_ids.iter()) {
+                    let other_node_x: i32 = other_node_index % nodes_width;
+                    let other_node_y: i32 = (other_node_index / nodes_width) % nodes_height;
+                    let other_node_z: i32 = (other_node_index / (nodes_width * nodes_height)) % nodes_depth;
+                    if node_index != other_node_index && (node_x - other_node_x).abs() <= 1 && (node_y - other_node_y).abs() <= 1 && (node_z - other_node_z).abs() <= 1 {
+                        assert_ne!(collapsed_wave_function.node_state_per_node.get(node_id), collapsed_wave_function.node_state_per_node.get(other_node_id));
                     }
                 }
-            });
+            }
         }
 
         println!("{}", time_graph::get_full_graph().as_dot());
