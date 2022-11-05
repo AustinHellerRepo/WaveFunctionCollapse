@@ -64,8 +64,8 @@ impl<'a> CollapsableNode<'a> {
         }
     }
     fn randomize<R: Rng + ?Sized>(&mut self, random_instance: &mut R) {
-        self.neighbor_node_ids.shuffle(random_instance);
-        self.node_state_indexed_view.shuffle(random_instance);
+        //self.neighbor_node_ids.shuffle(random_instance);
+        //self.node_state_indexed_view.shuffle(random_instance);
         self.random_sort_index = random_instance.next_u32();
     }
     fn is_fully_restricted(&self) -> bool {
@@ -159,6 +159,7 @@ impl<'a> CollapsableWaveFunction<'a> {
         is_successful
     }
     fn alter_reference_to_current_collapsable_node_mask(&mut self) {
+        // TODO implement mapped indexes
         let current_collapsable_node = self.collapsable_nodes.get_mut(self.current_collapsable_node_index).expect("The collapsable node should exist at this index.");
         let current_possible_state: &str = current_collapsable_node.node_state_indexed_view.get().unwrap();
         current_collapsable_node.neighbor_mask_mapped_view.borrow_mut().orient(current_possible_state);
@@ -297,9 +298,12 @@ impl<'a> CollapsableWaveFunction<'a> {
         for collapsable_node in self.collapsable_nodes.iter() {
             let node_state: String = String::from(*collapsable_node.node_state_indexed_view.get().unwrap());
             let node: String = String::from(collapsable_node.id);
+            debug!("established node {node} in state {node_state}.");
             node_state_per_node.insert(node, node_state);
         }
-        CollapsedWaveFunction { node_state_per_node: node_state_per_node }
+        CollapsedWaveFunction {
+            node_state_per_node: node_state_per_node
+        }
     }
 }
 
@@ -749,7 +753,7 @@ mod unit_tests {
 
     fn init() {
         std::env::set_var("RUST_LOG", "trace");
-        //pretty_env_logger::try_init();
+        pretty_env_logger::try_init();
     }
 
     #[test]
@@ -1276,7 +1280,115 @@ mod unit_tests {
         assert_eq!(&second_node_state_id, collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap());
         assert_eq!(&third_node_state_id, collapsed_wave_function.node_state_per_node.get(&third_node_id).unwrap());
 
-    }#[test]
+    }
+
+    #[test]
+    fn three_nodes_as_dense_neighbors_randomly_all_different_states() {
+        init();
+
+        time_graph::enable_data_collection(true);
+
+        let mut rng = rand::thread_rng();
+
+        for _ in 0..10 {
+            
+            let mut nodes: Vec<Node> = Vec::new();
+            let mut node_state_collections: Vec<NodeStateCollection> = Vec::new();
+
+            nodes.push(Node { 
+                id: String::from("node_1"),
+                node_state_collection_ids_per_neighbor_node_id: HashMap::new()
+            });
+            nodes.push(Node { 
+                id: String::from("node_2"),
+                node_state_collection_ids_per_neighbor_node_id: HashMap::new()
+            });
+            nodes.push(Node { 
+                id: String::from("node_3"),
+                node_state_collection_ids_per_neighbor_node_id: HashMap::new()
+            });
+
+            let first_node_state_id: String = String::from("state_A");
+            let second_node_state_id: String = String::from("state_B");
+            let third_node_state_id: String = String::from("state_C");
+            let first_node_id: String = nodes[0].id.clone();
+            let second_node_id: String = nodes[1].id.clone();
+            let third_node_id: String = nodes[2].id.clone();
+
+            let all_but_first_node_state_collection_id: String = String::from("nsc_1");
+            let all_but_first_node_state_collection = NodeStateCollection {
+                id: all_but_first_node_state_collection_id.clone(),
+                node_state_id: first_node_state_id.clone(),
+                node_state_ids: vec![second_node_state_id.clone(), third_node_state_id.clone()]
+            };
+            node_state_collections.push(all_but_first_node_state_collection);
+
+            let all_but_second_node_state_collection_id: String = String::from("nsc_2");
+            let all_but_second_node_state_collection = NodeStateCollection {
+                id: all_but_second_node_state_collection_id.clone(),
+                node_state_id: second_node_state_id.clone(),
+                node_state_ids: vec![first_node_state_id.clone(), third_node_state_id.clone()]
+            };
+            node_state_collections.push(all_but_second_node_state_collection);
+
+            let all_but_third_node_state_collection_id: String = String::from("nsc_3");
+            let all_but_third_node_state_collection = NodeStateCollection {
+                id: all_but_third_node_state_collection_id.clone(),
+                node_state_id: third_node_state_id.clone(),
+                node_state_ids: vec![first_node_state_id.clone(), second_node_state_id.clone()]
+            };
+            node_state_collections.push(all_but_third_node_state_collection);
+
+            nodes[0].node_state_collection_ids_per_neighbor_node_id.insert(second_node_id.clone(), Vec::new());
+            nodes[0].node_state_collection_ids_per_neighbor_node_id.get_mut(&second_node_id).unwrap().push(all_but_first_node_state_collection_id.clone());
+            nodes[0].node_state_collection_ids_per_neighbor_node_id.get_mut(&second_node_id).unwrap().push(all_but_second_node_state_collection_id.clone());
+            nodes[0].node_state_collection_ids_per_neighbor_node_id.get_mut(&second_node_id).unwrap().push(all_but_third_node_state_collection_id.clone());
+            nodes[0].node_state_collection_ids_per_neighbor_node_id.insert(third_node_id.clone(), Vec::new());
+            nodes[0].node_state_collection_ids_per_neighbor_node_id.get_mut(&third_node_id).unwrap().push(all_but_first_node_state_collection_id.clone());
+            nodes[0].node_state_collection_ids_per_neighbor_node_id.get_mut(&third_node_id).unwrap().push(all_but_second_node_state_collection_id.clone());
+            nodes[0].node_state_collection_ids_per_neighbor_node_id.get_mut(&third_node_id).unwrap().push(all_but_third_node_state_collection_id.clone());
+
+            nodes[1].node_state_collection_ids_per_neighbor_node_id.insert(first_node_id.clone(), Vec::new());
+            nodes[1].node_state_collection_ids_per_neighbor_node_id.get_mut(&first_node_id).unwrap().push(all_but_first_node_state_collection_id.clone());
+            nodes[1].node_state_collection_ids_per_neighbor_node_id.get_mut(&first_node_id).unwrap().push(all_but_second_node_state_collection_id.clone());
+            nodes[1].node_state_collection_ids_per_neighbor_node_id.get_mut(&first_node_id).unwrap().push(all_but_third_node_state_collection_id.clone());
+            nodes[1].node_state_collection_ids_per_neighbor_node_id.insert(third_node_id.clone(), Vec::new());
+            nodes[1].node_state_collection_ids_per_neighbor_node_id.get_mut(&third_node_id).unwrap().push(all_but_first_node_state_collection_id.clone());
+            nodes[1].node_state_collection_ids_per_neighbor_node_id.get_mut(&third_node_id).unwrap().push(all_but_second_node_state_collection_id.clone());
+            nodes[1].node_state_collection_ids_per_neighbor_node_id.get_mut(&third_node_id).unwrap().push(all_but_third_node_state_collection_id.clone());
+
+            nodes[2].node_state_collection_ids_per_neighbor_node_id.insert(first_node_id.clone(), Vec::new());
+            nodes[2].node_state_collection_ids_per_neighbor_node_id.get_mut(&first_node_id).unwrap().push(all_but_first_node_state_collection_id.clone());
+            nodes[2].node_state_collection_ids_per_neighbor_node_id.get_mut(&first_node_id).unwrap().push(all_but_second_node_state_collection_id.clone());
+            nodes[2].node_state_collection_ids_per_neighbor_node_id.get_mut(&first_node_id).unwrap().push(all_but_third_node_state_collection_id.clone());
+            nodes[2].node_state_collection_ids_per_neighbor_node_id.insert(second_node_id.clone(), Vec::new());
+            nodes[2].node_state_collection_ids_per_neighbor_node_id.get_mut(&second_node_id).unwrap().push(all_but_first_node_state_collection_id.clone());
+            nodes[2].node_state_collection_ids_per_neighbor_node_id.get_mut(&second_node_id).unwrap().push(all_but_second_node_state_collection_id.clone());
+            nodes[2].node_state_collection_ids_per_neighbor_node_id.get_mut(&second_node_id).unwrap().push(all_but_third_node_state_collection_id.clone());
+
+            let wave_function = WaveFunction::new(nodes, node_state_collections);
+            let random_seed = rng.next_u64();
+            let collapsed_wave_function_result = wave_function.collapse(Some(random_seed));
+
+            if let Err(error_message) = collapsed_wave_function_result {
+                panic!("Error: {error_message}");
+            }
+
+            let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
+
+            let first_node_state_id = collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap();
+            let second_node_state_id = collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap();
+            let third_node_state_id = collapsed_wave_function.node_state_per_node.get(&third_node_id).unwrap();
+            assert_ne!(second_node_state_id, first_node_state_id);
+            assert_ne!(third_node_state_id, first_node_state_id);
+            assert_ne!(first_node_state_id, second_node_state_id);
+            assert_ne!(third_node_state_id, second_node_state_id);
+            assert_ne!(first_node_state_id, third_node_state_id);
+            assert_ne!(second_node_state_id, third_node_state_id);
+        }
+    }
+    
+    #[test]
     fn many_nodes_as_dense_neighbors_all_different_states() {
         //init();
         time_graph::enable_data_collection(true);
@@ -1448,11 +1560,9 @@ mod unit_tests {
     }
 
     #[test]
-    fn many_nodes_as_3D_grid_all_different_states() {  // TODO create "randomly" variant
+    fn many_nodes_as_3D_grid_all_different_states() {
         init();
         time_graph::enable_data_collection(true);
-
-        // TODO add random
 
         let nodes_height = 25;
         let nodes_width = 25;
@@ -1559,7 +1669,7 @@ mod unit_tests {
     }
 
     #[test]
-    fn many_nodes_as_3D_grid_randomly_all_different_states() {  // TODO create "randomly" variant
+    fn many_nodes_as_3D_grid_randomly_all_different_states() {
         init();
         time_graph::enable_data_collection(true);
 
