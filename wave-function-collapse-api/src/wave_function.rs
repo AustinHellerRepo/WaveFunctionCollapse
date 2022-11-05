@@ -102,6 +102,10 @@ pub struct CollapsedWaveFunction {
     node_state_per_node: HashMap<String, String>
 }
 
+pub struct UncollapsedWaveFunction {
+    node_state_per_node: HashMap<String, Option<String>>
+}
+
 pub struct CollapsableWaveFunction<'a> {
     // represents a wave function with all of the necessary steps to collapse
     collapsable_nodes: Vec<CollapsableNode<'a>>,
@@ -291,6 +295,24 @@ impl<'a> CollapsableWaveFunction<'a> {
             }
         }
         is_useful_neighbor_found
+    }
+    fn get_uncollapsed_wave_function(&self) -> UncollapsedWaveFunction {
+        let mut node_state_per_node: HashMap<String, Option<String>> = HashMap::new();
+        for collapsable_node in self.collapsable_nodes.iter() {
+            let node_state_id_option: Option<String>;
+            if let Some(node_state_id) = collapsable_node.node_state_indexed_view.get() {
+                node_state_id_option = Some(String::from(*node_state_id));
+            }
+            else {
+                node_state_id_option = None;
+            }
+            let node: String = String::from(collapsable_node.id);
+            debug!("established node {node} in state {:?}.", node_state_id_option);
+            node_state_per_node.insert(node, node_state_id_option);
+        }
+        UncollapsedWaveFunction {
+            node_state_per_node: node_state_per_node
+        }
     }
     fn get_collapsed_wave_function(&self) -> CollapsedWaveFunction {
         let mut node_state_per_node: HashMap<String, String> = HashMap::new();
@@ -610,7 +632,7 @@ impl WaveFunction {
         CollapsableWaveFunction::new(collapsable_nodes)
     }
     #[time_graph::instrument]
-    pub fn collapse(&self, random_seed: Option<u64>) -> Result<CollapsedWaveFunction, String> {
+    pub fn collapse(&self, random_seed: Option<u64>, get_uncollapsed_wave_function_callback: Option<fn(UncollapsedWaveFunction)>) -> Result<CollapsedWaveFunction, String> {
         let validation_result = self.validate();
 
         if let Err(error_message) = validation_result {
@@ -665,6 +687,9 @@ impl WaveFunction {
             debug!("incrementing node state");
             if collapsable_wave_function.try_increment_current_collapsable_node_state() {
                 debug!("incremented node state");
+                if let Some(callback) = get_uncollapsed_wave_function_callback {
+                    callback(collapsable_wave_function.get_uncollapsed_wave_function());
+                }
                 collapsable_wave_function.alter_reference_to_current_collapsable_node_mask();
                 debug!("altered reference");
                 if !collapsable_wave_function.is_at_least_one_neighbor_fully_restricted() {
@@ -689,6 +714,9 @@ impl WaveFunction {
                 }
                 else {
                     debug!("moved back to previous neighbor");
+                    if let Some(callback) = get_uncollapsed_wave_function_callback {
+                        callback(collapsable_wave_function.get_uncollapsed_wave_function());
+                    }
                 }
             }
         }
@@ -752,7 +780,7 @@ mod unit_tests {
 
     fn init() {
         std::env::set_var("RUST_LOG", "trace");
-        pretty_env_logger::try_init();
+        //pretty_env_logger::try_init();
     }
 
     #[test]
@@ -772,7 +800,7 @@ mod unit_tests {
         let nodes: Vec<Node> = Vec::new();
         let node_state_collections: Vec<NodeStateCollection> = Vec::new();
         let wave_function = WaveFunction::new(nodes, node_state_collections);
-        let collapsed_wave_function_result = wave_function.collapse(None);
+        let collapsed_wave_function_result = wave_function.collapse(None, None);
         assert_eq!("There must be two or more nodes.", collapsed_wave_function_result.err().unwrap());
     }
 
@@ -789,7 +817,7 @@ mod unit_tests {
         });
 
         let wave_function = WaveFunction::new(nodes, node_state_collections);
-        let collapsed_wave_function_result = wave_function.collapse(None);
+        let collapsed_wave_function_result = wave_function.collapse(None, None);
         assert_eq!("There must be two or more nodes.", collapsed_wave_function_result.err().unwrap());
     }
 
@@ -810,7 +838,7 @@ mod unit_tests {
         });
 
         let wave_function = WaveFunction::new(nodes, node_state_collections);
-        let collapsed_wave_function_result = wave_function.collapse(None);
+        let collapsed_wave_function_result = wave_function.collapse(None, None);
         assert_eq!("Not all nodes connect together. At least one node must be able to traverse to all other nodes.", collapsed_wave_function_result.err().unwrap());
     }
 
@@ -846,7 +874,7 @@ mod unit_tests {
         nodes[0].node_state_collection_ids_per_neighbor_node_id.get_mut(&second_node_id).unwrap().push(same_node_state_collection_id.clone());
 
         let wave_function = WaveFunction::new(nodes, node_state_collections);
-        let collapsed_wave_function_result = wave_function.collapse(None);
+        let collapsed_wave_function_result = wave_function.collapse(None, None);
         let collapsed_wave_function = collapsed_wave_function_result.unwrap();
 
         assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
@@ -888,7 +916,7 @@ mod unit_tests {
         nodes[1].node_state_collection_ids_per_neighbor_node_id.get_mut(&first_node_id).unwrap().push(same_node_state_collection_id.clone());
 
         let wave_function = WaveFunction::new(nodes, node_state_collections);
-        let collapsed_wave_function_result = wave_function.collapse(None);
+        let collapsed_wave_function_result = wave_function.collapse(None, None);
 
         if let Err(error_message) = collapsed_wave_function_result {
             panic!("Error: {error_message}");
@@ -947,7 +975,7 @@ mod unit_tests {
         nodes[1].node_state_collection_ids_per_neighbor_node_id.get_mut(&first_node_id).unwrap().push(if_two_not_one_node_state_collection_id.clone());
 
         let wave_function = WaveFunction::new(nodes, node_state_collections);
-        let collapsed_wave_function_result = wave_function.collapse(None);
+        let collapsed_wave_function_result = wave_function.collapse(None, None);
 
         if let Err(error_message) = collapsed_wave_function_result {
             panic!("Error: {error_message}");
@@ -1009,7 +1037,7 @@ mod unit_tests {
 
             let wave_function = WaveFunction::new(nodes, node_state_collections);
             let random_seed = Some(rng.gen::<u64>());
-            let collapsed_wave_function_result = wave_function.collapse(random_seed);
+            let collapsed_wave_function_result = wave_function.collapse(random_seed, None);
 
             if let Err(error_message) = collapsed_wave_function_result {
                 panic!("Error: {error_message}");
@@ -1125,7 +1153,7 @@ mod unit_tests {
 
             let wave_function = WaveFunction::new(nodes, node_state_collections);
             let random_seed = Some(rng.gen::<u64>());
-            let collapsed_wave_function_result = wave_function.collapse(random_seed);
+            let collapsed_wave_function_result = wave_function.collapse(random_seed, None);
 
             assert_eq!("Cannot collapse wave function.", collapsed_wave_function_result.err().unwrap());
         }
@@ -1174,7 +1202,7 @@ mod unit_tests {
         nodes[2].node_state_collection_ids_per_neighbor_node_id.get_mut(&first_node_id).unwrap().push(same_node_state_collection_id.clone());
 
         let wave_function = WaveFunction::new(nodes, node_state_collections);
-        let collapsed_wave_function_result = wave_function.collapse(None);
+        let collapsed_wave_function_result = wave_function.collapse(None, None);
 
         if let Err(error_message) = collapsed_wave_function_result {
             panic!("Error: {error_message}");
@@ -1267,7 +1295,7 @@ mod unit_tests {
         nodes[2].node_state_collection_ids_per_neighbor_node_id.get_mut(&second_node_id).unwrap().push(all_but_third_node_state_collection_id.clone());
 
         let wave_function = WaveFunction::new(nodes, node_state_collections);
-        let collapsed_wave_function_result = wave_function.collapse(None);
+        let collapsed_wave_function_result = wave_function.collapse(None, None);
 
         if let Err(error_message) = collapsed_wave_function_result {
             panic!("Error: {error_message}");
@@ -1367,7 +1395,7 @@ mod unit_tests {
 
             let wave_function = WaveFunction::new(nodes, node_state_collections);
             let random_seed = rng.next_u64();
-            let collapsed_wave_function_result = wave_function.collapse(Some(random_seed));
+            let collapsed_wave_function_result = wave_function.collapse(Some(random_seed), None);
 
             if let Err(error_message) = collapsed_wave_function_result {
                 panic!("Error: {error_message}");
@@ -1448,7 +1476,7 @@ mod unit_tests {
         let collapsed_wave_function_result: Result<CollapsedWaveFunction, String>;
         
         time_graph::spanned!("collapsing wave function", {
-            collapsed_wave_function_result = wave_function.collapse(None);
+            collapsed_wave_function_result = wave_function.collapse(None, None);
         });
 
         time_graph::spanned!("check results", {
@@ -1533,7 +1561,7 @@ mod unit_tests {
             
             time_graph::spanned!("collapsing wave function", {
                 let random_seed = rng.next_u64();
-                collapsed_wave_function_result = wave_function.collapse(Some(random_seed));
+                collapsed_wave_function_result = wave_function.collapse(Some(random_seed), None);
             });
 
             time_graph::spanned!("check results", {
@@ -1637,7 +1665,7 @@ mod unit_tests {
         let collapsed_wave_function_result: Result<CollapsedWaveFunction, String>;
         
         time_graph::spanned!("collapsing wave function", {
-            collapsed_wave_function_result = wave_function.collapse(None);
+            collapsed_wave_function_result = wave_function.collapse(None, None);
         });
 
         time_graph::spanned!("check results", {
@@ -1753,7 +1781,7 @@ mod unit_tests {
             
             time_graph::spanned!("collapsing wave function", {
                 //let random_seed = Some(rng.gen::<u64>());  // TODO uncomment after fixing
-                collapsed_wave_function_result = wave_function.collapse(random_seed);
+                collapsed_wave_function_result = wave_function.collapse(random_seed, None);
             });
 
             println!("{}", time_graph::get_full_graph().as_dot());

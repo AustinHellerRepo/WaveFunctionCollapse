@@ -73,7 +73,7 @@ async fn post_request(mut req: tide::Request<MultiThreadState>) -> tide::Result 
     let wave_function = wave_function::WaveFunction::new(request_command.nodes, request_command.node_state_collections);
 
     // TODO randomize with seeded stateful rand::thread_rng()
-    match wave_function.collapse(None) {
+    match wave_function.collapse(None, None) {
         Err(error_message) => {
             let mut response = Response::new(400);
             response.set_body(error_message);
