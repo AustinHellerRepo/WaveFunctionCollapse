@@ -115,7 +115,13 @@ impl<TNodeState, TViewKey: Eq + Hash + Display + Debug, TKey: Eq + Hash + Copy +
     pub fn get(&self) -> Option<&TNodeState> {
         let value: Option<&TNodeState>;
         if let Some(index) = self.index {
-            value = self.node_state_ids.get(index);
+            if index == self.node_state_ids_length {
+                value = None;
+            }
+            else {
+                let mapped_index = self.index_mapping.get(&index).unwrap();
+                value = self.node_state_ids.get(*mapped_index);
+            }
         }
         else {
             value = None;

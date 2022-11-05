@@ -64,8 +64,7 @@ impl<'a> CollapsableNode<'a> {
         }
     }
     fn randomize<R: Rng + ?Sized>(&mut self, random_instance: &mut R) {
-        //self.neighbor_node_ids.shuffle(random_instance);
-        //self.node_state_indexed_view.shuffle(random_instance);
+        self.node_state_indexed_view.shuffle(random_instance);
         self.random_sort_index = random_instance.next_u32();
     }
     fn is_fully_restricted(&self) -> bool {
@@ -205,7 +204,7 @@ impl<'a> CollapsableWaveFunction<'a> {
         let current_collapsable_nodes_display = CollapsableNode::get_ids(&self.collapsable_nodes);
         debug!("current sort order: {current_collapsable_nodes_display}.");
 
-        self.collapsable_nodes.sort_by(|a, b| {
+        self.collapsable_nodes.sort_unstable_by(|a, b| {
 
             let a_node_id: &str = a.id;
             let b_node_id: &str = b.id;
@@ -1674,8 +1673,10 @@ mod unit_tests {
         time_graph::enable_data_collection(true);
 
         let mut rng = rand::thread_rng();
+        //let random_seed = Some(rng.next_u64());
+        let random_seed = Some(14262106489863409486);
 
-        for _ in 0..10 {
+        for _ in 0..1 {
 
             let nodes_height = 4;
             let nodes_width = 4;
@@ -1751,14 +1752,14 @@ mod unit_tests {
             let collapsed_wave_function_result: Result<CollapsedWaveFunction, String>;
             
             time_graph::spanned!("collapsing wave function", {
-                let random_seed = Some(rng.gen::<u64>());
-                debug!("trying seed: {:?}.", random_seed);
+                //let random_seed = Some(rng.gen::<u64>());  // TODO uncomment after fixing
                 collapsed_wave_function_result = wave_function.collapse(random_seed);
             });
 
             println!("{}", time_graph::get_full_graph().as_dot());
 
             if let Err(error_message) = collapsed_wave_function_result {
+                println!("tried random seed: {:?}.", random_seed);
                 panic!("Error: {error_message}");
             }
 
