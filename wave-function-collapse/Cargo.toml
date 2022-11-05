@@ -1,5 +1,5 @@
 [package]
-name = "wave-function-collapse-api"
+name = "wave-function-collapse"
 version = "0.1.0"
 edition = "2021"
 
