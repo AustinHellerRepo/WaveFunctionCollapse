@@ -38,10 +38,11 @@ impl<TNodeState, TViewKey: Eq + Hash + Display + Debug, TKey: Eq + Hash + Copy +
         if self.index.is_some() {
             panic!("Can only be shuffled prior to use.");
         }
-        let mut shuffled_values: Vec<usize> = (0..self.node_state_ids_length).collect();
-        shuffled_values.shuffle(random_instance);
+        let mut shuffled_indexes: Vec<usize> = (0..self.node_state_ids_length).collect();
+        shuffled_indexes.shuffle(random_instance);
+        self.index_mapping.clear();
         for index in 0..self.node_state_ids_length {
-            self.index_mapping.insert(index, shuffled_values[index]);
+            self.index_mapping.insert(index, shuffled_indexes[index]);
         }
     }
     #[time_graph::instrument]
@@ -96,7 +97,7 @@ impl<TNodeState, TViewKey: Eq + Hash + Display + Debug, TKey: Eq + Hash + Copy +
     fn is_unmasked_at_index(&self, index: usize) -> bool {
         //debug!("checking if unmasked at index {index} for node {mask_key}.");
 
-        let mapped_index = self.index_mapping[&index];
+        let mapped_index = *self.index_mapping.get(&index).unwrap();
 
         for mask_mapped_view in self.masks.iter() {
             //debug!("checking mapped view");
@@ -114,7 +115,13 @@ impl<TNodeState, TViewKey: Eq + Hash + Display + Debug, TKey: Eq + Hash + Copy +
     pub fn get(&self) -> Option<&TNodeState> {
         let value: Option<&TNodeState>;
         if let Some(index) = self.index {
-            value = self.node_state_ids.get(index);
+            if index == self.node_state_ids_length {
+                value = None;
+            }
+            else {
+                let mapped_index = self.index_mapping.get(&index).unwrap();
+                value = self.node_state_ids.get(*mapped_index);
+            }
         }
         else {
             value = None;
