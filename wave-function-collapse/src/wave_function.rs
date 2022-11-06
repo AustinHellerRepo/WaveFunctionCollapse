@@ -1,4 +1,4 @@
-use std::{collections::{HashMap, HashSet, BTreeSet}, cell::{Cell, RefCell}, rc::Rc, fmt::Display};
+use std::{collections::{HashMap, HashSet, BTreeSet}, cell::{Cell, RefCell}, rc::Rc, fmt::Display, hash::Hash};
 use serde::{Deserialize, Serialize};
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
@@ -102,9 +102,17 @@ pub struct CollapsedWaveFunction {
     node_state_per_node: HashMap<String, String>
 }
 
-#[derive(Clone, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub struct UncollapsedWaveFunction {
     node_state_per_node: HashMap<String, Option<String>>
+}
+
+impl Hash for UncollapsedWaveFunction {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        for property in self.node_state_per_node.iter() {
+            property.hash(state);
+        }
+    }
 }
 
 pub struct CollapsableWaveFunction<'a> {
