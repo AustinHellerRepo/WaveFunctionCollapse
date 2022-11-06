@@ -340,8 +340,7 @@ impl<'a> CollapsableWaveFunction<'a> {
 pub struct WaveFunction {
     nodes: Vec<Node>,
     node_state_collections: Vec<NodeStateCollection>,
-    all_possible_node_state_ids: Vec<String>,
-    get_uncollapsed_wave_function_callback: Option<fn(UncollapsedWaveFunction)>
+    all_possible_node_state_ids: Vec<String>
 }
 
 impl WaveFunction {
@@ -379,12 +378,8 @@ impl WaveFunction {
         WaveFunction {
             nodes: nodes,
             node_state_collections: node_state_collections,
-            all_possible_node_state_ids: node_state_ids,
-            get_uncollapsed_wave_function_callback: None
+            all_possible_node_state_ids: node_state_ids
         }
-    }
-    pub fn set_get_uncollapsed_wave_function_callback(&mut self, get_uncollapsed_wave_function_callback: fn(UncollapsedWaveFunction)) {
-        self.get_uncollapsed_wave_function_callback = Some(get_uncollapsed_wave_function_callback);
     }
     fn validate(&self) -> Result<(), String> {
         let nodes_length: usize = self.nodes.len();
@@ -646,6 +641,62 @@ impl WaveFunction {
         CollapsableWaveFunction::new(collapsable_nodes)
     }
     #[time_graph::instrument]
+    pub fn collapse_into_steps(&self, random_seed: Option<u64>) -> Result<Vec<UncollapsedWaveFunction>, String> {
+        let mut uncollapsed_wave_functions: Vec<UncollapsedWaveFunction> = Vec::new();
+
+        let validation_result = self.validate();
+
+        if let Err(error_message) = validation_result {
+            return Err(error_message);
+        }
+
+        let mut collapsable_wave_function = self.get_collapsable_wave_function(random_seed);
+
+        debug!("sorting initial list of collapsable nodes");
+        collapsable_wave_function.sort_collapsable_nodes();
+        debug!("sorted initial list of collapsable nodes");
+
+        let mut is_unable_to_collapse = false;
+        debug!("starting while loop");
+        while !is_unable_to_collapse && !collapsable_wave_function.is_fully_collapsed() {
+            debug!("incrementing node state");
+            if collapsable_wave_function.try_increment_current_collapsable_node_state() {
+                debug!("incremented node state");
+                uncollapsed_wave_functions.push(collapsable_wave_function.get_uncollapsed_wave_function());
+                debug!("stored uncollapsed_wave_function state");
+                collapsable_wave_function.alter_reference_to_current_collapsable_node_mask();
+                debug!("altered reference");
+                if !collapsable_wave_function.is_at_least_one_neighbor_fully_restricted() {
+                    debug!("all neighbors have at least one valid state");
+                    collapsable_wave_function.move_to_next_collapsable_node(); // this has the potential to move outside of the bounds and put the collapsable wave function in a state of being fully collapsed
+                    debug!("moved to next collapsable node");
+                    if !collapsable_wave_function.is_fully_collapsed() {
+                        debug!("not yet fully collapsed");
+                        collapsable_wave_function.sort_collapsable_nodes();
+                        debug!("sorted nodes");
+                    }
+                }
+                else {
+                    debug!("at least one neighbor is fully restricted");
+                }
+            }
+            else {
+                debug!("failed to incremented node");
+                if !collapsable_wave_function.try_move_to_previous_collapsable_node_neighbor() {
+                    debug!("moved back to first node");
+                    is_unable_to_collapse = true;
+                }
+                else {
+                    debug!("moved back to previous neighbor");
+                    collapsable_wave_function.alter_reference_to_current_collapsable_node_mask();
+                    debug!("stored uncollapsed_wave_function state");
+                }
+            }
+        }
+        debug!("finished while loop");
+
+        Ok(uncollapsed_wave_functions)
+    }
     pub fn collapse(&self, random_seed: Option<u64>) -> Result<CollapsedWaveFunction, String> {
         let validation_result = self.validate();
 
@@ -701,9 +752,6 @@ impl WaveFunction {
             debug!("incrementing node state");
             if collapsable_wave_function.try_increment_current_collapsable_node_state() {
                 debug!("incremented node state");
-                if let Some(callback) = self.get_uncollapsed_wave_function_callback {
-                    callback(collapsable_wave_function.get_uncollapsed_wave_function());
-                }
                 collapsable_wave_function.alter_reference_to_current_collapsable_node_mask();
                 debug!("altered reference");
                 if !collapsable_wave_function.is_at_least_one_neighbor_fully_restricted() {
@@ -728,9 +776,6 @@ impl WaveFunction {
                 }
                 else {
                     debug!("moved back to previous neighbor");
-                    if let Some(callback) = self.get_uncollapsed_wave_function_callback {
-                        callback(collapsable_wave_function.get_uncollapsed_wave_function());
-                    }
                 }
             }
         }
@@ -1820,6 +1865,111 @@ mod unit_tests {
                     }
                 }
             }
+        }
+
+        println!("{}", time_graph::get_full_graph().as_dot());
+    }
+
+    #[test]
+    fn many_nodes_as_3D_grid_randomly_all_different_states_uncollapsed_wave_functions() {
+        init();
+        time_graph::enable_data_collection(true);
+
+        let mut rng = rand::thread_rng();
+        //let random_seed = Some(rng.next_u64());
+        let random_seed = Some(14262106489863409486);
+
+        for _ in 0..1 {
+
+            let nodes_height = 4;
+            let nodes_width = 4;
+            let nodes_depth = 4;
+            let nodes_total = nodes_height * nodes_width * nodes_depth;
+            let node_states_total = 12;
+
+            let mut nodes: Vec<Node> = Vec::new();
+            let mut node_ids: Vec<String> = Vec::new();
+            let mut node_state_collections: Vec<NodeStateCollection> = Vec::new();
+            let mut node_state_ids: Vec<String> = Vec::new();
+            let mut node_state_collection_ids: Vec<String> = Vec::new();
+
+            time_graph::spanned!("creating test data", {
+
+                for index in 0..nodes_total {
+                    let node_id: String = Uuid::new_v4().to_string();
+                    node_ids.push(node_id.clone());
+                    nodes.push(Node { 
+                        id: node_id,
+                        node_state_collection_ids_per_neighbor_node_id: HashMap::new()
+                    });
+                }
+
+                for index in 0..node_states_total {
+                    node_state_ids.push(Uuid::new_v4().to_string());
+                }
+
+                for node_state_id in node_state_ids.iter() {
+                    let mut other_node_state_ids: Vec<String> = Vec::new();
+                    for other_node_state_id in node_state_ids.iter() {
+                        if node_state_id != other_node_state_id {
+                            other_node_state_ids.push(other_node_state_id.clone());
+                        }
+                    }
+                    
+                    let node_state_collection_id: String = Uuid::new_v4().to_string();
+                    node_state_collection_ids.push(node_state_collection_id.clone());
+                    node_state_collections.push(NodeStateCollection {
+                        id: node_state_collection_id,
+                        node_state_id: node_state_id.clone(),
+                        node_state_ids: other_node_state_ids
+                    });
+                }
+
+                // tie nodes to their neighbors
+                for (node_index, node) in std::iter::zip(0..nodes_total, nodes.iter_mut()) {
+                    let node_x: i32 = node_index % nodes_width;
+                    let node_y: i32 = (node_index / nodes_width) % nodes_height;
+                    let node_z: i32 = (node_index / (nodes_width * nodes_height)) % nodes_depth;
+                    let mut neighbors_total = 0;
+                    //debug!("processing node {node_x}, {node_y}, {node_z}.");
+                    for (other_node_index, other_node_id) in std::iter::zip(0..nodes_total, node_ids.iter()) {
+                        let other_node_x: i32 = other_node_index % nodes_width;
+                        let other_node_y: i32 = (other_node_index / nodes_width) % nodes_height;
+                        let other_node_z: i32 = (other_node_index / (nodes_width * nodes_height)) % nodes_depth;
+                        if node_index != other_node_index && (node_x - other_node_x).abs() <= 1 && (node_y - other_node_y).abs() <= 1 && (node_z - other_node_z).abs() <= 1 {
+                            //debug!("found neighbor at {other_node_x}, {other_node_y}, {other_node_z}.");
+                            node.node_state_collection_ids_per_neighbor_node_id.insert(other_node_id.clone(), node_state_collection_ids.clone());
+                            neighbors_total += 1;
+                        }
+                    }
+                    //debug!("neighbors: {neighbors_total}.");
+                }
+            });
+
+            let wave_function: WaveFunction;
+
+            time_graph::spanned!("creating wave function", {
+                wave_function = WaveFunction::new(nodes, node_state_collections);
+            });
+
+            let uncollapsed_wave_functions_result: Result<Vec<UncollapsedWaveFunction>, String>;
+            
+            time_graph::spanned!("collapsing wave function", {
+                //let random_seed = Some(rng.gen::<u64>());  // TODO uncomment after fixing
+                uncollapsed_wave_functions_result = wave_function.collapse_into_steps(random_seed);
+            });
+
+            println!("{}", time_graph::get_full_graph().as_dot());
+
+            if let Err(error_message) = uncollapsed_wave_functions_result {
+                println!("tried random seed: {:?}.", random_seed);
+                panic!("Error: {error_message}");
+            }
+
+            let uncollapsed_wave_functions = uncollapsed_wave_functions_result.ok().unwrap();
+
+            // TODO assert something about the uncollapsed wave functions
+            println!("Found {:?} uncollapsed wave functions.", uncollapsed_wave_functions.len());
         }
 
         println!("{}", time_graph::get_full_graph().as_dot());
