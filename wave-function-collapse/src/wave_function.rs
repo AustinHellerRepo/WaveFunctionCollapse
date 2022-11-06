@@ -641,7 +641,7 @@ impl WaveFunction {
         CollapsableWaveFunction::new(collapsable_nodes)
     }
     #[time_graph::instrument]
-    pub fn collapse(&self, random_seed: Option<u64>, get_uncollapsed_wave_function_callback: Option<fn(UncollapsedWaveFunction)>) -> Result<CollapsedWaveFunction, String> {
+    pub fn collapse(&self, random_seed: Option<u64>, get_uncollapsed_wave_function_callback: Option<&dyn Fn(UncollapsedWaveFunction)>) -> Result<CollapsedWaveFunction, String> {
         let validation_result = self.validate();
 
         if let Err(error_message) = validation_result {
