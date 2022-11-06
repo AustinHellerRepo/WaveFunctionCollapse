@@ -102,6 +102,7 @@ pub struct CollapsedWaveFunction {
     node_state_per_node: HashMap<String, String>
 }
 
+#[derive(Clone, Eq, PartialEq)]
 pub struct UncollapsedWaveFunction {
     node_state_per_node: HashMap<String, Option<String>>
 }
