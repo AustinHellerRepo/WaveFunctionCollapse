@@ -12,7 +12,7 @@ use self::indexed_view::IndexedView;
 mod mapped_view;
 use self::mapped_view::MappedView;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Node {
     id: String,
     node_state_collection_ids_per_neighbor_node_id: HashMap<String, Vec<String>>
@@ -22,7 +22,7 @@ impl<'a> Node {
     
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct NodeStateCollection {
     id: String,
     node_state_id: String,
@@ -337,7 +337,7 @@ impl<'a> CollapsableWaveFunction<'a> {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct WaveFunction {
     nodes: Vec<Node>,
     node_state_collections: Vec<NodeStateCollection>,
