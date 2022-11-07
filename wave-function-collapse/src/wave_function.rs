@@ -18,8 +18,14 @@ pub struct Node {
     node_state_collection_ids_per_neighbor_node_id: HashMap<String, Vec<String>>
 }
 
-impl<'a> Node {
-    
+impl Node {
+    fn get_neighbor_node_ids(&self) -> Vec<String> {
+        let mut neighbor_node_ids: Vec<String> = Vec::new();
+        for (neighbor_node_id, _) in self.node_state_collection_ids_per_neighbor_node_id.iter() {
+            neighbor_node_ids.push(neighbor_node_id.clone());
+        }
+        neighbor_node_ids
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -387,6 +393,9 @@ impl WaveFunction {
     }
     pub fn get_node_state_collections(&self) -> Vec<NodeStateCollection> {
         self.node_state_collections.clone()
+    }
+    pub fn get_all_possible_node_states(&self) -> Vec<String> {
+        self.all_possible_node_state_ids.clone()
     }
     fn validate(&self) -> Result<(), String> {
         let nodes_length: usize = self.nodes.len();
