@@ -382,6 +382,12 @@ impl WaveFunction {
             all_possible_node_state_ids: node_state_ids
         }
     }
+    pub fn get_nodes(&self) -> Vec<Node> {
+        self.nodes.clone()
+    }
+    pub fn get_node_state_collections(&self) -> Vec<NodeStateCollection> {
+        self.node_state_collections.clone()
+    }
     fn validate(&self) -> Result<(), String> {
         let nodes_length: usize = self.nodes.len();
 
