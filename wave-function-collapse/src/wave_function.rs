@@ -19,10 +19,10 @@ pub struct Node {
 }
 
 impl Node {
-    fn get_id(&self) -> String {
+    pub fn get_id(&self) -> String {
         self.id.clone()
     }
-    fn get_neighbor_node_ids(&self) -> Vec<String> {
+    pub fn get_neighbor_node_ids(&self) -> Vec<String> {
         let mut neighbor_node_ids: Vec<String> = Vec::new();
         for (neighbor_node_id, _) in self.node_state_collection_ids_per_neighbor_node_id.iter() {
             neighbor_node_ids.push(neighbor_node_id.clone());
