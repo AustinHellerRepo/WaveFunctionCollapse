@@ -99,12 +99,12 @@ impl<'a> Display for CollapsableNode<'a> {
 
 #[derive(Serialize)]
 pub struct CollapsedWaveFunction {
-    node_state_per_node: HashMap<String, String>
+    pub node_state_per_node: HashMap<String, String>
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct UncollapsedWaveFunction {
-    node_state_per_node: HashMap<String, Option<String>>
+    pub node_state_per_node: HashMap<String, Option<String>>
 }
 
 impl Hash for UncollapsedWaveFunction {
