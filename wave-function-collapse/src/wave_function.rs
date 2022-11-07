@@ -12,7 +12,7 @@ use self::indexed_view::IndexedView;
 mod mapped_view;
 use self::mapped_view::MappedView;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Node {
     id: String,
     node_state_collection_ids_per_neighbor_node_id: HashMap<String, Vec<String>>
@@ -22,7 +22,7 @@ impl<'a> Node {
     
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct NodeStateCollection {
     id: String,
     node_state_id: String,
@@ -337,6 +337,7 @@ impl<'a> CollapsableWaveFunction<'a> {
     }
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct WaveFunction {
     nodes: Vec<Node>,
     node_state_collections: Vec<NodeStateCollection>,
@@ -789,6 +790,15 @@ impl WaveFunction {
             Ok(collapsed_wave_function)
         }
     }
+    pub fn save_to_file(&self, file_path: &str) {
+        let serialized_self = serde_json::to_string(self).unwrap();
+        std::fs::write(file_path, serialized_self).unwrap();
+    }
+    pub fn load_from_file(file_path: &str) -> Self {
+        let serialized_self = std::fs::read_to_string(file_path).unwrap();
+        let deserialized_self: WaveFunction = serde_json::from_str(&serialized_self).unwrap();
+        deserialized_self
+    }
 }
 
 
@@ -839,7 +849,7 @@ mod unit_tests {
 
     fn init() {
         std::env::set_var("RUST_LOG", "trace");
-        //pretty_env_logger::try_init();
+        pretty_env_logger::try_init();
     }
 
     #[test]
@@ -1843,7 +1853,7 @@ mod unit_tests {
                 collapsed_wave_function_result = wave_function.collapse(random_seed);
             });
 
-            println!("{}", time_graph::get_full_graph().as_dot());
+            //println!("{}", time_graph::get_full_graph().as_dot());
 
             if let Err(error_message) = collapsed_wave_function_result {
                 println!("tried random seed: {:?}.", random_seed);
@@ -1866,8 +1876,6 @@ mod unit_tests {
                 }
             }
         }
-
-        println!("{}", time_graph::get_full_graph().as_dot());
     }
 
     #[test]
@@ -1973,5 +1981,56 @@ mod unit_tests {
         }
 
         println!("{}", time_graph::get_full_graph().as_dot());
+    }
+
+    #[test]
+    fn write_and_read_wave_function_from_tempfile() {
+        init();
+
+        let mut nodes: Vec<Node> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection> = Vec::new();
+
+        nodes.push(Node { 
+            id: Uuid::new_v4().to_string(),
+            node_state_collection_ids_per_neighbor_node_id: HashMap::new()
+        });
+        nodes.push(Node { 
+            id: Uuid::new_v4().to_string(),
+            node_state_collection_ids_per_neighbor_node_id: HashMap::new()
+        });
+
+        let node_state_id: String = Uuid::new_v4().to_string();
+        let first_node_id: String = nodes[0].id.clone();
+        let second_node_id: String = nodes[1].id.clone();
+
+        let same_node_state_collection_id: String = Uuid::new_v4().to_string();
+        let same_node_state_collection = NodeStateCollection {
+            id: same_node_state_collection_id.clone(),
+            node_state_id: node_state_id.clone(),
+            node_state_ids: vec![node_state_id.clone()]
+        };
+        node_state_collections.push(same_node_state_collection);
+
+        nodes[0].node_state_collection_ids_per_neighbor_node_id.insert(second_node_id.clone(), Vec::new());
+        nodes[0].node_state_collection_ids_per_neighbor_node_id.get_mut(&second_node_id).unwrap().push(same_node_state_collection_id.clone());
+
+        nodes[1].node_state_collection_ids_per_neighbor_node_id.insert(first_node_id.clone(), Vec::new());
+        nodes[1].node_state_collection_ids_per_neighbor_node_id.get_mut(&first_node_id).unwrap().push(same_node_state_collection_id.clone());
+
+        let wave_function = WaveFunction::new(nodes, node_state_collections);
+
+        let file = tempfile::NamedTempFile::new().unwrap();
+        let file_path: &str = file.path().to_str().unwrap();
+        debug!("Saving wave function to {:?}", file_path);
+        wave_function.save_to_file(file_path);
+
+        let loaded_wave_function = WaveFunction::load_from_file(file_path);
+
+        file.close().unwrap();
+
+        let collapsed_wave_function = wave_function.collapse(None).unwrap();
+        let loaded_collapsed_wave_function = loaded_wave_function.collapse(None).unwrap();
+
+        assert_eq!(collapsed_wave_function.node_state_per_node, loaded_collapsed_wave_function.node_state_per_node);
     }
 }
