@@ -38,6 +38,12 @@ pub struct NodeStateCollection {
     pub node_state_ids: Vec<String>
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct NodeState {
+    pub node_id: String,
+    pub node_state_id: Option<String>
+}
+
 struct CollapsableNode<'a> {
     // the node id that this collapsable node refers to
     id: &'a str,
@@ -140,7 +146,7 @@ impl<'a> CollapsableWaveFunction<'a> {
             current_collapsable_node_index: 0
         }
     }
-    fn try_increment_current_collapsable_node_state(&mut self) -> bool {
+    fn try_increment_current_collapsable_node_state(&mut self) -> NodeState {
         let current_collapsable_node = self.collapsable_nodes.get_mut(self.current_collapsable_node_index).expect("The collapsable node should exist at this index.");
 
         {
@@ -157,11 +163,20 @@ impl<'a> CollapsableWaveFunction<'a> {
         }
 
         let is_successful = current_collapsable_node.node_state_indexed_view.try_move_next();
+        let node_state: NodeState;
         if is_successful {
             current_collapsable_node.current_chosen_from_sort_index = Some(self.current_collapsable_node_index);
+            node_state = NodeState {
+                node_id: String::from(current_collapsable_node.id),
+                node_state_id: Some(String::from(*current_collapsable_node.node_state_indexed_view.get().unwrap()))
+            };
         }
         else {
             current_collapsable_node.current_chosen_from_sort_index = None;
+            node_state = NodeState {
+                node_id: String::from(current_collapsable_node.id),
+                node_state_id: None
+            };
         }
 
         {
@@ -177,7 +192,7 @@ impl<'a> CollapsableWaveFunction<'a> {
             debug!("incremented node {node_id} to state {next_state_id_display}.");
         }
 
-        is_successful
+        node_state
     }
     fn alter_reference_to_current_collapsable_node_mask(&mut self) {
         // TODO implement mapped indexes
@@ -660,8 +675,8 @@ impl WaveFunction {
         CollapsableWaveFunction::new(collapsable_nodes)
     }
     #[time_graph::instrument]
-    pub fn collapse_into_steps(&self, random_seed: Option<u64>) -> Result<Vec<UncollapsedWaveFunction>, String> {
-        let mut uncollapsed_wave_functions: Vec<UncollapsedWaveFunction> = Vec::new();
+    pub fn collapse_into_steps(&self, random_seed: Option<u64>) -> Result<Vec<NodeState>, String> {
+        let mut node_states: Vec<NodeState> = Vec::new();
 
         let validation_result = self.validate();
 
@@ -679,10 +694,12 @@ impl WaveFunction {
         debug!("starting while loop");
         while !is_unable_to_collapse && !collapsable_wave_function.is_fully_collapsed() {
             debug!("incrementing node state");
-            if collapsable_wave_function.try_increment_current_collapsable_node_state() {
+            let node_state = collapsable_wave_function.try_increment_current_collapsable_node_state();
+            let is_successful: bool = node_state.node_state_id.is_some();
+            node_states.push(node_state);
+            debug!("stored node state");
+            if is_successful {
                 debug!("incremented node state");
-                uncollapsed_wave_functions.push(collapsable_wave_function.get_uncollapsed_wave_function());
-                debug!("stored uncollapsed_wave_function state");
                 collapsable_wave_function.alter_reference_to_current_collapsable_node_mask();
                 debug!("altered reference");
                 if !collapsable_wave_function.is_at_least_one_neighbor_fully_restricted() {
@@ -714,7 +731,7 @@ impl WaveFunction {
         }
         debug!("finished while loop");
 
-        Ok(uncollapsed_wave_functions)
+        Ok(node_states)
     }
     pub fn collapse(&self, random_seed: Option<u64>) -> Result<CollapsedWaveFunction, String> {
         let validation_result = self.validate();
@@ -769,7 +786,7 @@ impl WaveFunction {
         debug!("starting while loop");
         while !is_unable_to_collapse && !collapsable_wave_function.is_fully_collapsed() {
             debug!("incrementing node state");
-            if collapsable_wave_function.try_increment_current_collapsable_node_state() {
+            if collapsable_wave_function.try_increment_current_collapsable_node_state().node_state_id.is_some() {
                 debug!("incremented node state");
                 collapsable_wave_function.alter_reference_to_current_collapsable_node_mask();
                 debug!("altered reference");
@@ -867,7 +884,7 @@ mod unit_tests {
 
     fn init() {
         std::env::set_var("RUST_LOG", "trace");
-        pretty_env_logger::try_init();
+        //pretty_env_logger::try_init();
     }
 
     #[test]
@@ -1978,24 +1995,24 @@ mod unit_tests {
                 wave_function = WaveFunction::new(nodes, node_state_collections);
             });
 
-            let uncollapsed_wave_functions_result: Result<Vec<UncollapsedWaveFunction>, String>;
+            let nodes_states_result: Result<Vec<NodeState>, String>;
             
             time_graph::spanned!("collapsing wave function", {
                 //let random_seed = Some(rng.gen::<u64>());  // TODO uncomment after fixing
-                uncollapsed_wave_functions_result = wave_function.collapse_into_steps(random_seed);
+                nodes_states_result = wave_function.collapse_into_steps(random_seed);
             });
 
             println!("{}", time_graph::get_full_graph().as_dot());
 
-            if let Err(error_message) = uncollapsed_wave_functions_result {
+            if let Err(error_message) = nodes_states_result {
                 println!("tried random seed: {:?}.", random_seed);
                 panic!("Error: {error_message}");
             }
 
-            let uncollapsed_wave_functions = uncollapsed_wave_functions_result.ok().unwrap();
+            let nodes_states = nodes_states_result.ok().unwrap();
 
             // TODO assert something about the uncollapsed wave functions
-            println!("Found {:?} uncollapsed wave functions.", uncollapsed_wave_functions.len());
+            println!("Found {:?} node states.", nodes_states.len());
         }
 
         println!("{}", time_graph::get_full_graph().as_dot());
