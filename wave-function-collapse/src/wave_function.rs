@@ -15,7 +15,7 @@ use self::mapped_view::MappedView;
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Node {
     id: String,
-    node_state_collection_ids_per_neighbor_node_id: HashMap<String, Vec<String>>
+    pub node_state_collection_ids_per_neighbor_node_id: HashMap<String, Vec<String>>
 }
 
 impl Node {
