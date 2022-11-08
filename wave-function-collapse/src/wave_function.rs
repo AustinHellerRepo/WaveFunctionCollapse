@@ -14,7 +14,7 @@ use self::mapped_view::MappedView;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Node {
-    id: String,
+    pub id: String,
     pub node_state_collection_ids_per_neighbor_node_id: HashMap<String, Vec<String>>
 }
 
@@ -33,9 +33,9 @@ impl Node {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct NodeStateCollection {
-    id: String,
-    node_state_id: String,
-    node_state_ids: Vec<String>
+    pub id: String,
+    pub node_state_id: String,
+    pub node_state_ids: Vec<String>
 }
 
 struct CollapsableNode<'a> {
