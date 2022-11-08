@@ -38,7 +38,7 @@ pub struct NodeStateCollection {
     pub node_state_ids: Vec<String>
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, Hash)]
 pub struct NodeState {
     pub node_id: String,
     pub node_state_id: Option<String>
