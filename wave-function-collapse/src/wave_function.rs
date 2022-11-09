@@ -804,24 +804,44 @@ impl WaveFunction {
         let mut collapsable_wave_function = self.get_collapsable_wave_function(random_seed);
 
         debug!("sorting initial list of collapsable nodes");
-        collapsable_wave_function.sort_collapsable_nodes();
+        time_graph::spanned!("sort_collapsable_nodes (first)", {
+            collapsable_wave_function.sort_collapsable_nodes();
+        });
         debug!("sorted initial list of collapsable nodes");
 
         let mut is_unable_to_collapse = false;
         debug!("starting while loop");
         while !is_unable_to_collapse && !collapsable_wave_function.is_fully_collapsed() {
             debug!("incrementing node state");
-            if collapsable_wave_function.try_increment_current_collapsable_node_state().node_state_id.is_some() {
+            let is_increment_successful: bool;
+            time_graph::spanned!("is_increment_successful", {
+                is_increment_successful = collapsable_wave_function.try_increment_current_collapsable_node_state().node_state_id.is_some();
+            });
+            if is_increment_successful {
                 debug!("incremented node state");
-                collapsable_wave_function.alter_reference_to_current_collapsable_node_mask();
+                time_graph::spanned!("alter_reference_to_current_collapsable_node_mask", {
+                    collapsable_wave_function.alter_reference_to_current_collapsable_node_mask();
+                });
                 debug!("altered reference");
-                if !collapsable_wave_function.is_at_least_one_neighbor_fully_restricted() {
+                let is_at_least_one_neighbor_fully_restricted: bool;
+                time_graph::spanned!("is_at_least_one_neighbor_fully_restricted", {
+                    is_at_least_one_neighbor_fully_restricted = collapsable_wave_function.is_at_least_one_neighbor_fully_restricted();
+                });
+                if !is_at_least_one_neighbor_fully_restricted {
                     debug!("all neighbors have at least one valid state");
-                    collapsable_wave_function.move_to_next_collapsable_node();
+                    time_graph::spanned!("move_to_next_collapsable_node", {
+                        collapsable_wave_function.move_to_next_collapsable_node();
+                    });
                     debug!("moved to next collapsable node");
-                    if !collapsable_wave_function.is_fully_collapsed() {
+                    let is_fully_collapsed: bool;
+                    time_graph::spanned!("is_fully_collapsed", {
+                        is_fully_collapsed = collapsable_wave_function.is_fully_collapsed();
+                    });
+                    if !is_fully_collapsed {
                         debug!("not yet fully collapsed");
-                        collapsable_wave_function.sort_collapsable_nodes();
+                        time_graph::spanned!("sort_collapsable_nodes (during)", {
+                            collapsable_wave_function.sort_collapsable_nodes();
+                        });
                         debug!("sorted nodes");
                     }
                 }
@@ -831,8 +851,14 @@ impl WaveFunction {
             }
             else {
                 debug!("failed to incremented node");
-                collapsable_wave_function.try_move_to_previous_collapsable_node_neighbor();
-                if collapsable_wave_function.is_fully_reset() {
+                time_graph::spanned!("try_move_to_previous_collapsable_node_neighbor", {
+                    collapsable_wave_function.try_move_to_previous_collapsable_node_neighbor();
+                });
+                let is_fully_reset: bool;
+                time_graph::spanned!("is_fully_reset", {
+                    is_fully_reset = collapsable_wave_function.is_fully_reset();
+                });
+                if is_fully_reset {
                     debug!("moved back to first node");
                     is_unable_to_collapse = true;
                 }
