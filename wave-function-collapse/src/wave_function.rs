@@ -312,22 +312,45 @@ impl<'a> CollapsableWaveFunction<'a> {
         let next_collapsable_nodes_display = CollapsableNode::get_ids(&self.collapsable_nodes);
         debug!("next sort order: {next_collapsable_nodes_display}.");
     }
-    fn try_move_to_previous_collapsable_node_neighbor(&mut self) -> bool {
-        let mut is_useful_neighbor_found: bool = false;
+    fn try_move_to_previous_collapsable_node_neighbor(&mut self) -> Vec<NodeState> {
+        let mut reset_node_states: Vec<NodeState> = Vec::new();
 
         // store the original node id in order to check if previously chosen nodes are a neighbor to this fully restricted node
         let original_collapsable_node_id = self.collapsable_nodes.get(self.current_collapsable_node_index).expect("The collapsable node index should be within range.").id;
 
+        // wait for neighbor to be found
+        let mut is_neighbor_found_or_root_reset: bool = false;
+
         // if we're not already at the very root chosen node, then reset the current node and move back up the chain of chosen nodes
-        while self.current_collapsable_node_index != 0 {
+        while !is_neighbor_found_or_root_reset {
+            // reset the node state index for the current node
             self.collapsable_nodes.get_mut(self.current_collapsable_node_index).unwrap().node_state_indexed_view.reset();
+            // reset the mask used by my neighbors since my state was also reset
             self.collapsable_nodes.get_mut(self.current_collapsable_node_index).unwrap().neighbor_mask_mapped_view.borrow_mut().reset();
-            self.current_collapsable_node_index -= 1;
-            if self.collapsable_nodes.get(self.current_collapsable_node_index).unwrap().neighbor_node_ids.contains(&original_collapsable_node_id) {
-                is_useful_neighbor_found = true;
+            // reset chosen index within collapsable node
+            self.collapsable_nodes.get_mut(self.current_collapsable_node_index).unwrap().current_chosen_from_sort_index = None;
+            // store that this node has been reset
+            reset_node_states.push(NodeState {
+                node_id: String::from(self.collapsable_nodes.get(self.current_collapsable_node_index).unwrap().id),
+                node_state_id: None
+            });
+
+            if self.current_collapsable_node_index == 0 {
+                is_neighbor_found_or_root_reset = true;
+            }
+            else {
+                // move to the previously chosen node
+                self.current_collapsable_node_index -= 1;
+                // break out if the previous node was a neighbor of the node that was originally too restricted
+                if self.collapsable_nodes.get(self.current_collapsable_node_index).unwrap().neighbor_node_ids.contains(&original_collapsable_node_id) {
+                    is_neighbor_found_or_root_reset = true;
+                }
             }
         }
-        is_useful_neighbor_found
+        reset_node_states
+    }
+    fn is_fully_reset(&self) -> bool {
+        self.current_collapsable_node_index == 0 && self.collapsable_nodes.get(self.current_collapsable_node_index).unwrap().current_chosen_from_sort_index.is_none()
     }
     fn get_uncollapsed_wave_function(&self) -> UncollapsedWaveFunction {
         let mut node_state_per_node: HashMap<String, Option<String>> = HashMap::new();
@@ -718,8 +741,10 @@ impl WaveFunction {
             }
             else {
                 debug!("failed to incremented node");
-                if !collapsable_wave_function.try_move_to_previous_collapsable_node_neighbor() {
-                    debug!("moved back to first node");
+                let reset_node_states = collapsable_wave_function.try_move_to_previous_collapsable_node_neighbor();
+                node_states.extend(reset_node_states);
+                if collapsable_wave_function.is_fully_reset() {
+                    debug!("moved back to first node and reset it");
                     is_unable_to_collapse = true;
                 }
                 else {
@@ -806,7 +831,8 @@ impl WaveFunction {
             }
             else {
                 debug!("failed to incremented node");
-                if !collapsable_wave_function.try_move_to_previous_collapsable_node_neighbor() {
+                collapsable_wave_function.try_move_to_previous_collapsable_node_neighbor();
+                if collapsable_wave_function.is_fully_reset() {
                     debug!("moved back to first node");
                     is_unable_to_collapse = true;
                 }
@@ -1805,10 +1831,11 @@ mod unit_tests {
         time_graph::enable_data_collection(true);
 
         let mut rng = rand::thread_rng();
-        //let random_seed = Some(rng.next_u64());
-        let random_seed = Some(14262106489863409486);
+        //let random_seed = Some(14262106489863409486);
 
-        for _ in 0..1 {
+        for _ in 0..10 {
+
+            let random_seed = Some(rng.next_u64());
 
             let nodes_height = 4;
             let nodes_width = 4;
@@ -1919,10 +1946,11 @@ mod unit_tests {
         time_graph::enable_data_collection(true);
 
         let mut rng = rand::thread_rng();
-        //let random_seed = Some(rng.next_u64());
-        let random_seed = Some(14262106489863409486);
 
         for _ in 0..1 {
+
+            //let random_seed = Some(rng.next_u64());
+            let random_seed = Some(14262106489863409486);
 
             let nodes_height = 4;
             let nodes_width = 4;
@@ -1995,24 +2023,25 @@ mod unit_tests {
                 wave_function = WaveFunction::new(nodes, node_state_collections);
             });
 
-            let nodes_states_result: Result<Vec<NodeState>, String>;
+            let node_states_result: Result<Vec<NodeState>, String>;
             
             time_graph::spanned!("collapsing wave function", {
                 //let random_seed = Some(rng.gen::<u64>());  // TODO uncomment after fixing
-                nodes_states_result = wave_function.collapse_into_steps(random_seed);
+                node_states_result = wave_function.collapse_into_steps(random_seed);
             });
 
             println!("{}", time_graph::get_full_graph().as_dot());
 
-            if let Err(error_message) = nodes_states_result {
+            if let Err(error_message) = node_states_result {
                 println!("tried random seed: {:?}.", random_seed);
                 panic!("Error: {error_message}");
             }
 
-            let nodes_states = nodes_states_result.ok().unwrap();
+            let node_states = node_states_result.ok().unwrap();
 
             // TODO assert something about the uncollapsed wave functions
-            println!("Found {:?} node states.", nodes_states.len());
+            println!("Found {:?} node states.", node_states.len());
+            println!("States: {:?}", node_states);
         }
 
         println!("{}", time_graph::get_full_graph().as_dot());
@@ -2067,5 +2096,87 @@ mod unit_tests {
         let loaded_collapsed_wave_function = loaded_wave_function.collapse(None).unwrap();
 
         assert_eq!(collapsed_wave_function.node_state_per_node, loaded_collapsed_wave_function.node_state_per_node);
+    }
+
+    #[test]
+    fn four_nodes_as_square_neighbors_randomly() {
+        init();
+
+        let mut rng = rand::thread_rng();
+
+        for _ in 0..1000 {
+
+            let random_seed = Some(rng.next_u64());
+
+            let mut nodes: Vec<Node> = Vec::new();
+            let mut node_state_collections: Vec<NodeStateCollection> = Vec::new();
+
+            nodes.push(Node { 
+                id: String::from("node_1"),
+                node_state_collection_ids_per_neighbor_node_id: HashMap::new()
+            });
+            nodes.push(Node { 
+                id: String::from("node_2"),
+                node_state_collection_ids_per_neighbor_node_id: HashMap::new()
+            });
+            nodes.push(Node { 
+                id: String::from("node_3"),
+                node_state_collection_ids_per_neighbor_node_id: HashMap::new()
+            });
+            nodes.push(Node { 
+                id: String::from("node_4"),
+                node_state_collection_ids_per_neighbor_node_id: HashMap::new()
+            });
+
+            let one_node_state_id: String = String::from("state_A");
+            let two_node_state_id: String = String::from("state_B");
+
+            let one_forces_two_node_state_collection_id: String = Uuid::new_v4().to_string();
+            let one_forces_two_node_state_collection = NodeStateCollection {
+                id: one_forces_two_node_state_collection_id.clone(),
+                node_state_id: one_node_state_id.clone(),
+                node_state_ids: vec![two_node_state_id.clone()]
+            };
+            node_state_collections.push(one_forces_two_node_state_collection);
+
+            let two_forces_one_node_state_collection_id: String = Uuid::new_v4().to_string();
+            let two_forces_one_node_state_collection = NodeStateCollection {
+                id: two_forces_one_node_state_collection_id.clone(),
+                node_state_id: two_node_state_id.clone(),
+                node_state_ids: vec![one_node_state_id.clone()]
+            };
+            node_state_collections.push(two_forces_one_node_state_collection);
+
+            let possible_node_ids: Vec<&str> = vec!["node_1", "node_2", "node_3", "node_4"];
+            for (node_index, node) in nodes.iter_mut().enumerate() {
+                for (other_node_index, other_node_id) in possible_node_ids.iter().enumerate() {
+                    if node_index != other_node_index && node_index % 2 != other_node_index % 2 {
+                        node.node_state_collection_ids_per_neighbor_node_id.insert(String::from(*other_node_id), vec![one_forces_two_node_state_collection_id.clone(), two_forces_one_node_state_collection_id.clone()]);
+                    }
+                }
+            }
+
+            let wave_function = WaveFunction::new(nodes, node_state_collections);
+            let collapsed_wave_function_result = wave_function.collapse(random_seed);
+
+            if let Err(error_message) = collapsed_wave_function_result {
+                panic!("Error: {error_message}");
+            }
+
+            let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
+
+            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_1").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2").unwrap());
+            assert_eq!(collapsed_wave_function.node_state_per_node.get("node_1").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_1").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_2").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_2").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3").unwrap());
+            assert_eq!(collapsed_wave_function.node_state_per_node.get("node_2").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4").unwrap());
+            assert_eq!(collapsed_wave_function.node_state_per_node.get("node_3").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_3").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_3").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_4").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1").unwrap());
+            assert_eq!(collapsed_wave_function.node_state_per_node.get("node_4").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_4").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3").unwrap());
+        }
     }
 }
