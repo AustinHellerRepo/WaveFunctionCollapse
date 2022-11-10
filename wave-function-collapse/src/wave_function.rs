@@ -851,7 +851,7 @@ impl WaveFunction {
                     if !collapsable_wave_function.is_fully_collapsed() {
                         debug!("not yet fully collapsed");
                         //collapsable_wave_function.sort_collapsable_nodes();
-                        debug!("sorted nodes");
+                        //debug!("sorted nodes");
                     }
                 }
                 else {
@@ -972,10 +972,10 @@ impl WaveFunction {
                     });
                     if !is_fully_collapsed {
                         debug!("not yet fully collapsed");
-                        time_graph::spanned!("sort_collapsable_nodes (during)", {
+                        /*time_graph::spanned!("sort_collapsable_nodes (during)", {
                             collapsable_wave_function.sort_collapsable_nodes();
                         });
-                        debug!("sorted nodes");
+                        debug!("sorted nodes");*/
                     }
                 }
                 else {
