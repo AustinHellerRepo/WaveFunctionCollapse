@@ -869,8 +869,6 @@ impl WaveFunction {
                                 node_states.get(node_states_index).unwrap().node_state_id.is_none() &&
                                 node_states.get(node_states_index + 1).unwrap().node_state_id.is_none() {
 
-                            let node_states_json = serde_json::to_string(&node_states).unwrap();
-                            std::fs::write("/home/austin/Projects_Unversioned/WaveFunctionCollapse/output_004.txt", node_states_json).unwrap();
                             panic!("Found duplicate none states for {:?} at index {:?}", node_states.get(node_states_index).unwrap(), node_states_index);
                         }
                     }
@@ -2205,9 +2203,6 @@ mod unit_tests {
             // TODO assert something about the uncollapsed wave functions
             println!("States: {:?}", node_states);
             println!("Found {:?} node states.", node_states.len());
-
-            let node_states_json = serde_json::to_string(&node_states).unwrap();
-            std::fs::write("/home/austin/Projects_Unversioned/WaveFunctionCollapse/output_004.txt", node_states_json).unwrap();
         }
 
         println!("{}", time_graph::get_full_graph().as_dot());
