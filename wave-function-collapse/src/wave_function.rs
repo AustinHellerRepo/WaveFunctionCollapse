@@ -56,7 +56,9 @@ struct CollapsableNode<'a> {
     // the index of traversed nodes based on the sorted vector of nodes as they are chosen for state determination
     current_chosen_from_sort_index: Option<usize>,
     // a random sort value for adding randomness to the process between runs (if randomized)
-    random_sort_index: u32
+    random_sort_index: u32,
+    // a cache of the restriction ratio
+    restriction_ratio: f32
 }
 
 impl<'a> CollapsableNode<'a> {
@@ -75,7 +77,13 @@ impl<'a> CollapsableNode<'a> {
             node_state_indexed_view: node_state_indexed_view,
             neighbor_mask_mapped_view: neighbor_mask_mapped_view,
             current_chosen_from_sort_index: None,
-            random_sort_index: 0
+            random_sort_index: 0,
+            restriction_ratio: 0.0
+        }
+    }
+    fn refresh_restriction_ratio(&mut self) {
+        if !self.node_state_indexed_view.is_in_some_state() {
+            self.restriction_ratio = self.node_state_indexed_view.get_restriction_ratio();
         }
     }
     fn randomize<R: Rng + ?Sized>(&mut self, random_instance: &mut R) {
@@ -83,15 +91,7 @@ impl<'a> CollapsableNode<'a> {
         self.random_sort_index = random_instance.next_u32();
     }
     fn is_fully_restricted(&self) -> bool {
-        self.node_state_indexed_view.is_fully_restricted_or_current_state_is_restricted()
-    }
-    fn get_restriction_ratio(&self) -> f32 {
-        if self.node_state_indexed_view.is_in_some_state() {
-            1.0
-        }
-        else {
-            self.node_state_indexed_view.get_restriction_ratio()
-        }
+        self.restriction_ratio == 1.0 || self.node_state_indexed_view.is_current_state_restricted()
     }
     fn get_ids(collapsable_nodes: &Vec<Self>) -> String {
         let mut string_builder = string_builder::Builder::new(0);
@@ -175,10 +175,18 @@ impl<'a> CollapsableWaveFunction<'a> {
         node_state
     }
     fn alter_reference_to_current_collapsable_node_mask(&mut self) {
+        // orient the current node's mask mapped view that its neighbors look through
         let wrapped_current_collapsable_node = self.collapsable_nodes.get_mut(self.current_collapsable_node_index).expect("The collapsable node should exist at this index.");
         let current_collapsable_node = wrapped_current_collapsable_node.borrow();
         let current_possible_state: &str = current_collapsable_node.node_state_indexed_view.get().unwrap();
         current_collapsable_node.neighbor_mask_mapped_view.borrow_mut().orient(current_possible_state);
+
+        // have the neighbors update their restriction ratio
+        for neighbor_node_id in current_collapsable_node.neighbor_node_ids.iter() {
+            let wrapped_neighbor_collapsable_node = self.collapsable_node_per_id.get(neighbor_node_id).unwrap();
+            let mut neighbor_collapsable_node = wrapped_neighbor_collapsable_node.borrow_mut();
+            neighbor_collapsable_node.refresh_restriction_ratio();
+        }
     }
     fn is_at_least_one_neighbor_fully_restricted(&self) -> bool {
         let wrapped_current_collapsable_node = self.collapsable_nodes.get(self.current_collapsable_node_index).unwrap();
@@ -221,31 +229,103 @@ impl<'a> CollapsableWaveFunction<'a> {
         //let current_collapsable_nodes_display = CollapsableNode::get_ids(&self.collapsable_nodes);
         //debug!("current sort order: {current_collapsable_nodes_display}.");
 
-        let mut lowest_number_of_possible_states: u32 = u32::MAX;
-        let mut lowest_number_of_possible_states_index = self.current_collapsable_node_index;
-        for collapsable_node_index in self.current_collapsable_node_index..self.collapsable_nodes_length {
-            let wrapped_collapsable_node = self.collapsable_nodes.get(collapsable_node_index).unwrap();
-            let collapsable_node = wrapped_collapsable_node.borrow();
-            let collapsable_node_random_sort_index = collapsable_node.random_sort_index;
-            if collapsable_node_random_sort_index < lowest_number_of_possible_states {
-                lowest_number_of_possible_states = collapsable_node_random_sort_index;
-                lowest_number_of_possible_states_index = collapsable_node_index;
+        // sort by most neighbors
+        {
+            self.collapsable_nodes.sort_unstable_by(|a, b| {
+
+                let a_collapsed_node = a.borrow();
+                let b_collapsed_node = b.borrow();
+
+                a_collapsed_node.random_sort_index.cmp(&b_collapsed_node.random_sort_index)
+            });
+
+            self.collapsable_nodes.sort_unstable_by(|a, b| {
+
+                let a_collapsed_node = a.borrow();
+                let b_collapsed_node = b.borrow();
+
+                b_collapsed_node.neighbor_node_ids.len().cmp(&a_collapsed_node.neighbor_node_ids.len())
+            });
+
+            let mut choice_index: usize = 0;
+            while choice_index + 1 < self.collapsable_nodes_length {
+                let mut neighbor_indexes: Vec<usize> = Vec::new();
+                {
+                    let wrapper_choice_node = self.collapsable_nodes.get(choice_index).unwrap();
+                    let choice_node = wrapper_choice_node.borrow();
+                    for other_index in (choice_index + 1)..self.collapsable_nodes_length {
+                        let wrapper_other_node = self.collapsable_nodes.get(other_index).unwrap();
+                        let other_node = wrapper_other_node.borrow();
+
+                        if choice_node.neighbor_node_ids.contains(&other_node.id) {
+                            neighbor_indexes.push(other_index);
+                        }
+                    }
+                }
+                for (choice_index_offset, neighbor_index) in neighbor_indexes.iter().enumerate() {
+                    let neighbor_node = self.collapsable_nodes.remove(*neighbor_index);
+                    self.collapsable_nodes.insert(choice_index + choice_index_offset + 1, neighbor_node);
+                }
+                if neighbor_indexes.len() == 0 {
+                    choice_index += 1;
+                }
+                else {
+                    choice_index += neighbor_indexes.len();
+                }
             }
         }
 
-        if lowest_number_of_possible_states_index != self.current_collapsable_node_index {
-            self.collapsable_nodes.swap(lowest_number_of_possible_states_index, self.current_collapsable_node_index);
-        }
+        // sort by restriction ratio
+        /*{
+            let mut lowest_sort_criteria: f32 = f32::MAX;
+            let mut lowest_sort_criteria_index = self.current_collapsable_node_index;
+            for collapsable_node_index in self.current_collapsable_node_index..self.collapsable_nodes_length {
+                let wrapped_collapsable_node = self.collapsable_nodes.get(collapsable_node_index).unwrap();
+                let collapsable_node = wrapped_collapsable_node.borrow();
+                let collapsable_node_sort_criteria = collapsable_node.restriction_ratio;
+                if collapsable_node_sort_criteria < lowest_sort_criteria {
+                    lowest_sort_criteria = collapsable_node_sort_criteria;
+                    lowest_sort_criteria_index = collapsable_node_index;
+                }
+            }
 
+            if lowest_sort_criteria_index != self.current_collapsable_node_index {
+                self.collapsable_nodes.swap(lowest_sort_criteria_index, self.current_collapsable_node_index);
+            }
+        }*/
+
+        // sort by random sort index
+        /*{
+            let mut lowest_number_of_possible_states: u32 = u32::MAX;
+            let mut lowest_number_of_possible_states_index = self.current_collapsable_node_index;
+            for collapsable_node_index in self.current_collapsable_node_index..self.collapsable_nodes_length {
+                let wrapped_collapsable_node = self.collapsable_nodes.get(collapsable_node_index).unwrap();
+                let collapsable_node = wrapped_collapsable_node.borrow();
+                let collapsable_node_random_sort_index = collapsable_node.random_sort_index;
+                if collapsable_node_random_sort_index < lowest_number_of_possible_states {
+                    lowest_number_of_possible_states = collapsable_node_random_sort_index;
+                    lowest_number_of_possible_states_index = collapsable_node_index;
+                }
+            }
+
+            if lowest_number_of_possible_states_index != self.current_collapsable_node_index {
+                self.collapsable_nodes.swap(lowest_number_of_possible_states_index, self.current_collapsable_node_index);
+            }
+        }*/
+
+        // sort by if selected, then restriction ratio, then random
         /*
         self.collapsable_nodes.sort_unstable_by(|a, b| {
 
-            let a_node_id: &str = a.id;
-            let b_node_id: &str = b.id;
+            let a_collapsed_node = a.borrow();
+            let b_collapsed_node = b.borrow();
+
+            let a_node_id: &str = a_collapsed_node.id;
+            let b_node_id: &str = b_collapsed_node.id;
 
             let comparison: std::cmp::Ordering;
-            if let Some(a_chosen_from_sort_index) = a.current_chosen_from_sort_index {
-                if let Some(b_chosen_from_sort_index) = b.current_chosen_from_sort_index {
+            if let Some(a_chosen_from_sort_index) = a_collapsed_node.current_chosen_from_sort_index {
+                if let Some(b_chosen_from_sort_index) = b_collapsed_node.current_chosen_from_sort_index {
                     comparison = a_chosen_from_sort_index.cmp(&b_chosen_from_sort_index);
                     match &comparison {
                         std::cmp::Ordering::Less => {
@@ -264,16 +344,16 @@ impl<'a> CollapsableWaveFunction<'a> {
                     comparison = std::cmp::Ordering::Less;
                 }
             }
-            else if b.current_chosen_from_sort_index.is_some() {
+            else if b_collapsed_node.current_chosen_from_sort_index.is_some() {
                 debug!("node {a_node_id} is greater than node {b_node_id} since the former has not yet been chosen.");
                 comparison = std::cmp::Ordering::Greater;
             }
             else {
                 debug!("determining restriction ratio for node {a_node_id}.");
-                let a_restriction_ratio = a.get_restriction_ratio();
+                let a_restriction_ratio = a_collapsed_node.restriction_ratio;
                 debug!("determined restriction ratio for node {a_node_id} as {a_restriction_ratio}.");
                 debug!("determining restriction ratio for node {b_node_id}.");
-                let b_restriction_ratio = b.get_restriction_ratio();
+                let b_restriction_ratio = b_collapsed_node.restriction_ratio;
                 debug!("determined restriction ratio for node {b_node_id} as {b_restriction_ratio}.");
 
                 if b_restriction_ratio < a_restriction_ratio {
@@ -282,8 +362,8 @@ impl<'a> CollapsableWaveFunction<'a> {
                 }
                 else if b_restriction_ratio == a_restriction_ratio {
 
-                    let a_random_sort_index = a.random_sort_index;
-                    let b_random_sort_index = b.random_sort_index;
+                    let a_random_sort_index = a_collapsed_node.random_sort_index;
+                    let b_random_sort_index = b_collapsed_node.random_sort_index;
 
                     comparison = a_random_sort_index.cmp(&b_random_sort_index);
                     match &comparison {
@@ -336,11 +416,12 @@ impl<'a> CollapsableWaveFunction<'a> {
                 current_collapsable_node.neighbor_mask_mapped_view.borrow_mut().reset();
                 // reset chosen index within collapsable node
                 current_collapsable_node.current_chosen_from_sort_index = None;
-                // store that this node has been reset
-                reset_node_states.push(NodeState {
-                    node_id: String::from(current_collapsable_node.id),
-                    node_state_id: None
-                });
+                // have the neighbors update their restriction ratio
+                for neighbor_node_id in current_collapsable_node.neighbor_node_ids.iter() {
+                    let wrapped_neighbor_collapsable_node = self.collapsable_node_per_id.get(neighbor_node_id).unwrap();
+                    let mut neighbor_collapsable_node = wrapped_neighbor_collapsable_node.borrow_mut();
+                    neighbor_collapsable_node.refresh_restriction_ratio();
+                }
             }
 
             if self.current_collapsable_node_index == 0 {
@@ -354,6 +435,14 @@ impl<'a> CollapsableWaveFunction<'a> {
                 let previous_collapsable_node = wrapped_previous_collapsable_node.borrow();
                 if previous_collapsable_node.neighbor_node_ids.contains(&original_collapsable_node_id) {
                     is_neighbor_found_or_root_reset = true;
+                }
+                else {
+                    // store that this node will be reset
+                    debug!("pushing node ID {:?} into reset_node_states", previous_collapsable_node.id);
+                    reset_node_states.push(NodeState {
+                        node_id: String::from(previous_collapsable_node.id),
+                        node_state_id: None
+                    });
                 }
             }
         }
@@ -738,6 +827,18 @@ impl WaveFunction {
             let node_state = collapsable_wave_function.try_increment_current_collapsable_node_state();
             let is_successful: bool = node_state.node_state_id.is_some();
             node_states.push(node_state);
+            // TODO remove below
+            if node_states.len() > 1 {
+                for node_states_index in 0..node_states.len() - 1 {
+                    if node_states.get(node_states_index).unwrap().node_id == node_states.get(node_states_index + 1).unwrap().node_id &&
+                            node_states.get(node_states_index).unwrap().node_state_id.is_none() &&
+                            node_states.get(node_states_index + 1).unwrap().node_state_id.is_none() {
+
+                        panic!("Found unexpected duplicate none states for {:?} at index {:?}", node_states.get(node_states_index).unwrap(), node_states_index);
+                    }
+                }
+            }
+            // TODO remove above
             debug!("stored node state");
             if is_successful {
                 debug!("incremented node state");
@@ -749,7 +850,7 @@ impl WaveFunction {
                     debug!("moved to next collapsable node");
                     if !collapsable_wave_function.is_fully_collapsed() {
                         debug!("not yet fully collapsed");
-                        collapsable_wave_function.sort_collapsable_nodes();
+                        //collapsable_wave_function.sort_collapsable_nodes();
                         debug!("sorted nodes");
                     }
                 }
@@ -761,14 +862,28 @@ impl WaveFunction {
                 debug!("failed to incremented node");
                 let reset_node_states = collapsable_wave_function.try_move_to_previous_collapsable_node_neighbor();
                 node_states.extend(reset_node_states);
+                // TODO remove below
+                if node_states.len() > 1 {
+                    for node_states_index in 0..node_states.len() - 1 {
+                        if node_states.get(node_states_index).unwrap().node_id == node_states.get(node_states_index + 1).unwrap().node_id &&
+                                node_states.get(node_states_index).unwrap().node_state_id.is_none() &&
+                                node_states.get(node_states_index + 1).unwrap().node_state_id.is_none() {
+
+                            let node_states_json = serde_json::to_string(&node_states).unwrap();
+                            std::fs::write("/home/austin/Projects_Unversioned/WaveFunctionCollapse/output_004.txt", node_states_json).unwrap();
+                            panic!("Found duplicate none states for {:?} at index {:?}", node_states.get(node_states_index).unwrap(), node_states_index);
+                        }
+                    }
+                }
+                // TODO remove above
                 if collapsable_wave_function.is_fully_reset() {
                     debug!("moved back to first node and reset it");
                     is_unable_to_collapse = true;
                 }
                 else {
                     debug!("moved back to previous neighbor");
-                    collapsable_wave_function.alter_reference_to_current_collapsable_node_mask();
-                    debug!("stored uncollapsed_wave_function state");
+                    //collapsable_wave_function.alter_reference_to_current_collapsable_node_mask();
+                    //debug!("stored uncollapsed_wave_function state");
                 }
             }
         }
@@ -1870,14 +1985,16 @@ mod unit_tests {
     }
 
     #[test]
-    fn many_nodes_as_3D_grid_randomly_all_different_states() {
+    fn many_nodes_as_3D_grid_randomly_all_different_states_getting_collapsed_function() {
         init();
         time_graph::enable_data_collection(true);
 
         let mut rng = rand::thread_rng();
         //let random_seed = Some(14262106489863409486);
 
-        for _ in 0..10 {
+        let max_runs = 1;
+
+        for index in 0..max_runs {
 
             let random_seed = Some(rng.next_u64());
 
@@ -1959,7 +2076,9 @@ mod unit_tests {
                 collapsed_wave_function_result = wave_function.collapse(random_seed);
             });
 
-            //println!("{}", time_graph::get_full_graph().as_dot());
+            if index + 1 == max_runs {
+                println!("{}", time_graph::get_full_graph().as_dot());
+            }
 
             if let Err(error_message) = collapsed_wave_function_result {
                 println!("tried random seed: {:?}.", random_seed);
@@ -1993,8 +2112,8 @@ mod unit_tests {
 
         for _ in 0..1 {
 
-            //let random_seed = Some(rng.next_u64());
-            let random_seed = Some(14262106489863409486);
+            let random_seed = Some(rng.next_u64());
+            //let random_seed = Some(14262106489863409486);
 
             let nodes_height = 4;
             let nodes_width = 4;
@@ -2084,8 +2203,11 @@ mod unit_tests {
             let node_states = node_states_result.ok().unwrap();
 
             // TODO assert something about the uncollapsed wave functions
-            println!("Found {:?} node states.", node_states.len());
             println!("States: {:?}", node_states);
+            println!("Found {:?} node states.", node_states.len());
+
+            let node_states_json = serde_json::to_string(&node_states).unwrap();
+            std::fs::write("/home/austin/Projects_Unversioned/WaveFunctionCollapse/output_004.txt", node_states_json).unwrap();
         }
 
         println!("{}", time_graph::get_full_graph().as_dot());

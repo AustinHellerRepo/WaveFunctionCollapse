@@ -135,6 +135,16 @@ impl<TNodeState, TViewKey: Eq + Hash + Display + Debug, TKey: Eq + Hash + Copy +
     pub fn reset(&mut self) {
         self.index = Option::None;
     }
+    pub fn is_current_state_restricted(&self) -> bool {
+        let is_restricted: bool;
+        if let Some(index) = self.index {
+            is_restricted = !self.is_unmasked_at_index(index);
+        }
+        else {
+            is_restricted = false;
+        }
+        is_restricted
+    }
     #[time_graph::instrument]
     pub fn is_fully_restricted_or_current_state_is_restricted(&self) -> bool {
 
@@ -159,7 +169,6 @@ impl<TNodeState, TViewKey: Eq + Hash + Display + Debug, TKey: Eq + Hash + Copy +
     }
     #[time_graph::instrument]
     pub fn get_restriction_ratio(&self) -> f32 {
-        return 0.0;
         let mut masked_bits_total: u32 = 0;
         for index in 0..self.node_state_ids_length {
             if !self.is_unmasked_at_index(index) {
