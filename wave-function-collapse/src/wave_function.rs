@@ -132,35 +132,28 @@ impl Hash for UncollapsedWaveFunction {
 
 pub struct CollapsableWaveFunction<'a> {
     // represents a wave function with all of the necessary steps to collapse
-    collapsable_nodes: Vec<CollapsableNode<'a>>,
+    collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a>>>>,
+    collapsable_node_per_id: HashMap<&'a str, Rc<RefCell<CollapsableNode<'a>>>>,
     collapsable_nodes_length: usize,
     current_collapsable_node_index: usize
 }
 
 impl<'a> CollapsableWaveFunction<'a> {
-    fn new(collapsable_nodes: Vec<CollapsableNode<'a>>) -> Self {
+    fn new(collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a>>>>, collapsable_node_per_id: HashMap<&'a str, Rc<RefCell<CollapsableNode<'a>>>>) -> Self {
         let collapsable_nodes_length: usize = collapsable_nodes.len();
-        CollapsableWaveFunction {
+
+        let mut collapsable_wave_function = CollapsableWaveFunction {
             collapsable_nodes: collapsable_nodes,
+            collapsable_node_per_id: collapsable_node_per_id,
             collapsable_nodes_length: collapsable_nodes_length,
             current_collapsable_node_index: 0
-        }
+        };
+
+        collapsable_wave_function
     }
     fn try_increment_current_collapsable_node_state(&mut self) -> NodeState {
-        let current_collapsable_node = self.collapsable_nodes.get_mut(self.current_collapsable_node_index).expect("The collapsable node should exist at this index.");
-
-        {
-            let node_id: &str = current_collapsable_node.id;
-            let current_state_id_option: Option<&&str> = current_collapsable_node.node_state_indexed_view.get();
-            let current_state_id_display: String;
-            if let Some(current_state_id) = current_state_id_option {
-                current_state_id_display = String::from(*current_state_id);
-            }
-            else {
-                current_state_id_display = String::from("None");
-            }
-            debug!("incrementing node {node_id} from state {current_state_id_display}.");
-        }
+        let wrapped_current_collapsable_node = self.collapsable_nodes.get(self.current_collapsable_node_index).unwrap();
+        let mut current_collapsable_node = wrapped_current_collapsable_node.borrow_mut();
 
         let is_successful = current_collapsable_node.node_state_indexed_view.try_move_next();
         let node_state: NodeState;
@@ -179,39 +172,24 @@ impl<'a> CollapsableWaveFunction<'a> {
             };
         }
 
-        {
-            let node_id: &str = current_collapsable_node.id;
-            let next_state_id_option: Option<&&str> = current_collapsable_node.node_state_indexed_view.get();
-            let next_state_id_display: String;
-            if let Some(next_state_id) = next_state_id_option {
-                next_state_id_display = String::from(*next_state_id);
-            }
-            else {
-                next_state_id_display = String::from("None");
-            }
-            debug!("incremented node {node_id} to state {next_state_id_display}.");
-        }
-
         node_state
     }
     fn alter_reference_to_current_collapsable_node_mask(&mut self) {
-        // TODO implement mapped indexes
-        let current_collapsable_node = self.collapsable_nodes.get_mut(self.current_collapsable_node_index).expect("The collapsable node should exist at this index.");
+        let wrapped_current_collapsable_node = self.collapsable_nodes.get_mut(self.current_collapsable_node_index).expect("The collapsable node should exist at this index.");
+        let current_collapsable_node = wrapped_current_collapsable_node.borrow();
         let current_possible_state: &str = current_collapsable_node.node_state_indexed_view.get().unwrap();
         current_collapsable_node.neighbor_mask_mapped_view.borrow_mut().orient(current_possible_state);
     }
     fn is_at_least_one_neighbor_fully_restricted(&self) -> bool {
-        let current_collapsable_node = self.collapsable_nodes.get(self.current_collapsable_node_index).unwrap();
+        let wrapped_current_collapsable_node = self.collapsable_nodes.get(self.current_collapsable_node_index).unwrap();
+        let current_collapsable_node = wrapped_current_collapsable_node.borrow();
         let mut is_at_least_one_neighbor_fully_restricted = false;
 
         {
-            for collapsable_node in self.collapsable_nodes.iter() {
-                let possible_neighbor_node_id: &str = collapsable_node.id;
-                if current_collapsable_node.neighbor_node_ids.contains(&possible_neighbor_node_id) {
-                    if collapsable_node.is_fully_restricted() {
-                        is_at_least_one_neighbor_fully_restricted = true;
-                        break;
-                    }
+            for neighbor_node_id in current_collapsable_node.neighbor_node_ids.iter() {
+                if self.collapsable_node_per_id.get(neighbor_node_id).unwrap().borrow().is_fully_restricted() {
+                    is_at_least_one_neighbor_fully_restricted = true;
+                    break;
                 }
             }
         }
@@ -219,7 +197,8 @@ impl<'a> CollapsableWaveFunction<'a> {
         is_at_least_one_neighbor_fully_restricted
     }
     fn move_to_next_collapsable_node(&mut self) {
-        let current_node_id: &str = self.collapsable_nodes.get(self.current_collapsable_node_index).unwrap().id;
+        let wrapped_current_collapsable_node = self.collapsable_nodes.get(self.current_collapsable_node_index).unwrap();
+        let current_node_id: &str = wrapped_current_collapsable_node.borrow().id;
         let current_collapsable_node_index: &usize = &self.current_collapsable_node_index;
         debug!("moving from {current_node_id} at index {current_collapsable_node_index}");
 
@@ -230,7 +209,8 @@ impl<'a> CollapsableWaveFunction<'a> {
             debug!("moved outside of bounds at index {next_collapsable_node_index}");
         }
         else {
-            let next_node_id: &str = self.collapsable_nodes.get(self.current_collapsable_node_index).unwrap().id;
+            let wrapped_current_collapsable_node = self.collapsable_nodes.get(self.current_collapsable_node_index).unwrap();
+            let next_node_id: &str = wrapped_current_collapsable_node.borrow().id;
             debug!("moved to {next_node_id} at index {next_collapsable_node_index}");
         }
     }
@@ -238,9 +218,26 @@ impl<'a> CollapsableWaveFunction<'a> {
         self.current_collapsable_node_index == self.collapsable_nodes_length
     }
     fn sort_collapsable_nodes(&mut self) {
-        let current_collapsable_nodes_display = CollapsableNode::get_ids(&self.collapsable_nodes);
-        debug!("current sort order: {current_collapsable_nodes_display}.");
+        //let current_collapsable_nodes_display = CollapsableNode::get_ids(&self.collapsable_nodes);
+        //debug!("current sort order: {current_collapsable_nodes_display}.");
 
+        let mut lowest_number_of_possible_states: u32 = u32::MAX;
+        let mut lowest_number_of_possible_states_index = self.current_collapsable_node_index;
+        for collapsable_node_index in self.current_collapsable_node_index..self.collapsable_nodes_length {
+            let wrapped_collapsable_node = self.collapsable_nodes.get(collapsable_node_index).unwrap();
+            let collapsable_node = wrapped_collapsable_node.borrow();
+            let collapsable_node_random_sort_index = collapsable_node.random_sort_index;
+            if collapsable_node_random_sort_index < lowest_number_of_possible_states {
+                lowest_number_of_possible_states = collapsable_node_random_sort_index;
+                lowest_number_of_possible_states_index = collapsable_node_index;
+            }
+        }
+
+        if lowest_number_of_possible_states_index != self.current_collapsable_node_index {
+            self.collapsable_nodes.swap(lowest_number_of_possible_states_index, self.current_collapsable_node_index);
+        }
+
+        /*
         self.collapsable_nodes.sort_unstable_by(|a, b| {
 
             let a_node_id: &str = a.id;
@@ -308,32 +305,43 @@ impl<'a> CollapsableWaveFunction<'a> {
             }
             comparison
         });
+        */
 
-        let next_collapsable_nodes_display = CollapsableNode::get_ids(&self.collapsable_nodes);
-        debug!("next sort order: {next_collapsable_nodes_display}.");
+        //let next_collapsable_nodes_display = CollapsableNode::get_ids(&self.collapsable_nodes);
+        //debug!("next sort order: {next_collapsable_nodes_display}.");
     }
     fn try_move_to_previous_collapsable_node_neighbor(&mut self) -> Vec<NodeState> {
         let mut reset_node_states: Vec<NodeState> = Vec::new();
 
         // store the original node id in order to check if previously chosen nodes are a neighbor to this fully restricted node
-        let original_collapsable_node_id = self.collapsable_nodes.get(self.current_collapsable_node_index).expect("The collapsable node index should be within range.").id;
+        let original_collapsable_node_id: &str;
+        {
+            let wrapped_original_wrapped_collapsable_node = self.collapsable_nodes.get(self.current_collapsable_node_index).expect("The collapsable node index should be within range.");
+            let original_collapsable_node = wrapped_original_wrapped_collapsable_node.borrow();
+            original_collapsable_node_id = original_collapsable_node.id;
+        }
 
         // wait for neighbor to be found
         let mut is_neighbor_found_or_root_reset: bool = false;
 
         // if we're not already at the very root chosen node, then reset the current node and move back up the chain of chosen nodes
         while !is_neighbor_found_or_root_reset {
-            // reset the node state index for the current node
-            self.collapsable_nodes.get_mut(self.current_collapsable_node_index).unwrap().node_state_indexed_view.reset();
-            // reset the mask used by my neighbors since my state was also reset
-            self.collapsable_nodes.get_mut(self.current_collapsable_node_index).unwrap().neighbor_mask_mapped_view.borrow_mut().reset();
-            // reset chosen index within collapsable node
-            self.collapsable_nodes.get_mut(self.current_collapsable_node_index).unwrap().current_chosen_from_sort_index = None;
-            // store that this node has been reset
-            reset_node_states.push(NodeState {
-                node_id: String::from(self.collapsable_nodes.get(self.current_collapsable_node_index).unwrap().id),
-                node_state_id: None
-            });
+            // current collapsable node
+            {
+                let wrapped_current_collapsable_node = self.collapsable_nodes.get_mut(self.current_collapsable_node_index).unwrap();
+                let mut current_collapsable_node = wrapped_current_collapsable_node.borrow_mut();
+                // reset the node state index for the current node
+                current_collapsable_node.node_state_indexed_view.reset();
+                // reset the mask used by my neighbors since my state was also reset
+                current_collapsable_node.neighbor_mask_mapped_view.borrow_mut().reset();
+                // reset chosen index within collapsable node
+                current_collapsable_node.current_chosen_from_sort_index = None;
+                // store that this node has been reset
+                reset_node_states.push(NodeState {
+                    node_id: String::from(current_collapsable_node.id),
+                    node_state_id: None
+                });
+            }
 
             if self.current_collapsable_node_index == 0 {
                 is_neighbor_found_or_root_reset = true;
@@ -342,7 +350,9 @@ impl<'a> CollapsableWaveFunction<'a> {
                 // move to the previously chosen node
                 self.current_collapsable_node_index -= 1;
                 // break out if the previous node was a neighbor of the node that was originally too restricted
-                if self.collapsable_nodes.get(self.current_collapsable_node_index).unwrap().neighbor_node_ids.contains(&original_collapsable_node_id) {
+                let wrapped_previous_collapsable_node = self.collapsable_nodes.get(self.current_collapsable_node_index).unwrap();
+                let previous_collapsable_node = wrapped_previous_collapsable_node.borrow();
+                if previous_collapsable_node.neighbor_node_ids.contains(&original_collapsable_node_id) {
                     is_neighbor_found_or_root_reset = true;
                 }
             }
@@ -350,11 +360,14 @@ impl<'a> CollapsableWaveFunction<'a> {
         reset_node_states
     }
     fn is_fully_reset(&self) -> bool {
-        self.current_collapsable_node_index == 0 && self.collapsable_nodes.get(self.current_collapsable_node_index).unwrap().current_chosen_from_sort_index.is_none()
+        let wrapped_current_collapsable_node = self.collapsable_nodes.get(self.current_collapsable_node_index).unwrap();
+        let current_collapsable_node = wrapped_current_collapsable_node.borrow();
+        self.current_collapsable_node_index == 0 && current_collapsable_node.current_chosen_from_sort_index.is_none()
     }
     fn get_uncollapsed_wave_function(&self) -> UncollapsedWaveFunction {
         let mut node_state_per_node: HashMap<String, Option<String>> = HashMap::new();
-        for collapsable_node in self.collapsable_nodes.iter() {
+        for wrapped_collapsable_node in self.collapsable_nodes.iter() {
+            let collapsable_node = wrapped_collapsable_node.borrow();
             let node_state_id_option: Option<String>;
             if let Some(node_state_id) = collapsable_node.node_state_indexed_view.get() {
                 node_state_id_option = Some(String::from(*node_state_id));
@@ -372,7 +385,8 @@ impl<'a> CollapsableWaveFunction<'a> {
     }
     fn get_collapsed_wave_function(&self) -> CollapsedWaveFunction {
         let mut node_state_per_node: HashMap<String, String> = HashMap::new();
-        for collapsable_node in self.collapsable_nodes.iter() {
+        for wrapped_collapsable_node in self.collapsable_nodes.iter() {
+            let collapsable_node = wrapped_collapsable_node.borrow();
             let node_state: String = String::from(*collapsable_node.node_state_indexed_view.get().unwrap());
             let node: String = String::from(collapsable_node.id);
             debug!("established node {node} in state {node_state}.");
@@ -672,8 +686,8 @@ impl WaveFunction {
         let mut random_instance: Option<ChaCha8Rng> = None;
 
         let mut collapsable_node_index: usize = 0;
-        let mut collapsable_nodes: Vec<CollapsableNode> = Vec::new();
-        let mut collapsable_node_index_per_node_id: HashMap<&str, usize> = HashMap::new();
+        let mut collapsable_nodes: Vec<Rc<RefCell<CollapsableNode>>> = Vec::new();
+        let mut collapsable_node_per_id: HashMap<&str, Rc<RefCell<CollapsableNode>>> = HashMap::new();
         // contains the mask to apply to the neighbor when this node is in a specific state
         for node in self.nodes.iter() {
             let node_id: &str = &node.id;
@@ -690,12 +704,16 @@ impl WaveFunction {
                 collapsable_node.randomize(random_instance.as_mut().unwrap());
             }
 
-            collapsable_nodes.push(collapsable_node);
-            collapsable_node_index_per_node_id.insert(&node.id, collapsable_node_index.clone());
+            collapsable_nodes.push(Rc::new(RefCell::new(collapsable_node)));
             collapsable_node_index = collapsable_node_index + 1;
         }
 
-        CollapsableWaveFunction::new(collapsable_nodes)
+        for wrapped_collapsable_node in collapsable_nodes.iter() {
+            let collapsable_node = wrapped_collapsable_node.borrow();
+            collapsable_node_per_id.insert(collapsable_node.id.clone(), wrapped_collapsable_node.clone());
+        }
+
+        CollapsableWaveFunction::new(collapsable_nodes, collapsable_node_per_id)
     }
     #[time_graph::instrument]
     pub fn collapse_into_steps(&self, random_seed: Option<u64>) -> Result<Vec<NodeState>, String> {
