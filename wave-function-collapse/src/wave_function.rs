@@ -1810,8 +1810,18 @@ mod unit_tests {
 
             let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
 
-            for (node_state_id, node_id) in std::iter::zip(node_state_ids, node_ids) {
-                assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&node_id).unwrap());
+            // check that no nodes have the same state
+            for (first_index, (first_node, first_node_state)) in collapsed_wave_function.node_state_per_node.iter().enumerate() {
+                for (second_index, (second_node, second_node_state)) in collapsed_wave_function.node_state_per_node.iter().enumerate() {
+                    if first_index == second_index {
+                        assert_eq!(first_node, second_node);
+                        assert_eq!(first_node_state, second_node_state);
+                    }
+                    else {
+                        assert_ne!(first_node, second_node);
+                        assert_ne!(first_node_state, second_node_state);
+                    }
+                }
             }
         });
 
@@ -2000,6 +2010,7 @@ mod unit_tests {
 
             let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
 
+            // check that none of the neighbors match the same state
             for (node_index, node_id) in std::iter::zip(0..nodes_total, node_ids.iter()) {
                 let node_x: i32 = node_index % nodes_width;
                 let node_y: i32 = (node_index / nodes_width) % nodes_height;
