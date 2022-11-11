@@ -1,4 +1,4 @@
-use std::{collections::{HashMap, HashSet, BTreeSet}, cell::{Cell, RefCell}, rc::Rc, fmt::Display, hash::Hash};
+use std::{collections::{HashMap, HashSet, BTreeSet, VecDeque}, cell::{Cell, RefCell}, rc::Rc, fmt::Display, hash::Hash};
 use serde::{Deserialize, Serialize};
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
@@ -244,10 +244,46 @@ impl<'a> CollapsableWaveFunction<'a> {
                 let a_collapsed_node = a.borrow();
                 let b_collapsed_node = b.borrow();
 
-                b_collapsed_node.neighbor_node_ids.len().cmp(&a_collapsed_node.neighbor_node_ids.len())
+                a_collapsed_node.neighbor_node_ids.len().cmp(&b_collapsed_node.neighbor_node_ids.len())
             });
 
+            let mut found_neighbor_node_ids: HashSet<&str> = HashSet::new();
+            let mut searching_neighbor_node_ids: VecDeque<&str> = VecDeque::new();
+            searching_neighbor_node_ids.push_back(&self.collapsable_nodes.first().unwrap().borrow().id);
+
             let mut choice_index: usize = 0;
+            while !searching_neighbor_node_ids.is_empty() {
+                let searching_neighbor_node_id = searching_neighbor_node_ids.pop_front().unwrap();
+                debug!("searching: {:?}", searching_neighbor_node_ids);
+                for finding_index in choice_index..self.collapsable_nodes_length {
+                    let finding_collapsable_node_id: &str;
+                    {
+                        let wrapped_finding_collapsable_node = self.collapsable_nodes.get(finding_index).unwrap();
+                        let finding_collapsable_node = wrapped_finding_collapsable_node.borrow();
+                        finding_collapsable_node_id = finding_collapsable_node.id;
+                    }
+                    
+                    if searching_neighbor_node_id == finding_collapsable_node_id {
+                        debug!("found at {finding_index} and moving to {choice_index}.");
+                        if choice_index != finding_index {
+                            self.collapsable_nodes.swap(choice_index, finding_index);
+                        }
+                        choice_index += 1;
+                        found_neighbor_node_ids.insert(finding_collapsable_node_id);
+                        let wrapped_neighbor = self.collapsable_node_per_id.get(finding_collapsable_node_id).unwrap();
+                        let neighbor = wrapped_neighbor.borrow();
+                        for neighbors_neighbor_node_id in neighbor.neighbor_node_ids.iter() {
+                            if !found_neighbor_node_ids.contains(neighbors_neighbor_node_id) {
+                                debug!("adding potential neighbor: {neighbors_neighbor_node_id}");
+                                searching_neighbor_node_ids.push_back(*neighbors_neighbor_node_id);
+                            }
+                        }
+                        break;
+                    }
+                }
+            }
+
+            /*
             while choice_index + 1 < self.collapsable_nodes_length {
                 let mut neighbor_indexes: Vec<usize> = Vec::new();
                 {
@@ -273,6 +309,7 @@ impl<'a> CollapsableWaveFunction<'a> {
                     choice_index += neighbor_indexes.len();
                 }
             }
+            */
         }
 
         // sort by restriction ratio
@@ -504,13 +541,12 @@ impl WaveFunction {
 
         let mut node_state_ids: Vec<String> = Vec::new();
 
+        // get all of the possible node states based on the first node-to-neighbor found
         'block: {
             for node in nodes.iter() {
                 let node_id: &str = &node.id;
                 for (neighbor_node_id_string, node_state_collection_ids) in node.node_state_collection_ids_per_neighbor_node_id.iter() {
                     let neighbor_node_id: &str = neighbor_node_id_string;
-
-                    debug!("Node {node_id} has neighbor {neighbor_node_id}.");
 
                     for node_state_collection_id_string in node_state_collection_ids {
                         let node_state_collection_id: &str = &node_state_collection_id_string;
