@@ -41,6 +41,7 @@ impl<TViewKey: Eq + Hash + Display + Debug, TKey: Eq + Hash + Copy + Display + D
         }
     }
     // in my use case it will be the neighbor's node id as the key and the Option<&BitVec> as the value
+    #[time_graph::instrument]
     pub fn get(&self, key: &TKey) -> Option<&TValue> {
         if self.view_key.is_some() {
             let view_key_ref: &TViewKey = self.view_key.as_ref().unwrap();
@@ -53,9 +54,11 @@ impl<TViewKey: Eq + Hash + Display + Debug, TKey: Eq + Hash + Copy + Display + D
             None
         }
     }
+    #[time_graph::instrument]
     pub fn orient(&mut self, view_key: TViewKey) {
         self.view_key = Some(view_key);
     }
+    #[time_graph::instrument]
     pub fn reset(&mut self) {
         self.view_key = None;
     }

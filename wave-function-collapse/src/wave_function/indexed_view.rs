@@ -135,6 +135,7 @@ impl<TNodeState, TViewKey: Eq + Hash + Display + Debug, TKey: Eq + Hash + Copy +
     pub fn reset(&mut self) {
         self.index = Option::None;
     }
+    #[time_graph::instrument]
     pub fn is_current_state_restricted(&self) -> bool {
         let is_restricted: bool;
         if let Some(index) = self.index {

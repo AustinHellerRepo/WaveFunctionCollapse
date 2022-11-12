@@ -81,6 +81,7 @@ impl<'a> CollapsableNode<'a> {
             restriction_ratio: 0.0
         }
     }
+    #[time_graph::instrument]
     fn refresh_restriction_ratio(&mut self) {
         if !self.node_state_indexed_view.is_in_some_state() {
             self.restriction_ratio = self.node_state_indexed_view.get_restriction_ratio();
@@ -90,6 +91,7 @@ impl<'a> CollapsableNode<'a> {
         self.node_state_indexed_view.shuffle(random_instance);
         self.random_sort_index = random_instance.next_u32();
     }
+    #[time_graph::instrument]
     fn is_fully_restricted(&self) -> bool {
         self.restriction_ratio == 1.0 || self.node_state_indexed_view.is_current_state_restricted()
     }
@@ -151,6 +153,7 @@ impl<'a> CollapsableWaveFunction<'a> {
 
         collapsable_wave_function
     }
+    #[time_graph::instrument]
     fn try_increment_current_collapsable_node_state(&mut self) -> NodeState {
         let wrapped_current_collapsable_node = self.collapsable_nodes.get(self.current_collapsable_node_index).unwrap();
         let mut current_collapsable_node = wrapped_current_collapsable_node.borrow_mut();
@@ -174,6 +177,7 @@ impl<'a> CollapsableWaveFunction<'a> {
 
         node_state
     }
+    #[time_graph::instrument]
     fn alter_reference_to_current_collapsable_node_mask(&mut self) {
         // orient the current node's mask mapped view that its neighbors look through
         let wrapped_current_collapsable_node = self.collapsable_nodes.get_mut(self.current_collapsable_node_index).expect("The collapsable node should exist at this index.");
@@ -188,6 +192,7 @@ impl<'a> CollapsableWaveFunction<'a> {
             neighbor_collapsable_node.refresh_restriction_ratio();
         }
     }
+    #[time_graph::instrument]
     fn is_at_least_one_neighbor_fully_restricted(&self) -> bool {
         let wrapped_current_collapsable_node = self.collapsable_nodes.get(self.current_collapsable_node_index).unwrap();
         let current_collapsable_node = wrapped_current_collapsable_node.borrow();
@@ -204,6 +209,7 @@ impl<'a> CollapsableWaveFunction<'a> {
 
         is_at_least_one_neighbor_fully_restricted
     }
+    #[time_graph::instrument]
     fn move_to_next_collapsable_node(&mut self) {
         let wrapped_current_collapsable_node = self.collapsable_nodes.get(self.current_collapsable_node_index).unwrap();
         let current_node_id: &str = wrapped_current_collapsable_node.borrow().id;
@@ -222,9 +228,11 @@ impl<'a> CollapsableWaveFunction<'a> {
             debug!("moved to {next_node_id} at index {next_collapsable_node_index}");
         }
     }
+    #[time_graph::instrument]
     fn is_fully_collapsed(&self) -> bool {
         self.current_collapsable_node_index == self.collapsable_nodes_length
     }
+    #[time_graph::instrument]
     fn sort_collapsable_nodes(&mut self) {
         //let current_collapsable_nodes_display = CollapsableNode::get_ids(&self.collapsable_nodes);
         //debug!("current sort order: {current_collapsable_nodes_display}.");
@@ -427,6 +435,7 @@ impl<'a> CollapsableWaveFunction<'a> {
         //let next_collapsable_nodes_display = CollapsableNode::get_ids(&self.collapsable_nodes);
         //debug!("next sort order: {next_collapsable_nodes_display}.");
     }
+    #[time_graph::instrument]
     fn try_move_to_previous_collapsable_node_neighbor(&mut self) -> Vec<NodeState> {
         let mut reset_node_states: Vec<NodeState> = Vec::new();
 
@@ -485,6 +494,7 @@ impl<'a> CollapsableWaveFunction<'a> {
         }
         reset_node_states
     }
+    #[time_graph::instrument]
     fn is_fully_reset(&self) -> bool {
         let wrapped_current_collapsable_node = self.collapsable_nodes.get(self.current_collapsable_node_index).unwrap();
         let current_collapsable_node = wrapped_current_collapsable_node.borrow();
@@ -509,6 +519,7 @@ impl<'a> CollapsableWaveFunction<'a> {
             node_state_per_node: node_state_per_node
         }
     }
+    #[time_graph::instrument]
     fn get_collapsed_wave_function(&self) -> CollapsedWaveFunction {
         let mut node_state_per_node: HashMap<String, String> = HashMap::new();
         for wrapped_collapsable_node in self.collapsable_nodes.iter() {
@@ -852,9 +863,11 @@ impl WaveFunction {
 
         let mut collapsable_wave_function = self.get_collapsable_wave_function(random_seed);
 
-        debug!("sorting initial list of collapsable nodes");
-        collapsable_wave_function.sort_collapsable_nodes();
-        debug!("sorted initial list of collapsable nodes");
+        time_graph::spanned!("sort_collapsable_nodes (first)", {
+            debug!("sorting initial list of collapsable nodes");
+            collapsable_wave_function.sort_collapsable_nodes();
+            debug!("sorted initial list of collapsable nodes");
+        });
 
         let mut is_unable_to_collapse = false;
         debug!("starting while loop");
@@ -2047,7 +2060,7 @@ mod unit_tests {
             let nodes_width = 4;
             let nodes_depth = 4;
             let nodes_total = nodes_height * nodes_width * nodes_depth;
-            let node_states_total = 12;
+            let node_states_total = 8;
 
             let mut nodes: Vec<Node> = Vec::new();
             let mut node_ids: Vec<String> = Vec::new();
@@ -2160,11 +2173,13 @@ mod unit_tests {
             let random_seed = Some(rng.next_u64());
             //let random_seed = Some(14262106489863409486);
 
-            let nodes_height = 4;
-            let nodes_width = 4;
-            let nodes_depth = 4;
+            let size = 9;
+
+            let nodes_height = size;
+            let nodes_width = size;
+            let nodes_depth = size;
             let nodes_total = nodes_height * nodes_width * nodes_depth;
-            let node_states_total = 12;
+            let node_states_total = 8;
 
             let mut nodes: Vec<Node> = Vec::new();
             let mut node_ids: Vec<String> = Vec::new();
@@ -2238,9 +2253,8 @@ mod unit_tests {
                 node_states_result = wave_function.collapse_into_steps(random_seed);
             });
 
-            println!("{}", time_graph::get_full_graph().as_dot());
-
             if let Err(error_message) = node_states_result {
+                println!("{}", time_graph::get_full_graph().as_dot());
                 println!("tried random seed: {:?}.", random_seed);
                 panic!("Error: {error_message}");
             }
@@ -2248,7 +2262,7 @@ mod unit_tests {
             let node_states = node_states_result.ok().unwrap();
 
             // TODO assert something about the uncollapsed wave functions
-            println!("States: {:?}", node_states);
+            //println!("States: {:?}", node_states);
             println!("Found {:?} node states.", node_states.len());
         }
 
