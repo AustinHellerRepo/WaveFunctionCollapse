@@ -4,34 +4,33 @@ use std::rc::Rc;
 use std::{cell::Cell, collections::HashMap};
 use bitvec::prelude::*;
 use rand::{seq::SliceRandom, Rng};
-use super::mapped_view::MappedView;
 use std::cmp::Eq;
 use std::hash::Hash;
 
-pub struct IndexedView<TNodeState, TViewKey: Eq + Hash, TKey: Eq + Hash + Copy> {
+pub struct IndexedView<TNodeState> {
     // items are states of the node
     node_state_ids: Vec<TNodeState>,
     node_state_ids_length: usize,
     index: Option<usize>,
-    masks: Vec<Rc<RefCell<MappedView<TViewKey, TKey, BitVec>>>>,
-    masks_key: TKey,
-    index_mapping: HashMap<usize, usize>
+    index_mapping: HashMap<usize, usize>,
+    mask_counter: Vec<u32>
 }
 
-impl<TNodeState, TViewKey: Eq + Hash + Display + Debug, TKey: Eq + Hash + Copy + Display + Debug> IndexedView<TNodeState, TViewKey, TKey> {
-    pub fn new(node_state_ids: Vec<TNodeState>, masks: Vec<Rc<RefCell<MappedView<TViewKey, TKey, BitVec>>>>, masks_key: TKey) -> Self {
+impl<TNodeState> IndexedView<TNodeState> {
+    pub fn new(node_state_ids: Vec<TNodeState>) -> Self {
         let node_state_ids_length: usize = node_state_ids.len();
         let mut index_mapping = HashMap::new();
+        let mut mask_counter: Vec<u32> = Vec::new();
         for index in 0..node_state_ids_length {
             index_mapping.insert(index, index);
+            mask_counter.push(0);
         }
         IndexedView {
             node_state_ids: node_state_ids,
             node_state_ids_length: node_state_ids_length,
             index: Option::None,
-            masks: masks,
-            masks_key: masks_key,
-            index_mapping: index_mapping
+            index_mapping: index_mapping,
+            mask_counter: mask_counter
         }
     }
     pub fn shuffle<R: Rng + ?Sized>(&mut self, random_instance: &mut R) {
@@ -76,42 +75,13 @@ impl<TNodeState, TViewKey: Eq + Hash + Display + Debug, TKey: Eq + Hash + Copy +
         }
         self.index.unwrap() != self.node_state_ids_length
     }
-    pub fn try_move_previous(&mut self) -> bool {
-        let mut is_unmasked = false;
-        let mut current_index: usize;
-        let mut next_index: usize;
-        while !self.index.is_none() && !is_unmasked {
-            current_index = self.index.unwrap();
-            if current_index == 0 {
-                self.index = Option::None;
-            }
-            else {
-                next_index = current_index - 1;
-                is_unmasked = self.is_unmasked_at_index(next_index);
-                self.index = Some(next_index);
-            }
-        }
-        self.index.is_some()
-    }
     #[time_graph::instrument]
     fn is_unmasked_at_index(&self, index: usize) -> bool {
         //debug!("checking if unmasked at index {index} for node {mask_key}.");
-
-        let mapped_index = *self.index_mapping.get(&index).unwrap();
-
-        for mask_mapped_view in self.masks.iter() {
-            //debug!("checking mapped view");
-            if let Some(mask) = mask_mapped_view.borrow().get(&self.masks_key) {
-                //debug!("checking mask");
-                if !mask[mapped_index] {
-                    //debug!("state is masked");
-                    return false;
-                }
-            }
-        }
-        //debug!("state is unmasked");
-        return true;
+        let mapped_index = self.index_mapping.get(&index).unwrap();
+        self.mask_counter[*mapped_index] == 0
     }
+    #[time_graph::instrument]
     pub fn get(&self) -> Option<&TNodeState> {
         let value: Option<&TNodeState>;
         if let Some(index) = self.index {
@@ -128,12 +98,14 @@ impl<TNodeState, TViewKey: Eq + Hash + Display + Debug, TKey: Eq + Hash + Copy +
         }
         value
     }
+    #[time_graph::instrument]
     pub fn is_in_some_state(&self) -> bool {
         self.index.is_some()
     }
     #[time_graph::instrument]
     pub fn reset(&mut self) {
         self.index = Option::None;
+        // NOTE: the mask_counter should not be fully reverted to ensure that the neighbor restrictions are still being considered
     }
     #[time_graph::instrument]
     pub fn is_current_state_restricted(&self) -> bool {
@@ -147,42 +119,47 @@ impl<TNodeState, TViewKey: Eq + Hash + Display + Debug, TKey: Eq + Hash + Copy +
         is_restricted
     }
     #[time_graph::instrument]
-    pub fn is_fully_restricted_or_current_state_is_restricted(&self) -> bool {
-
-        let mut is_at_least_one_node_state_possible: bool = false;
-
-        'block: {
-            if let Some(index) = self.index {
-                if !self.is_unmasked_at_index(index) {
-                    break 'block;
-                }
-            }
-
-            for index in 0..self.node_state_ids_length {
-                if self.is_unmasked_at_index(index) {
-                    is_at_least_one_node_state_possible = true;
-                    break;
-                }
-            }
-        }
-
-        !is_at_least_one_node_state_possible
-    }
-    #[time_graph::instrument]
     pub fn get_restriction_ratio(&self) -> f32 {
         let mut masked_bits_total: u32 = 0;
         for index in 0..self.node_state_ids_length {
-            if !self.is_unmasked_at_index(index) {
+            if !self.is_unmasked_at_index(index) {  // TODO iterate over mask_counter for faster speed intead of going through index_mapping
                 masked_bits_total += 1;
             }
         }
         (masked_bits_total as f32) / (self.node_state_ids_length as f32)
     }
+    #[time_graph::instrument]
+    pub fn add_mask(&mut self, mask: &BitVec) {
+        debug!("adding mask {:?} at current state {:?}.", mask, self.mask_counter);
+        for index in 0..self.node_state_ids_length {
+            if !mask[index] {
+                debug!("adding mask at {index}");
+                self.mask_counter[index] += 1;
+            }
+            else {
+                debug!("not adding mask at {index}");
+            }
+        }
+        debug!("added mask {:?} at current state {:?}.", mask, self.mask_counter);
+    }
+    #[time_graph::instrument]
+    pub fn subtract_mask(&mut self, mask: &BitVec) {
+        debug!("removing mask {:?} at current state {:?}.", mask, self.mask_counter);
+        for index in 0..self.node_state_ids_length {
+            if !mask[index] {
+                debug!("removing mask at {index}");
+                self.mask_counter[index] -= 1;
+            }
+            else {
+                debug!("not removing mask at {index}");
+            }
+        }
+        debug!("removed mask {:?} at current state {:?}.", mask, self.mask_counter);
+    }
 }
 
-impl<TNodeState, TViewKey: Eq + Hash + Display + Debug, TKey: Eq + Hash + Copy + Display + Debug> Debug for IndexedView<TNodeState, TViewKey, TKey> {
+impl<TNodeState> Debug for IndexedView<TNodeState> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mask_key = self.masks_key;
-        write!(f, "IndexedView for MaskKey {mask_key} and masks {:?}.", self.masks)
+        write!(f, "IndexedView with mask counter {:?}.", self.mask_counter)
     }
 }

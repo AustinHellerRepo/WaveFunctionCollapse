@@ -9,8 +9,6 @@ extern crate pretty_env_logger;
 
 mod indexed_view;
 use self::indexed_view::IndexedView;
-mod mapped_view;
-use self::mapped_view::MappedView;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Node {
@@ -44,15 +42,16 @@ pub struct NodeState {
     pub node_state_id: Option<String>
 }
 
+#[derive(Debug)]
 struct CollapsableNode<'a> {
     // the node id that this collapsable node refers to
     id: &'a str,
     // this nodes list of neighbor node ids
     neighbor_node_ids: Vec<&'a str>,
     // the full list of possible node states, masked by internal references to neighbor masks
-    node_state_indexed_view: IndexedView<&'a str, &'a str, &'a str>,
+    node_state_indexed_view: IndexedView<&'a str>,
     // the mapped view that this node's neighbors will have a reference to and pull their masks from
-    neighbor_mask_mapped_view: Rc<RefCell<MappedView<&'a str, &'a str, BitVec>>>,
+    mask_per_neighbor_per_state: HashMap<&'a str, HashMap<&'a str, BitVec>>,
     // the index of traversed nodes based on the sorted vector of nodes as they are chosen for state determination
     current_chosen_from_sort_index: Option<usize>,
     // a random sort value for adding randomness to the process between runs (if randomized)
@@ -62,7 +61,7 @@ struct CollapsableNode<'a> {
 }
 
 impl<'a> CollapsableNode<'a> {
-    fn new(node: &'a Node, neighbor_mask_mapped_view: Rc<RefCell<MappedView<&'a str, &'a str, BitVec>>>, node_state_indexed_view: IndexedView<&'a str, &'a str, &'a str>) -> CollapsableNode<'a> {
+    fn new(node: &'a Node, mask_per_neighbor_per_state: HashMap<&'a str, HashMap<&'a str, BitVec>>, node_state_indexed_view: IndexedView<&'a str>) -> CollapsableNode<'a> {
         // get the neighbors for this node
         let mut neighbor_node_ids: Vec<&str> = Vec::new();
 
@@ -70,12 +69,13 @@ impl<'a> CollapsableNode<'a> {
             let neighbor_node_id: &str = neighbor_node_id_string;
             neighbor_node_ids.push(neighbor_node_id);
         }
+        neighbor_node_ids.sort();
 
         CollapsableNode {
             id: &node.id,
             neighbor_node_ids: neighbor_node_ids,
             node_state_indexed_view: node_state_indexed_view,
-            neighbor_mask_mapped_view: neighbor_mask_mapped_view,
+            mask_per_neighbor_per_state: mask_per_neighbor_per_state,
             current_chosen_from_sort_index: None,
             random_sort_index: 0,
             restriction_ratio: 0.0
@@ -95,16 +95,24 @@ impl<'a> CollapsableNode<'a> {
     fn is_fully_restricted(&self) -> bool {
         self.restriction_ratio == 1.0 || self.node_state_indexed_view.is_current_state_restricted()
     }
-    fn get_ids(collapsable_nodes: &Vec<Self>) -> String {
+    fn get_ids(collapsable_nodes: &Vec<Rc<RefCell<Self>>>) -> String {
         let mut string_builder = string_builder::Builder::new(0);
         for collapsable_node in collapsable_nodes.iter() {
-            let node_id: &str = collapsable_node.id;
+            let node_id: &str = collapsable_node.borrow().id;
             if string_builder.len() != 0 {
                 string_builder.append(", ");
             }
             string_builder.append(node_id);
         }
         string_builder.string().unwrap()
+    }
+    #[time_graph::instrument]
+    fn add_mask(&mut self, mask: &BitVec) {
+        self.node_state_indexed_view.add_mask(mask);
+    }
+    #[time_graph::instrument]
+    fn subtract_mask(&mut self, mask: &BitVec) {
+        self.node_state_indexed_view.subtract_mask(mask);
     }
 }
 
@@ -153,6 +161,23 @@ impl<'a> CollapsableWaveFunction<'a> {
 
         collapsable_wave_function
     }
+    fn revert_existing_neighbor_masks(&mut self) {
+        let neighbor_node_ids: Vec<&str>;
+        let mask_per_neighbor_per_state: &HashMap<&str, HashMap<&str, BitVec>>;
+        let wrapped_current_collapsable_node = self.collapsable_nodes.get_mut(self.current_collapsable_node_index).expect("The collapsable node should exist at this index.");
+        let current_collapsable_node = wrapped_current_collapsable_node.borrow();
+        if let Some(current_possible_state) = current_collapsable_node.node_state_indexed_view.get() {
+            neighbor_node_ids = current_collapsable_node.neighbor_node_ids.clone();
+            mask_per_neighbor_per_state = &current_collapsable_node.mask_per_neighbor_per_state;
+            let mask_per_neighbor = mask_per_neighbor_per_state.get(current_possible_state).unwrap();
+            for neighbor_node_id in neighbor_node_ids.iter() {
+                let wrapped_neighbor_collapsable_node = self.collapsable_node_per_id.get(neighbor_node_id).unwrap();
+                let mut neighbor_collapsable_node = wrapped_neighbor_collapsable_node.borrow_mut();
+                let mask = mask_per_neighbor.get(neighbor_node_id).unwrap();
+                neighbor_collapsable_node.subtract_mask(mask);
+            }
+        }
+    }
     #[time_graph::instrument]
     fn try_increment_current_collapsable_node_state(&mut self) -> NodeState {
         let wrapped_current_collapsable_node = self.collapsable_nodes.get(self.current_collapsable_node_index).unwrap();
@@ -179,17 +204,21 @@ impl<'a> CollapsableWaveFunction<'a> {
     }
     #[time_graph::instrument]
     fn alter_reference_to_current_collapsable_node_mask(&mut self) {
-        // orient the current node's mask mapped view that its neighbors look through
+        let neighbor_node_ids: &Vec<&str>;
+        let mask_per_neighbor_per_state: &HashMap<&str, HashMap<&str, BitVec>>;
         let wrapped_current_collapsable_node = self.collapsable_nodes.get_mut(self.current_collapsable_node_index).expect("The collapsable node should exist at this index.");
         let current_collapsable_node = wrapped_current_collapsable_node.borrow();
-        let current_possible_state: &str = current_collapsable_node.node_state_indexed_view.get().unwrap();
-        current_collapsable_node.neighbor_mask_mapped_view.borrow_mut().orient(current_possible_state);
-
-        // have the neighbors update their restriction ratio
-        for neighbor_node_id in current_collapsable_node.neighbor_node_ids.iter() {
-            let wrapped_neighbor_collapsable_node = self.collapsable_node_per_id.get(neighbor_node_id).unwrap();
-            let mut neighbor_collapsable_node = wrapped_neighbor_collapsable_node.borrow_mut();
-            neighbor_collapsable_node.refresh_restriction_ratio();
+        if let Some(current_possible_state) = current_collapsable_node.node_state_indexed_view.get() {
+            neighbor_node_ids = &current_collapsable_node.neighbor_node_ids;
+            mask_per_neighbor_per_state = &current_collapsable_node.mask_per_neighbor_per_state;
+            if let Some(mask_per_neighbor) = mask_per_neighbor_per_state.get(current_possible_state) {
+                for neighbor_node_id in neighbor_node_ids.iter() {
+                    let wrapped_neighbor_collapsable_node = self.collapsable_node_per_id.get(neighbor_node_id).unwrap();
+                    let mut neighbor_collapsable_node = wrapped_neighbor_collapsable_node.borrow_mut();
+                    let mask = mask_per_neighbor.get(neighbor_node_id).unwrap();
+                    neighbor_collapsable_node.add_mask(mask);
+                }
+            }
         }
     }
     #[time_graph::instrument]
@@ -234,12 +263,12 @@ impl<'a> CollapsableWaveFunction<'a> {
     }
     #[time_graph::instrument]
     fn sort_collapsable_nodes(&mut self) {
-        //let current_collapsable_nodes_display = CollapsableNode::get_ids(&self.collapsable_nodes);
-        //debug!("current sort order: {current_collapsable_nodes_display}.");
+        let current_collapsable_nodes_display = CollapsableNode::get_ids(&self.collapsable_nodes);
+        debug!("current sort order: {current_collapsable_nodes_display}.");
 
         // sort by most neighbors
         {
-            self.collapsable_nodes.sort_unstable_by(|a, b| {
+            self.collapsable_nodes.sort_by(|a, b| {
 
                 let a_collapsed_node = a.borrow();
                 let b_collapsed_node = b.borrow();
@@ -247,13 +276,19 @@ impl<'a> CollapsableWaveFunction<'a> {
                 a_collapsed_node.random_sort_index.cmp(&b_collapsed_node.random_sort_index)
             });
 
-            self.collapsable_nodes.sort_unstable_by(|a, b| {
+            let current_collapsable_nodes_display = CollapsableNode::get_ids(&self.collapsable_nodes);
+            debug!("after random_sort_index sort order: {current_collapsable_nodes_display}.");
+
+            self.collapsable_nodes.sort_by(|a, b| {
 
                 let a_collapsed_node = a.borrow();
                 let b_collapsed_node = b.borrow();
 
                 a_collapsed_node.neighbor_node_ids.len().cmp(&b_collapsed_node.neighbor_node_ids.len())
             });
+
+            let current_collapsable_nodes_display = CollapsableNode::get_ids(&self.collapsable_nodes);
+            debug!("after neighbor_node_ids sort order: {current_collapsable_nodes_display}.");
 
             let mut found_neighbor_node_ids: HashSet<&str> = HashSet::new();
             let mut searching_neighbor_node_ids: VecDeque<&str> = VecDeque::new();
@@ -432,8 +467,8 @@ impl<'a> CollapsableWaveFunction<'a> {
         });
         */
 
-        //let next_collapsable_nodes_display = CollapsableNode::get_ids(&self.collapsable_nodes);
-        //debug!("next sort order: {next_collapsable_nodes_display}.");
+        let next_collapsable_nodes_display = CollapsableNode::get_ids(&self.collapsable_nodes);
+        debug!("next sort order: {next_collapsable_nodes_display}.");
     }
     #[time_graph::instrument]
     fn try_move_to_previous_collapsable_node_neighbor(&mut self) -> Vec<NodeState> {
@@ -454,19 +489,43 @@ impl<'a> CollapsableWaveFunction<'a> {
         while !is_neighbor_found_or_root_reset {
             // current collapsable node
             {
-                let wrapped_current_collapsable_node = self.collapsable_nodes.get_mut(self.current_collapsable_node_index).unwrap();
-                let mut current_collapsable_node = wrapped_current_collapsable_node.borrow_mut();
-                // reset the node state index for the current node
-                current_collapsable_node.node_state_indexed_view.reset();
-                // reset the mask used by my neighbors since my state was also reset
-                current_collapsable_node.neighbor_mask_mapped_view.borrow_mut().reset();
-                // reset chosen index within collapsable node
-                current_collapsable_node.current_chosen_from_sort_index = None;
-                // have the neighbors update their restriction ratio
-                for neighbor_node_id in current_collapsable_node.neighbor_node_ids.iter() {
-                    let wrapped_neighbor_collapsable_node = self.collapsable_node_per_id.get(neighbor_node_id).unwrap();
-                    let mut neighbor_collapsable_node = wrapped_neighbor_collapsable_node.borrow_mut();
-                    neighbor_collapsable_node.refresh_restriction_ratio();
+                // revert mask on neighbors
+                {
+                    let neighbor_node_ids: Vec<&str>;
+                    let mask_per_neighbor_per_state: &HashMap<&str, HashMap<&str, BitVec>>;
+                    let wrapped_current_collapsable_node = self.collapsable_nodes.get_mut(self.current_collapsable_node_index).expect("The collapsable node should exist at this index.");
+                    let current_collapsable_node = wrapped_current_collapsable_node.borrow();
+                    if let Some(current_possible_state) = current_collapsable_node.node_state_indexed_view.get() {
+                        neighbor_node_ids = current_collapsable_node.neighbor_node_ids.clone();
+                        mask_per_neighbor_per_state = &current_collapsable_node.mask_per_neighbor_per_state;
+                        let mask_per_neighbor = mask_per_neighbor_per_state.get(current_possible_state).unwrap();
+                        for neighbor_node_id in neighbor_node_ids.iter() {
+                            let wrapped_neighbor_collapsable_node = self.collapsable_node_per_id.get(neighbor_node_id).unwrap();
+                            let mut neighbor_collapsable_node = wrapped_neighbor_collapsable_node.borrow_mut();
+                            let mask = mask_per_neighbor.get(neighbor_node_id).unwrap();
+                            neighbor_collapsable_node.subtract_mask(mask);
+                        }
+                    }
+                }
+
+                // reset current node
+                {
+                    let wrapped_current_collapsable_node = self.collapsable_nodes.get_mut(self.current_collapsable_node_index).unwrap();
+                    let mut current_collapsable_node = wrapped_current_collapsable_node.borrow_mut();
+                    
+                    // reset the node state index for the current node
+                    current_collapsable_node.node_state_indexed_view.reset();
+                    // reset chosen index within collapsable node
+                    current_collapsable_node.current_chosen_from_sort_index = None;
+                    // have the neighbors update their restriction ratio
+                    for neighbor_node_id in current_collapsable_node.neighbor_node_ids.iter() {
+                        let wrapped_neighbor_collapsable_node = self.collapsable_node_per_id.get(neighbor_node_id).unwrap();
+                        let mut neighbor_collapsable_node = wrapped_neighbor_collapsable_node.borrow_mut();
+
+                        // TODO revert mask in neighbors
+
+                        neighbor_collapsable_node.refresh_restriction_ratio();
+                    }
                 }
             }
 
@@ -726,12 +785,10 @@ impl WaveFunction {
         //          push bit vector into hashmap of mask per node state per neighbor node
 
         // the mapped view, oriented by the node's state, returning a specific BitVec for the provided neighbor node id, per node
-        let mut neighbor_mask_mapped_view_per_node_id: HashMap<&str, Rc<RefCell<MappedView<&str, &str, BitVec>>>> = HashMap::new();
-        let mut inverse_neighbor_mask_mapped_views_per_node_id: HashMap<&str, Vec<Rc<RefCell<MappedView<&str, &str, BitVec>>>>> = HashMap::new();
+        let mut neighbor_mask_mapped_view_per_node_id: HashMap<&str, HashMap<&str, HashMap<&str, BitVec>>> = HashMap::new();
 
         for node in self.nodes.iter() {
             let node_id: &str = &node.id;
-            inverse_neighbor_mask_mapped_views_per_node_id.insert(node_id, Vec::new());
         }
 
         time_graph::spanned!("creating masks for nodes", {
@@ -759,7 +816,7 @@ impl WaveFunction {
 
                 //debug!("creating masks for node {node_id}.");
 
-                let mut neighbor_mask_mapped_view: MappedView<&str, &str, BitVec> = MappedView::new();
+                let mut mask_per_neighbor_per_state: HashMap<&str, HashMap<&str, BitVec>> = HashMap::new();
 
                 for (neighbor_node_id_string, node_state_collection_ids) in node.node_state_collection_ids_per_neighbor_node_id.iter() {
                     let neighbor_node_id: &str = neighbor_node_id_string;
@@ -768,34 +825,38 @@ impl WaveFunction {
 
                     // TODO determine the masks for this neighbor based on its possible node states instead of using all states in mask creation
 
-                    // stores the mask per node state for this node as it pertains to the neighbor
-                    let mut node_state_mask_per_node_state_id: HashMap<&str, BitVec> = HashMap::new();
-
                     // this loop ultimately is over each possible state of this node
                     for node_state_collection_id_string in node_state_collection_ids.iter() {
                         let node_state_collection_id: &str = &node_state_collection_id_string;
                         let node_state_collection = node_state_collection_per_id.get(node_state_collection_id).expect("The node state collection id should exist in the complete list of node state collections.");
+                        let node_state_id: &str = &node_state_collection.node_state_id;
                         let mask = mask_per_node_state_collection_id.get(node_state_collection_id).unwrap().clone();
-                        node_state_mask_per_node_state_id.insert(&node_state_collection.node_state_id, mask);
+
+                        if !mask_per_neighbor_per_state.contains_key(node_state_id) {
+                            mask_per_neighbor_per_state.insert(node_state_id, HashMap::new());
+                        }
+                        let mask_per_neighbor = mask_per_neighbor_per_state.get_mut(node_state_id).unwrap();
+                        
+                        mask_per_neighbor.insert(neighbor_node_id, mask);
                     }
 
                     //debug!("storing for neighbor node {neighbor_node_id} neighbor_mask_mapped_view {:?}.", node_state_mask_per_node_state_id);
-                    neighbor_mask_mapped_view.insert_individual(neighbor_node_id, node_state_mask_per_node_state_id);
+                    //neighbor_mask_mapped_view.insert_individual(neighbor_node_id, node_state_mask_per_node_state_id);
                 }
 
                 //debug!("created masks for node {node_id} as neighbor_mask_mapped_view {:?}.", neighbor_mask_mapped_view);
 
-                let boxed_neighbor_mask_mapped_view = Rc::new(RefCell::new(neighbor_mask_mapped_view));
-                neighbor_mask_mapped_view_per_node_id.insert(node_id, boxed_neighbor_mask_mapped_view.clone());
+                //let boxed_neighbor_mask_mapped_view = Rc::new(RefCell::new(neighbor_mask_mapped_view));
+                //neighbor_mask_mapped_view_per_node_id.insert(node_id, boxed_neighbor_mask_mapped_view.clone());
+                neighbor_mask_mapped_view_per_node_id.insert(node_id, mask_per_neighbor_per_state);
                 
                 for neighbor_node_id_string in node.node_state_collection_ids_per_neighbor_node_id.keys() {
                     let neighbor_node_id: &str = neighbor_node_id_string;
-                    inverse_neighbor_mask_mapped_views_per_node_id.get_mut(neighbor_node_id).unwrap().push(boxed_neighbor_mask_mapped_view.clone());
                 }
             }
         });
 
-        let mut node_state_indexed_view_per_node_id: HashMap<&str, IndexedView<&str, &str, &str>> = HashMap::new();
+        let mut node_state_indexed_view_per_node_id: HashMap<&str, IndexedView<&str>> = HashMap::new();
 
         time_graph::spanned!("storing masks into neighbors", {
 
@@ -805,15 +866,13 @@ impl WaveFunction {
 
                 //debug!("storing for node {node_id} restrictive masks into node state indexed view.");
 
-                let masks: Vec<Rc<RefCell<MappedView<&str, &str, BitVec>>>> = inverse_neighbor_mask_mapped_views_per_node_id.remove(node_id).unwrap();
-
                 let mut node_state_ids: Vec<&str> = Vec::new();
                 for node_state_id_string in self.all_possible_node_state_ids.iter() {
                     let node_state_id: &str = node_state_id_string;
                     node_state_ids.push(node_state_id);
                 }
 
-                let node_state_indexed_view = IndexedView::new(node_state_ids, masks, node_id);
+                let node_state_indexed_view = IndexedView::new(node_state_ids);
                 //debug!("stored for node {node_id} node state indexed view {:?}", node_state_indexed_view);
                 node_state_indexed_view_per_node_id.insert(node_id, node_state_indexed_view);
             }
@@ -828,10 +887,10 @@ impl WaveFunction {
         for node in self.nodes.iter() {
             let node_id: &str = &node.id;
 
-            let neighber_masked_mapped_view: Rc<RefCell<MappedView<&str, &str, BitVec>>> = neighbor_mask_mapped_view_per_node_id.remove(node_id).unwrap();
-            let node_state_indexed_view: IndexedView<&str, &str, &str> = node_state_indexed_view_per_node_id.remove(node_id).unwrap();
+            let node_state_indexed_view: IndexedView<&str> = node_state_indexed_view_per_node_id.remove(node_id).unwrap();
+            let mask_per_neighbor_per_state = neighbor_mask_mapped_view_per_node_id.remove(node_id).unwrap();
 
-            let mut collapsable_node = CollapsableNode::new(node, neighber_masked_mapped_view, node_state_indexed_view);
+            let mut collapsable_node = CollapsableNode::new(node, mask_per_neighbor_per_state, node_state_indexed_view);
 
             if let Some(seed) = random_seed {
                 if random_instance.is_none() {
@@ -872,6 +931,9 @@ impl WaveFunction {
         let mut is_unable_to_collapse = false;
         debug!("starting while loop");
         while !is_unable_to_collapse && !collapsable_wave_function.is_fully_collapsed() {
+            time_graph::spanned!("is_increment_successful", {
+                collapsable_wave_function.revert_existing_neighbor_masks();
+            });
             debug!("incrementing node state");
             let node_state = collapsable_wave_function.try_increment_current_collapsable_node_state();
             let is_successful: bool = node_state.node_state_id.is_some();
@@ -992,6 +1054,9 @@ impl WaveFunction {
         let mut is_unable_to_collapse = false;
         debug!("starting while loop");
         while !is_unable_to_collapse && !collapsable_wave_function.is_fully_collapsed() {
+            time_graph::spanned!("is_increment_successful", {
+                collapsable_wave_function.revert_existing_neighbor_masks();
+            });
             debug!("incrementing node state");
             let is_increment_successful: bool;
             time_graph::spanned!("is_increment_successful", {
@@ -1639,6 +1704,8 @@ mod unit_tests {
 
         let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
 
+        debug!("collapsed_wave_function.node_state_per_node: {:?}", collapsed_wave_function.node_state_per_node);
+
         assert_eq!(&first_node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
         assert_eq!(&second_node_state_id, collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap());
         assert_eq!(&third_node_state_id, collapsed_wave_function.node_state_per_node.get(&third_node_id).unwrap());
@@ -2048,9 +2115,9 @@ mod unit_tests {
         time_graph::enable_data_collection(true);
 
         let mut rng = rand::thread_rng();
-        //let random_seed = Some(14262106489863409486);
+        //let random_seed = Some(17883785706303267301);
 
-        let max_runs = 1;
+        let max_runs = 10;
 
         for index in 0..max_runs {
 
