@@ -1,11 +1,7 @@
-use std::cell::RefCell;
-use std::fmt::{Display, Debug};
-use std::rc::Rc;
-use std::{cell::Cell, collections::HashMap};
+use std::fmt::{Debug};
+use std::{collections::HashMap};
 use bitvec::prelude::*;
 use rand::{seq::SliceRandom, Rng};
-use std::cmp::Eq;
-use std::hash::Hash;
 
 pub struct IndexedView<TNodeState> {
     // items are states of the node
@@ -17,6 +13,7 @@ pub struct IndexedView<TNodeState> {
 }
 
 impl<TNodeState> IndexedView<TNodeState> {
+    #[time_graph::instrument]
     pub fn new(node_state_ids: Vec<TNodeState>) -> Self {
         let node_state_ids_length: usize = node_state_ids.len();
         let mut index_mapping = HashMap::new();
@@ -33,6 +30,7 @@ impl<TNodeState> IndexedView<TNodeState> {
             mask_counter: mask_counter
         }
     }
+    #[time_graph::instrument]
     pub fn shuffle<R: Rng + ?Sized>(&mut self, random_instance: &mut R) {
         if self.index.is_some() {
             panic!("Can only be shuffled prior to use.");
@@ -43,6 +41,7 @@ impl<TNodeState> IndexedView<TNodeState> {
         for index in 0..self.node_state_ids_length {
             self.index_mapping.insert(index, shuffled_indexes[index]);
         }
+        debug!("randomized index mapping to {:?}.", self.index_mapping);
     }
     #[time_graph::instrument]
     pub fn try_move_next(&mut self) -> bool {
@@ -130,31 +129,33 @@ impl<TNodeState> IndexedView<TNodeState> {
     }
     #[time_graph::instrument]
     pub fn add_mask(&mut self, mask: &BitVec) {
-        debug!("adding mask {:?} at current state {:?}.", mask, self.mask_counter);
+        //debug!("adding mask {:?} at current state {:?}.", mask, self.mask_counter);
         for index in 0..self.node_state_ids_length {
             if !mask[index] {
-                debug!("adding mask at {index}");
-                self.mask_counter[index] += 1;
+                //debug!("adding mask at {index}");
+                //self.mask_counter[index] += 1;
+                self.mask_counter[index] = self.mask_counter[index].checked_add(1).unwrap();  // TODO replace with unchecked version above
             }
             else {
-                debug!("not adding mask at {index}");
+                //debug!("not adding mask at {index}");
             }
         }
-        debug!("added mask {:?} at current state {:?}.", mask, self.mask_counter);
+        //debug!("added mask {:?} at current state {:?}.", mask, self.mask_counter);
     }
     #[time_graph::instrument]
     pub fn subtract_mask(&mut self, mask: &BitVec) {
-        debug!("removing mask {:?} at current state {:?}.", mask, self.mask_counter);
+        //debug!("removing mask {:?} at current state {:?}.", mask, self.mask_counter);
         for index in 0..self.node_state_ids_length {
             if !mask[index] {
-                debug!("removing mask at {index}");
-                self.mask_counter[index] -= 1;
+                //debug!("removing mask at {index}");
+                //self.mask_counter[index] -= 1;
+                self.mask_counter[index] = self.mask_counter[index].checked_sub(1).unwrap();  // TODO replace with unchecked version above
             }
             else {
-                debug!("not removing mask at {index}");
+                //debug!("not removing mask at {index}");
             }
         }
-        debug!("removed mask {:?} at current state {:?}.", mask, self.mask_counter);
+        //debug!("removed mask {:?} at current state {:?}.", mask, self.mask_counter);
     }
 }
 
