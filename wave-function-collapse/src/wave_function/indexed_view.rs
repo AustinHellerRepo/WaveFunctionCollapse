@@ -1,3 +1,4 @@
+use std::f32::consts::E;
 use std::fmt::{Debug};
 use std::{collections::HashMap};
 use bitvec::prelude::*;
@@ -9,7 +10,9 @@ pub struct IndexedView<TNodeState> {
     node_state_ids_length: usize,
     index: Option<usize>,
     index_mapping: HashMap<usize, usize>,
-    mask_counter: Vec<u32>
+    mask_counter: Vec<u32>,
+    current_restriction_total: u32,
+    is_mask_dirty: bool
 }
 
 impl<TNodeState> IndexedView<TNodeState> {
@@ -27,7 +30,9 @@ impl<TNodeState> IndexedView<TNodeState> {
             node_state_ids_length: node_state_ids_length,
             index: Option::None,
             index_mapping: index_mapping,
-            mask_counter: mask_counter
+            mask_counter: mask_counter,
+            current_restriction_total: 0,
+            is_mask_dirty: false
         }
     }
     #[time_graph::instrument]
@@ -98,10 +103,6 @@ impl<TNodeState> IndexedView<TNodeState> {
         value
     }
     #[time_graph::instrument]
-    pub fn is_in_some_state(&self) -> bool {
-        self.index.is_some()
-    }
-    #[time_graph::instrument]
     pub fn reset(&mut self) {
         self.index = Option::None;
         // NOTE: the mask_counter should not be fully reverted to ensure that the neighbor restrictions are still being considered
@@ -118,14 +119,17 @@ impl<TNodeState> IndexedView<TNodeState> {
         is_restricted
     }
     #[time_graph::instrument]
-    pub fn get_restriction_ratio(&self) -> f32 {
-        let mut masked_bits_total: u32 = 0;
-        for index in 0..self.node_state_ids_length {
-            if !self.is_unmasked_at_index(index) {  // TODO iterate over mask_counter for faster speed intead of going through index_mapping
-                masked_bits_total += 1;
+    pub fn is_fully_restricted(&mut self) -> bool {
+        if self.is_mask_dirty {
+            self.current_restriction_total = 0;
+            for index in 0..self.node_state_ids_length {
+                if self.mask_counter[index] != 0 {
+                    self.current_restriction_total += 1;
+                }
             }
+            self.is_mask_dirty = false;
         }
-        (masked_bits_total as f32) / (self.node_state_ids_length as f32)
+        self.current_restriction_total == (self.node_state_ids_length as u32)
     }
     #[time_graph::instrument]
     pub fn add_mask(&mut self, mask: &BitVec) {
@@ -133,8 +137,12 @@ impl<TNodeState> IndexedView<TNodeState> {
         for index in 0..self.node_state_ids_length {
             if !mask[index] {
                 //debug!("adding mask at {index}");
-                //self.mask_counter[index] += 1;
-                self.mask_counter[index] = self.mask_counter[index].checked_add(1).unwrap();  // TODO replace with unchecked version above
+                let next_mask_counter = self.mask_counter[index] + 1;
+                self.mask_counter[index] = next_mask_counter;
+                if next_mask_counter == 1 {
+                    self.is_mask_dirty = true;
+                }
+                //self.mask_counter[index] = self.mask_counter[index].checked_add(1).unwrap();  // TODO replace with unchecked version above
             }
             else {
                 //debug!("not adding mask at {index}");
@@ -148,8 +156,12 @@ impl<TNodeState> IndexedView<TNodeState> {
         for index in 0..self.node_state_ids_length {
             if !mask[index] {
                 //debug!("removing mask at {index}");
-                //self.mask_counter[index] -= 1;
-                self.mask_counter[index] = self.mask_counter[index].checked_sub(1).unwrap();  // TODO replace with unchecked version above
+                let next_mask_counter = self.mask_counter[index] - 1;
+                self.mask_counter[index] = next_mask_counter;
+                if next_mask_counter == 0 {
+                    self.is_mask_dirty = true;
+                }
+                //self.mask_counter[index] = self.mask_counter[index].checked_sub(1).unwrap();  // TODO replace with unchecked version above
             }
             else {
                 //debug!("not removing mask at {index}");
