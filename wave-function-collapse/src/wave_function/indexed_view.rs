@@ -11,8 +11,9 @@ pub struct IndexedView<TNodeState> {
     index: Option<usize>,
     index_mapping: HashMap<usize, usize>,
     mask_counter: Vec<u32>,
-    current_restriction_total: u32,
-    is_mask_dirty: bool
+    is_restricted_at_index: BitVec,
+    is_mask_dirty: bool,
+    is_fully_restricted: bool
 }
 
 impl<TNodeState> IndexedView<TNodeState> {
@@ -21,9 +22,11 @@ impl<TNodeState> IndexedView<TNodeState> {
         let node_state_ids_length: usize = node_state_ids.len();
         let mut index_mapping = HashMap::new();
         let mut mask_counter: Vec<u32> = Vec::new();
+        let mut is_restricted_at_index: BitVec = BitVec::new();
         for index in 0..node_state_ids_length {
             index_mapping.insert(index, index);
             mask_counter.push(0);
+            is_restricted_at_index.push(false);
         }
         IndexedView {
             node_state_ids: node_state_ids,
@@ -31,8 +34,9 @@ impl<TNodeState> IndexedView<TNodeState> {
             index: Option::None,
             index_mapping: index_mapping,
             mask_counter: mask_counter,
-            current_restriction_total: 0,
-            is_mask_dirty: false
+            is_restricted_at_index: is_restricted_at_index,
+            is_mask_dirty: true,
+            is_fully_restricted: false
         }
     }
     #[time_graph::instrument]
@@ -83,7 +87,8 @@ impl<TNodeState> IndexedView<TNodeState> {
     fn is_unmasked_at_index(&self, index: usize) -> bool {
         //debug!("checking if unmasked at index {index} for node {mask_key}.");
         let mapped_index = self.index_mapping.get(&index).unwrap();
-        self.mask_counter[*mapped_index] == 0
+        //self.mask_counter[*mapped_index] == 0
+        !self.is_restricted_at_index[*mapped_index]
     }
     #[time_graph::instrument]
     pub fn get(&self) -> Option<&TNodeState> {
@@ -121,15 +126,10 @@ impl<TNodeState> IndexedView<TNodeState> {
     #[time_graph::instrument]
     pub fn is_fully_restricted(&mut self) -> bool {
         if self.is_mask_dirty {
-            self.current_restriction_total = 0;
-            for index in 0..self.node_state_ids_length {
-                if self.mask_counter[index] != 0 {
-                    self.current_restriction_total += 1;
-                }
-            }
+            self.is_fully_restricted = self.is_restricted_at_index.count_ones() == self.node_state_ids_length;
             self.is_mask_dirty = false;
         }
-        self.current_restriction_total == (self.node_state_ids_length as u32)
+        self.is_fully_restricted
     }
     #[time_graph::instrument]
     pub fn add_mask(&mut self, mask: &BitVec) {
@@ -140,12 +140,10 @@ impl<TNodeState> IndexedView<TNodeState> {
                 let next_mask_counter = self.mask_counter[index] + 1;
                 self.mask_counter[index] = next_mask_counter;
                 if next_mask_counter == 1 {
+                    self.is_restricted_at_index.set(index, true);
                     self.is_mask_dirty = true;
                 }
                 //self.mask_counter[index] = self.mask_counter[index].checked_add(1).unwrap();  // TODO replace with unchecked version above
-            }
-            else {
-                //debug!("not adding mask at {index}");
             }
         }
         //debug!("added mask {:?} at current state {:?}.", mask, self.mask_counter);
@@ -159,12 +157,10 @@ impl<TNodeState> IndexedView<TNodeState> {
                 let next_mask_counter = self.mask_counter[index] - 1;
                 self.mask_counter[index] = next_mask_counter;
                 if next_mask_counter == 0 {
+                    self.is_restricted_at_index.set(index, false);
                     self.is_mask_dirty = true;
                 }
                 //self.mask_counter[index] = self.mask_counter[index].checked_sub(1).unwrap();  // TODO replace with unchecked version above
-            }
-            else {
-                //debug!("not removing mask at {index}");
             }
         }
         //debug!("removed mask {:?} at current state {:?}.", mask, self.mask_counter);

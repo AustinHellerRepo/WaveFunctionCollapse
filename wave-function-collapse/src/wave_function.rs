@@ -166,6 +166,7 @@ impl<'a> CollapsableWaveFunction<'a> {
             neighbor_node_ids = current_collapsable_node.neighbor_node_ids.clone();
             mask_per_neighbor_per_state = &current_collapsable_node.mask_per_neighbor_per_state;
             let mask_per_neighbor = mask_per_neighbor_per_state.get(current_possible_state).unwrap();
+            
             for neighbor_node_id in neighbor_node_ids.iter() {
                 let wrapped_neighbor_collapsable_node = self.collapsable_node_per_id.get(neighbor_node_id).unwrap();
                 let mut neighbor_collapsable_node = wrapped_neighbor_collapsable_node.borrow_mut();
@@ -2298,7 +2299,37 @@ mod unit_tests {
         for _ in 0..1 {
 
             //let random_seed = Some(rng.next_u64());
-            let random_seed = Some(9576235239007338477);
+            let random_seed = Some(5);
+            // total runtime
+            // 9.59
+            // 9.82
+            // 9.77
+            // 9.52
+            // 9.50
+            // is_fully_restricted
+            // 2.27
+            // 2.28
+            // 2.27
+
+            // after update
+            // total runtime
+            // 9.62
+            // 9.89
+            // 9.71
+            // 9.60
+            // 9.60
+            // is_fully_restricted
+            // 2.25
+            // 2.21
+            // 2.20
+            // 2.19
+            // 2.20
+
+            // after iter_zeros update
+            // 10.26
+            // 9.96
+
+            //let random_seed = None;
 
             let size = 9;
 
@@ -2317,7 +2348,7 @@ mod unit_tests {
             time_graph::spanned!("creating test data", {
 
                 for index in 0..nodes_total {
-                    let node_id: String = Uuid::new_v4().to_string();
+                    let node_id: String = format!("{}{}", index, Uuid::new_v4());
                     node_ids.push(node_id.clone());
                     nodes.push(Node { 
                         id: node_id,
@@ -2326,7 +2357,8 @@ mod unit_tests {
                 }
 
                 for index in 0..node_states_total {
-                    node_state_ids.push(Uuid::new_v4().to_string());
+                    let node_state_id: String = format!("{}{}", index, Uuid::new_v4());
+                    node_state_ids.push(node_state_id);
                 }
 
                 for node_state_id in node_state_ids.iter() {
@@ -2337,7 +2369,7 @@ mod unit_tests {
                         }
                     }
                     
-                    let node_state_collection_id: String = Uuid::new_v4().to_string();
+                    let node_state_collection_id: String = format!("{}{}", node_state_id, Uuid::new_v4().to_string());
                     node_state_collection_ids.push(node_state_collection_id.clone());
                     node_state_collections.push(NodeStateCollection {
                         id: node_state_collection_id,
