@@ -253,7 +253,7 @@ impl SudokuPuzzle {
                 let y_index = node_string_split[1].parse::<u8>().unwrap();
                 let node_state_string_split = node_state.split("_").collect::<Vec<&str>>();
                 let state = node_state_string_split[1].parse::<u8>().unwrap();
-                state_per_row_per_column[x_index as usize][y_index as usize] = Some(state);
+                state_per_row_per_column[y_index as usize][x_index as usize] = Some(state);
             }
 
             let solved_puzzle = SudokuPuzzle {
