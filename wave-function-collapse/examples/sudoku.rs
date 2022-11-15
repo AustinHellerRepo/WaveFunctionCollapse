@@ -212,11 +212,12 @@ impl SudokuPuzzle {
         let wave_function = WaveFunction::new(nodes, node_state_collection_per_id.values().cloned().collect());
         wave_function.validate().unwrap();
 
+        /*
         let steps_result = wave_function.collapse_into_steps(None);
         if let Ok(steps) = steps_result {
-            // TODO print out steps
+            // print out steps
             for (index, step) in steps.into_iter().enumerate() {
-                if index > 0 {
+                if index > 1700 {
                     if let Some(node_state_id) = step.node_state_id {
                         println!("{}: {}: {}", index, step.node_id, node_state_id);
                     }
@@ -224,7 +225,7 @@ impl SudokuPuzzle {
                         println!("{}: {}: reverted", index, step.node_id);
                     }
 
-                    if index == 1200 {
+                    if index == 2700 {
                         break;
                     }
                 }
@@ -234,19 +235,35 @@ impl SudokuPuzzle {
         else {
             Err(steps_result.err().unwrap())
         }
-        /*
+        */
+
         let collapsed_wave_function_result = wave_function.collapse(None);
 
         if let Ok(collapsed_wave_function) = collapsed_wave_function_result {
-            for (node, node_state) in collapsed_wave_function.node_state_per_node.iter() {
-                println!("{node}: {node_state}");
+            let mut state_per_row_per_column: Vec<Vec<Option<u8>>> = Vec::new();
+            for index in 1u8..10 {
+                state_per_row_per_column.push(Vec::new());
+                for _ in 1u8..10 {
+                    state_per_row_per_column[(index as usize) - 1].push(None);
+                }
             }
-            Err(String::from("Not implemented"))
+            for (node, node_state) in collapsed_wave_function.node_state_per_node.iter() {
+                let node_string_split = node.split("_").collect::<Vec<&str>>();
+                let x_index = node_string_split[2].parse::<u8>().unwrap();
+                let y_index = node_string_split[1].parse::<u8>().unwrap();
+                let node_state_string_split = node_state.split("_").collect::<Vec<&str>>();
+                let state = node_state_string_split[1].parse::<u8>().unwrap();
+                state_per_row_per_column[x_index as usize][y_index as usize] = Some(state);
+            }
+
+            let solved_puzzle = SudokuPuzzle {
+                number_per_row_per_column: state_per_row_per_column
+            };
+            Ok(solved_puzzle)
         }
         else {
             Err(collapsed_wave_function_result.err().unwrap())
         }
-        */
     }
 }
 
@@ -270,7 +287,7 @@ fn main() {
     let solution_result = puzzle.get_solution();
 
     if let Ok(solution) = solution_result {
-        // TODO print result
+        solution.print();
     }
     else {
         println!("Error: {}", solution_result.err().unwrap());

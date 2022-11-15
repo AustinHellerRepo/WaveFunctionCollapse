@@ -468,78 +468,34 @@ impl<'a> CollapsableWaveFunction<'a> {
         //debug!("next sort order: {next_collapsable_nodes_display}.");
     }
     #[time_graph::instrument]
-    fn try_move_to_previous_collapsable_node_neighbor(&mut self) -> Vec<NodeState> {
-        let mut reset_node_states: Vec<NodeState> = Vec::new();
+    fn try_move_to_previous_collapsable_node_neighbor(&mut self) {
 
-        // store the original node id in order to check if previously chosen nodes are a neighbor to this fully restricted node
-        let original_collapsable_node_id: &str;
-        {
-            let wrapped_original_wrapped_collapsable_node = self.collapsable_nodes.get(self.current_collapsable_node_index).expect("The collapsable node index should be within range.");
-            let original_collapsable_node = wrapped_original_wrapped_collapsable_node.borrow();
-            original_collapsable_node_id = original_collapsable_node.id;
-        }
-
-        // wait for neighbor to be found
-        let mut is_neighbor_found_or_root_reset: bool = false;
-
-        // if we're not already at the very root chosen node, then reset the current node and move back up the chain of chosen nodes
-        while !is_neighbor_found_or_root_reset {
-            // current collapsable node
-            {
-                // revert mask on neighbors
-                {
-                    let neighbor_node_ids: &Vec<&str>;
-                    let mask_per_neighbor_per_state: &HashMap<&str, HashMap<&str, BitVec>>;
-                    let wrapped_current_collapsable_node = self.collapsable_nodes.get_mut(self.current_collapsable_node_index).expect("The collapsable node should exist at this index.");
-                    let current_collapsable_node = wrapped_current_collapsable_node.borrow();
-                    if let Some(current_possible_state) = current_collapsable_node.node_state_indexed_view.get() {
-                        neighbor_node_ids = &current_collapsable_node.neighbor_node_ids;
-                        mask_per_neighbor_per_state = &current_collapsable_node.mask_per_neighbor_per_state;
-                        let mask_per_neighbor = mask_per_neighbor_per_state.get(current_possible_state).unwrap();
-                        for neighbor_node_id in neighbor_node_ids.iter() {
-                            let wrapped_neighbor_collapsable_node = self.collapsable_node_per_id.get(neighbor_node_id).unwrap();
-                            let mut neighbor_collapsable_node = wrapped_neighbor_collapsable_node.borrow_mut();
-                            let mask = mask_per_neighbor.get(neighbor_node_id).unwrap();
-                            neighbor_collapsable_node.subtract_mask(mask);
-                        }
-                    }
-                }
-
-                // reset current node
-                {
-                    let wrapped_current_collapsable_node = self.collapsable_nodes.get_mut(self.current_collapsable_node_index).unwrap();
-                    let mut current_collapsable_node = wrapped_current_collapsable_node.borrow_mut();
-                    
-                    // reset the node state index for the current node
-                    current_collapsable_node.node_state_indexed_view.reset();
-                    // reset chosen index within collapsable node
-                    current_collapsable_node.current_chosen_from_sort_index = None;
-                }
-            }
-
-            if self.current_collapsable_node_index == 0 {
-                is_neighbor_found_or_root_reset = true;
-            }
-            else {
-                // move to the previously chosen node
-                self.current_collapsable_node_index -= 1;
-                // break out if the previous node was a neighbor of the node that was originally too restricted
-                let wrapped_previous_collapsable_node = self.collapsable_nodes.get(self.current_collapsable_node_index).unwrap();
-                let previous_collapsable_node = wrapped_previous_collapsable_node.borrow();
-                if previous_collapsable_node.neighbor_node_ids.contains(&original_collapsable_node_id) {
-                    is_neighbor_found_or_root_reset = true;
-                }
-                else {
-                    // store that this node will be reset
-                    debug!("pushing node ID {:?} into reset_node_states", previous_collapsable_node.id);
-                    reset_node_states.push(NodeState {
-                        node_id: String::from(previous_collapsable_node.id),
-                        node_state_id: None
-                    });
-                }
+        let neighbor_node_ids: &Vec<&str>;
+        let mask_per_neighbor_per_state: &HashMap<&str, HashMap<&str, BitVec>>;
+        let wrapped_current_collapsable_node = self.collapsable_nodes.get_mut(self.current_collapsable_node_index).expect("The collapsable node should exist at this index.");
+        let mut current_collapsable_node = wrapped_current_collapsable_node.borrow_mut();
+        if let Some(current_possible_state) = current_collapsable_node.node_state_indexed_view.get() {
+            neighbor_node_ids = &current_collapsable_node.neighbor_node_ids;
+            mask_per_neighbor_per_state = &current_collapsable_node.mask_per_neighbor_per_state;
+            let mask_per_neighbor = mask_per_neighbor_per_state.get(current_possible_state).unwrap();
+            for neighbor_node_id in neighbor_node_ids.iter() {
+                let wrapped_neighbor_collapsable_node = self.collapsable_node_per_id.get(neighbor_node_id).unwrap();
+                let mut neighbor_collapsable_node = wrapped_neighbor_collapsable_node.borrow_mut();
+                let mask = mask_per_neighbor.get(neighbor_node_id).unwrap();
+                neighbor_collapsable_node.subtract_mask(mask);
             }
         }
-        reset_node_states
+
+        // reset the node state index for the current node
+        current_collapsable_node.node_state_indexed_view.reset();
+        // reset chosen index within collapsable node
+        current_collapsable_node.current_chosen_from_sort_index = None;
+        
+        // move to the previously chosen node
+        if self.current_collapsable_node_index != 0 {
+            self.current_collapsable_node_index -= 1;
+        }
+            
     }
     #[time_graph::instrument]
     fn is_fully_reset(&self) -> bool {
@@ -949,8 +905,7 @@ impl WaveFunction {
             }
             else {
                 debug!("failed to incremented node");
-                let reset_node_states = collapsable_wave_function.try_move_to_previous_collapsable_node_neighbor();
-                node_states.extend(reset_node_states);
+                collapsable_wave_function.try_move_to_previous_collapsable_node_neighbor();
 
                 if collapsable_wave_function.is_fully_reset() {
                     debug!("moved back to first node and reset it");
@@ -2574,6 +2529,110 @@ mod unit_tests {
                 assert_eq!(collapsed_wave_function.node_state_per_node.get("node_4").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2").unwrap());
                 assert_ne!(collapsed_wave_function.node_state_per_node.get("node_4").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3").unwrap());
             }
+        }
+    }
+
+    #[test]
+    fn four_nodes_that_would_skip_over_nonneighbor() {
+        init();
+
+        // TODO add randomization
+
+        let mut nodes: Vec<Node> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection> = Vec::new();
+
+        let one_node_id: String = String::from("node_1");
+        let two_node_id: String = String::from("node_2");
+        let three_node_id: String = String::from("node_3");
+        let four_node_id: String = String::from("node_4");
+        nodes.push(Node { 
+            id: one_node_id.clone(),
+            node_state_collection_ids_per_neighbor_node_id: HashMap::new()
+        });
+        nodes.push(Node { 
+            id: two_node_id.clone(),
+            node_state_collection_ids_per_neighbor_node_id: HashMap::new()
+        });
+        nodes.push(Node { 
+            id: three_node_id.clone(),
+            node_state_collection_ids_per_neighbor_node_id: HashMap::new()
+        });
+        nodes.push(Node { 
+            id: four_node_id.clone(),
+            node_state_collection_ids_per_neighbor_node_id: HashMap::new()
+        });
+
+        let one_node_state_id: String = String::from("state_A");
+        let two_node_state_id: String = String::from("state_B");
+
+        let one_permits_one_and_two_node_state_collection_id: String = Uuid::new_v4().to_string();
+        let one_permits_one_and_two_node_state_collection = NodeStateCollection {
+            id: one_permits_one_and_two_node_state_collection_id.clone(),
+            node_state_id: one_node_state_id.clone(),
+            node_state_ids: vec![one_node_state_id.clone(), two_node_state_id.clone()]
+        };
+        node_state_collections.push(one_permits_one_and_two_node_state_collection);
+
+        let two_permits_none_node_state_collection_id: String = Uuid::new_v4().to_string();
+        let two_permits_none_node_state_collection = NodeStateCollection {
+            id: two_permits_none_node_state_collection_id.clone(),
+            node_state_id: two_node_state_id.clone(),
+            node_state_ids: vec![]
+        };
+        node_state_collections.push(two_permits_none_node_state_collection);
+
+        let two_permits_one_node_state_collection_id: String = Uuid::new_v4().to_string();
+        let two_permits_one_node_state_collection = NodeStateCollection {
+            id: two_permits_one_node_state_collection_id.clone(),
+            node_state_id: two_node_state_id.clone(),
+            node_state_ids: vec![one_node_state_id.clone()]
+        };
+        node_state_collections.push(two_permits_one_node_state_collection);
+
+        let one_permits_two_node_state_collection_id: String = Uuid::new_v4().to_string();
+        let one_permits_two_node_state_collection = NodeStateCollection {
+            id: one_permits_two_node_state_collection_id.clone(),
+            node_state_id: one_node_state_id.clone(),
+            node_state_ids: vec![two_node_state_id.clone()]
+        };
+        node_state_collections.push(one_permits_two_node_state_collection);
+
+        let one_permits_one_node_state_collection_id: String = Uuid::new_v4().to_string();
+        let one_permits_one_node_state_collection = NodeStateCollection {
+            id: one_permits_one_node_state_collection_id.clone(),
+            node_state_id: one_node_state_id.clone(),
+            node_state_ids: vec![one_node_state_id.clone()]
+        };
+        node_state_collections.push(one_permits_one_node_state_collection);
+
+        nodes[0].node_state_collection_ids_per_neighbor_node_id.insert(two_node_id.clone(), vec![one_permits_one_and_two_node_state_collection_id.clone(), two_permits_none_node_state_collection_id.clone()]);
+        nodes[0].node_state_collection_ids_per_neighbor_node_id.insert(three_node_id.clone(), vec![one_permits_two_node_state_collection_id.clone(), two_permits_one_node_state_collection_id.clone()]);
+        nodes[1].node_state_collection_ids_per_neighbor_node_id.insert(one_node_id.clone(), vec![one_permits_one_node_state_collection_id.clone(), two_permits_one_node_state_collection_id.clone()]);
+        nodes[1].node_state_collection_ids_per_neighbor_node_id.insert(four_node_id.clone(), vec![one_permits_two_node_state_collection_id.clone(), two_permits_one_node_state_collection_id.clone()]);
+        nodes[2].node_state_collection_ids_per_neighbor_node_id.insert(one_node_id.clone(), vec![one_permits_two_node_state_collection_id.clone(), two_permits_one_node_state_collection_id.clone()]);
+        nodes[2].node_state_collection_ids_per_neighbor_node_id.insert(four_node_id.clone(), vec![one_permits_two_node_state_collection_id.clone(), two_permits_one_node_state_collection_id.clone()]);
+        nodes[3].node_state_collection_ids_per_neighbor_node_id.insert(two_node_id.clone(), vec![one_permits_two_node_state_collection_id.clone(), two_permits_one_node_state_collection_id.clone()]);
+        nodes[3].node_state_collection_ids_per_neighbor_node_id.insert(three_node_id.clone(), vec![one_permits_two_node_state_collection_id.clone(), two_permits_one_node_state_collection_id.clone()]);
+
+        let mut wave_function = WaveFunction::new(nodes, node_state_collections);
+        wave_function.validate().unwrap();
+        
+        for is_sort_required in [false, true] {
+            if is_sort_required {
+                wave_function.sort();
+            }
+            let collapsed_wave_function_result = wave_function.collapse(None);
+
+            if let Err(error_message) = collapsed_wave_function_result {
+                panic!("Error: {error_message}");
+            }
+
+            let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
+
+            assert_eq!(&one_node_state_id, collapsed_wave_function.node_state_per_node.get(&one_node_id).unwrap());
+            assert_eq!(&two_node_state_id, collapsed_wave_function.node_state_per_node.get(&two_node_id).unwrap());
+            assert_eq!(&two_node_state_id, collapsed_wave_function.node_state_per_node.get(&three_node_id).unwrap());
+            assert_eq!(&one_node_state_id, collapsed_wave_function.node_state_per_node.get(&four_node_id).unwrap());
         }
     }
 }
