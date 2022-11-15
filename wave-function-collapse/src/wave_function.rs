@@ -158,20 +158,16 @@ impl<'a> CollapsableWaveFunction<'a> {
     }
     #[time_graph::instrument]
     fn revert_existing_neighbor_masks(&mut self) {
-        let neighbor_node_ids: Vec<&str>;
-        let mask_per_neighbor_per_state: &HashMap<&str, HashMap<&str, BitVec>>;
         let wrapped_current_collapsable_node = self.collapsable_nodes.get_mut(self.current_collapsable_node_index).expect("The collapsable node should exist at this index.");
         let current_collapsable_node = wrapped_current_collapsable_node.borrow();
         if let Some(current_possible_state) = current_collapsable_node.node_state_indexed_view.get() {
-            neighbor_node_ids = current_collapsable_node.neighbor_node_ids.clone();
-            mask_per_neighbor_per_state = &current_collapsable_node.mask_per_neighbor_per_state;
-            let mask_per_neighbor = mask_per_neighbor_per_state.get(current_possible_state).unwrap();
+            let mask_per_neighbor = current_collapsable_node.mask_per_neighbor_per_state.get(current_possible_state).unwrap();
             
-            for neighbor_node_id in neighbor_node_ids.iter() {
+            for neighbor_node_id in current_collapsable_node.neighbor_node_ids.iter() {
                 let wrapped_neighbor_collapsable_node = self.collapsable_node_per_id.get(neighbor_node_id).unwrap();
                 let mut neighbor_collapsable_node = wrapped_neighbor_collapsable_node.borrow_mut();
                 let mask = mask_per_neighbor.get(neighbor_node_id).unwrap();
-                neighbor_collapsable_node.subtract_mask(mask);
+                neighbor_collapsable_node.subtract_mask(mask);  // TODO make each node contain a memo structure such that the masks are not needed to revert to the previous state since subtractions happen in reverse order anyway
             }
         }
     }
@@ -2254,35 +2250,7 @@ mod unit_tests {
         for _ in 0..1 {
 
             //let random_seed = Some(rng.next_u64());
-            let random_seed = Some(5);
-            // total runtime
-            // 9.59
-            // 9.82
-            // 9.77
-            // 9.52
-            // 9.50
-            // is_fully_restricted
-            // 2.27
-            // 2.28
-            // 2.27
-
-            // after update
-            // total runtime
-            // 9.62
-            // 9.89
-            // 9.71
-            // 9.60
-            // 9.60
-            // is_fully_restricted
-            // 2.25
-            // 2.21
-            // 2.20
-            // 2.19
-            // 2.20
-
-            // after iter_zeros update
-            // 10.26
-            // 9.96
+            let random_seed = Some(3137775564618414013);
 
             //let random_seed = None;
 
