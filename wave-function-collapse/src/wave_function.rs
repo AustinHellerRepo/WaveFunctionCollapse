@@ -2437,40 +2437,36 @@ mod unit_tests {
                 wave_function.validate().unwrap();
             });
 
-            for is_sort_required in [false, true] {
-                if is_sort_required {
-                    wave_function.sort();
-                }
+            wave_function.sort();
 
-                let collapsed_wave_function_result: Result<CollapsedWaveFunction, String>;
-                
-                time_graph::spanned!("collapsing wave function", {
-                    //let random_seed = Some(rng.gen::<u64>());  // TODO uncomment after fixing
-                    collapsed_wave_function_result = wave_function.collapse(random_seed);
-                });
+            let collapsed_wave_function_result: Result<CollapsedWaveFunction, String>;
+            
+            time_graph::spanned!("collapsing wave function", {
+                //let random_seed = Some(rng.gen::<u64>());  // TODO uncomment after fixing
+                collapsed_wave_function_result = wave_function.collapse(random_seed);
+            });
 
-                if index + 1 == max_runs {
-                    println!("{}", time_graph::get_full_graph().as_dot());
-                }
+            if index + 1 == max_runs {
+                println!("{}", time_graph::get_full_graph().as_dot());
+            }
 
-                if let Err(error_message) = collapsed_wave_function_result {
-                    println!("tried random seed: {:?}.", random_seed);
-                    panic!("Error: {error_message}");
-                }
+            if let Err(error_message) = collapsed_wave_function_result {
+                println!("tried random seed: {:?}.", random_seed);
+                panic!("Error: {error_message}");
+            }
 
-                let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
+            let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
 
-                for (node_index, node_id) in std::iter::zip(0..nodes_total, node_ids.iter()) {
-                    let node_x: i32 = node_index % nodes_width;
-                    let node_y: i32 = (node_index / nodes_width) % nodes_height;
-                    let node_z: i32 = (node_index / (nodes_width * nodes_height)) % nodes_depth;
-                    for (other_node_index, other_node_id) in std::iter::zip(0..nodes_total, node_ids.iter()) {
-                        let other_node_x: i32 = other_node_index % nodes_width;
-                        let other_node_y: i32 = (other_node_index / nodes_width) % nodes_height;
-                        let other_node_z: i32 = (other_node_index / (nodes_width * nodes_height)) % nodes_depth;
-                        if node_index != other_node_index && (node_x - other_node_x).abs() <= 1 && (node_y - other_node_y).abs() <= 1 && (node_z - other_node_z).abs() <= 1 {
-                            assert_ne!(collapsed_wave_function.node_state_per_node.get(node_id), collapsed_wave_function.node_state_per_node.get(other_node_id));
-                        }
+            for (node_index, node_id) in std::iter::zip(0..nodes_total, node_ids.iter()) {
+                let node_x: i32 = node_index % nodes_width;
+                let node_y: i32 = (node_index / nodes_width) % nodes_height;
+                let node_z: i32 = (node_index / (nodes_width * nodes_height)) % nodes_depth;
+                for (other_node_index, other_node_id) in std::iter::zip(0..nodes_total, node_ids.iter()) {
+                    let other_node_x: i32 = other_node_index % nodes_width;
+                    let other_node_y: i32 = (other_node_index / nodes_width) % nodes_height;
+                    let other_node_z: i32 = (other_node_index / (nodes_width * nodes_height)) % nodes_depth;
+                    if node_index != other_node_index && (node_x - other_node_x).abs() <= 1 && (node_y - other_node_y).abs() <= 1 && (node_z - other_node_z).abs() <= 1 {
+                        assert_ne!(collapsed_wave_function.node_state_per_node.get(node_id), collapsed_wave_function.node_state_per_node.get(other_node_id));
                     }
                 }
             }

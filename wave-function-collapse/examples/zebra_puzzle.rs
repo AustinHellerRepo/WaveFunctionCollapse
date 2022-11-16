@@ -1,4 +1,4 @@
-use std::{default, collections::HashMap, slice::Iter};
+use std::{default, collections::{HashMap, HashSet}, slice::Iter};
 
 use uuid::Uuid;
 use wave_function_collapse::wave_function::{
@@ -24,15 +24,55 @@ impl InformationType {
     fn into_iter() -> std::array::IntoIter<InformationType, 5> {
         [InformationType::NationalOrigin, InformationType::HouseColor, InformationType::CigaretteType, InformationType::Pet, InformationType::Drink].into_iter()
     }
+    fn get_node_state_ids(&self) -> Vec<String> {
+        let mut node_state_ids: Vec<String> = Vec::new();
+        match self {
+            InformationType::NationalOrigin => {
+                for national_origin in NationalOrigin::iter() {
+                    node_state_ids.push(national_origin.to_string());
+                }
+            },
+            InformationType::HouseColor => {
+                for house_color in HouseColor::iter() {
+                    node_state_ids.push(house_color.to_string());
+                }
+            },
+            InformationType::CigaretteType => {
+                for cigarette_type in CigaretteType::iter() {
+                    node_state_ids.push(cigarette_type.to_string());
+                }
+            },
+            InformationType::Pet => {
+                for pet in Pet::iter() {
+                    node_state_ids.push(pet.to_string());
+                }
+            },
+            InformationType::Drink => {
+                for drink in Drink::iter() {
+                    node_state_ids.push(drink.to_string());
+                }
+            }
+        }
+        node_state_ids
+    }
 }
 
 #[derive(Debug)]
 enum NationalOrigin {
-    English,
+    England,
     Spain,
     Ukraine,
     Norway,
     Japan
+}
+
+impl NationalOrigin {
+    fn iter() -> Iter<'static, NationalOrigin> {
+        [NationalOrigin::England, NationalOrigin::Spain, NationalOrigin::Ukraine, NationalOrigin::Norway, NationalOrigin::Japan].iter()
+    }
+    fn into_iter() -> std::array::IntoIter<NationalOrigin, 5> {
+        [NationalOrigin::England, NationalOrigin::Spain, NationalOrigin::Ukraine, NationalOrigin::Norway, NationalOrigin::Japan].into_iter()
+    }
 }
 
 impl std::fmt::Display for NationalOrigin {
@@ -56,6 +96,15 @@ enum HouseColor {
     Blue
 }
 
+impl HouseColor {
+    fn iter() -> Iter<'static, HouseColor> {
+        [HouseColor::Red, HouseColor::Green, HouseColor::Ivory, HouseColor::Yellow, HouseColor::Blue].iter()
+    }
+    fn into_iter() -> std::array::IntoIter<HouseColor, 5> {
+        [HouseColor::Red, HouseColor::Green, HouseColor::Ivory, HouseColor::Yellow, HouseColor::Blue].into_iter()
+    }
+}
+
 impl std::fmt::Display for HouseColor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self)
@@ -75,6 +124,15 @@ enum CigaretteType {
     Chesterfields,
     LuckyStrike,
     Parliaments
+}
+
+impl CigaretteType {
+    fn iter() -> Iter<'static, CigaretteType> {
+        [CigaretteType::OldGold, CigaretteType::Kools, CigaretteType::Chesterfields, CigaretteType::LuckyStrike, CigaretteType::Parliaments].iter()
+    }
+    fn into_iter() -> std::array::IntoIter<CigaretteType, 5> {
+        [CigaretteType::OldGold, CigaretteType::Kools, CigaretteType::Chesterfields, CigaretteType::LuckyStrike, CigaretteType::Parliaments].into_iter()
+    }
 }
 
 impl std::fmt::Display for CigaretteType {
@@ -98,6 +156,15 @@ enum Pet {
     Zebra
 }
 
+impl Pet {
+    fn iter() -> Iter<'static, Pet> {
+        [Pet::Dog, Pet::Snails, Pet::Fox, Pet::Horse, Pet::Zebra].iter()
+    }
+    fn into_iter() -> std::array::IntoIter<Pet, 5> {
+        [Pet::Dog, Pet::Snails, Pet::Fox, Pet::Horse, Pet::Zebra].into_iter()
+    }
+}
+
 impl std::fmt::Display for Pet {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self)
@@ -119,6 +186,15 @@ enum Drink {
     Water
 }
 
+impl Drink {
+    fn iter() -> Iter<'static, Drink> {
+        [Drink::Coffee, Drink::Tea, Drink::Milk, Drink::OrangeJuice, Drink::Water].iter()
+    }
+    fn into_iter() -> std::array::IntoIter<Drink, 5> {
+        [Drink::Coffee, Drink::Tea, Drink::Milk, Drink::OrangeJuice, Drink::Water].into_iter()
+    }
+}
+
 impl std::fmt::Display for Drink {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self)
@@ -135,14 +211,13 @@ impl Drink {
 
 enum Proximity {
     Same,
-    Left,
-    Right,
-    First,
-    Second,
-    Third,
-    Fourth,
-    Fifth,
-    Adjacent
+    NotSame,
+    ImmediateLeft,
+    RelativeLeft,
+    ImmediateRight,
+    RelativeRight,
+    Index(usize),
+    ImmediateAdjacent
 }
 
 struct Information {
@@ -150,7 +225,8 @@ struct Information {
     house_color: Option<HouseColor>,
     cigarette_type: Option<CigaretteType>,
     pet: Option<Pet>,
-    drink: Option<Drink>
+    drink: Option<Drink>,
+    information_type: Option<InformationType>
 }
 
 impl Default for Information {
@@ -160,7 +236,8 @@ impl Default for Information {
             house_color: None,
             cigarette_type: None,
             pet: None,
-            drink: None
+            drink: None,
+            information_type: None
         }
     }
 }
@@ -169,31 +246,55 @@ impl Information {
     fn new_national_origin(national_origin: NationalOrigin) -> Self {
         Information {
             national_origin: Some(national_origin),
+            information_type: Some(InformationType::NationalOrigin),
             ..Default::default()
         }
     }
     fn new_house_color(house_color: HouseColor) -> Self {
         Information {
             house_color: Some(house_color),
+            information_type: Some(InformationType::HouseColor),
             ..Default::default()
         }
     }
     fn new_cigarette_type(cigarette_type: CigaretteType) -> Self {
         Information {
             cigarette_type: Some(cigarette_type),
+            information_type: Some(InformationType::CigaretteType),
             ..Default::default()
         }
     }
     fn new_pet(pet: Pet) -> Self {
         Information {
             pet: Some(pet),
+            information_type: Some(InformationType::Pet),
             ..Default::default()
         }
     }
     fn new_drink(drink: Drink) -> Self {
         Information {
             drink: Some(drink),
+            information_type: Some(InformationType::Drink),
             ..Default::default()
+        }
+    }
+    fn get_node_state_id(&self) -> String {
+        match self.information_type.as_ref().unwrap() {
+            InformationType::NationalOrigin => {
+                self.national_origin.as_ref().unwrap().get_node_state_id()
+            },
+            InformationType::HouseColor => {
+                self.house_color.as_ref().unwrap().get_node_state_id()
+            },
+            InformationType::CigaretteType => {
+                self.cigarette_type.as_ref().unwrap().get_node_state_id()
+            },
+            InformationType::Pet => {
+                self.pet.as_ref().unwrap().get_node_state_id()
+            },
+            InformationType::Drink => {
+                self.drink.as_ref().unwrap().get_node_state_id()
+            }
         }
     }
 }
@@ -211,6 +312,94 @@ impl Dependency {
             proximity: proximity,
             target: target
         }
+    }
+    fn is_staticly_applicable(&self, from_house_index: usize, from_information_type: &InformationType) -> bool {
+        if self.subject.information_type.as_ref().unwrap() == from_information_type {
+            if self.target.is_none() {
+                match self.proximity {
+                    Proximity::Index(index) => {
+                        if from_house_index == index {
+                            return true;
+                        }
+                    },
+                    Proximity::ImmediateLeft => {
+                        panic!("Cannot use ImmediateLeft when a target is not specified.");
+                    },
+                    Proximity::RelativeLeft => {
+                        panic!("Cannot use RelativeLeft when a target is not specified.");
+                    },
+                    Proximity::Same => {
+                        panic!("Cannot use Same when a target is not specified.");
+                    },
+                    Proximity::RelativeRight => {
+                        panic!("Cannot use RelativeRight when a target is not specified.");
+                    },
+                    Proximity::ImmediateRight => {
+                        panic!("Cannot use ImmediateRight when a target is not specified.");
+                    }
+                    Proximity::NotSame => {
+                        panic!("Cannot use NotSame when a target is not specified.");
+                    }
+                    Proximity::ImmediateAdjacent => {
+                        panic!("Cannot use ImmediateAdjacent when a target is not specified.");
+                    }
+                }
+            }
+        }
+        false
+    }
+    fn is_relatively_applicable(&self, from_house_index: usize, from_information_type: &InformationType, to_house_index: usize, to_information_type: &InformationType) -> bool {
+        if self.subject.information_type.as_ref().unwrap() == from_information_type {
+            if let Some(target) = &self.target {
+                if target.information_type.as_ref().unwrap() == to_information_type {
+                    // the subject and target match the provided types
+
+                    match self.proximity {
+                        Proximity::Index(index) => {
+                            panic!("Cannot use Index when a target is specified.");
+                        },
+                        Proximity::ImmediateLeft => {
+                            // when the from_house_index is to the immediate left of to_house_index
+                            if from_house_index + 1 == to_house_index {
+                                return true;
+                            }
+                        },
+                        Proximity::RelativeLeft => {
+                            // when the from_house_index is to the immediate left of to_house_index
+                            if from_house_index < to_house_index {
+                                return true;
+                            }
+                        },
+                        Proximity::Same => {
+                            if from_house_index == to_house_index {
+                                return true;
+                            }
+                        },
+                        Proximity::RelativeRight => {
+                            if from_house_index > to_house_index {
+                                return true;
+                            }
+                        },
+                        Proximity::ImmediateRight => {
+                            if from_house_index == to_house_index + 1 {
+                                return true;
+                            }
+                        }
+                        Proximity::NotSame => {
+                            if from_house_index != to_house_index {
+                                return true;
+                            }
+                        }
+                        Proximity::ImmediateAdjacent => {
+                            if from_house_index.abs_diff(to_house_index) == 1 {
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        false
     }
 }
 
@@ -233,204 +422,181 @@ impl ZebraPuzzle {
         let mut node_state_collections: Vec<NodeStateCollection> = Vec::new();
 
         let mut all_node_ids: Vec<String> = Vec::new();
-        let mut node_per_information_type_per_house_index: Vec<HashMap<InformationType, &Node>> = Vec::new();
+        let mut node_id_per_information_type_per_house_index: Vec<HashMap<InformationType, &str>> = Vec::new();
         {
-            /*
+            // create all node ids
             for _ in 0..6 {
                 for _ in InformationType::iter() {
                     let node_id: String = Uuid::new_v4().to_string();
-                    let node = Node {
-                        id: node_id.clone(),
-                        node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-                    };
-                    all_node_ids.push(node_id.clone());
-                    nodes.push(node);
+                    all_node_ids.push(node_id);
                 }
             }
 
+            // make the nodes more accessible, based on its column index and information type
             {
                 let mut node_index: usize = 0;
-                while node_index < nodes.len() {
-                    let mut node_per_information_type: HashMap<InformationType, &Node> = HashMap::new();
+                while node_index < all_node_ids.len() {
+                    let mut node_id_per_information_type: HashMap<InformationType, &str> = HashMap::new();
                     for information_type in InformationType::into_iter() {
-                        node_per_information_type.insert(information_type, nodes.get(node_index).unwrap());
+                        node_id_per_information_type.insert(information_type, all_node_ids.get(node_index).unwrap());
                         node_index += 1;
                     }
-                    node_per_information_type_per_house_index.push(node_per_information_type);
+                    node_id_per_information_type_per_house_index.push(node_id_per_information_type);
                 }
             }
+        }
 
-            {
-                // connect all nodes to each other
-                for node in nodes.iter_mut() {
-                    for node_id in all_node_ids.iter() {
-                        if node.id != *node_id {
-                            node.node_state_collection_ids_per_neighbor_node_id.insert(node_id.clone(), Vec::new());
+        // cache NodeStateCollection instances for each information type
+        let mut not_same_node_state_collection_id_per_node_state_id_per_information_type: HashMap<&InformationType, HashMap<String, String>> = HashMap::new();
+        {
+            for information_type in InformationType::iter() {
+                let mut information_type_node_state_collection_ids: HashMap<String, String> = HashMap::new();
+                let information_type_node_state_ids = information_type.get_node_state_ids();
+                for chosen_node_state_id in information_type_node_state_ids.iter() {
+                    let mut permitted_node_state_ids: Vec<String> = Vec::new();
+                    for permitted_node_state_id in information_type.get_node_state_ids().iter() {
+                        if chosen_node_state_id != permitted_node_state_id {
+                            permitted_node_state_ids.push(permitted_node_state_id.clone());
+                        }
+                    }
+                    let node_state_collection_id: String = Uuid::new_v4().to_string();
+                    let node_state_collection = NodeStateCollection {
+                        id: node_state_collection_id.clone(),
+                        node_state_id: chosen_node_state_id.clone(),
+                        node_state_ids: permitted_node_state_ids
+                    };
+                    node_state_collections.push(node_state_collection);
+                    information_type_node_state_collection_ids.insert(chosen_node_state_id.clone(), node_state_collection_id);
+                }
+                not_same_node_state_collection_id_per_node_state_id_per_information_type.insert(information_type, information_type_node_state_collection_ids);
+            }
+        }
+
+        // iterate over each node with each other node to create node state collections per combination
+        let mut existing_node_state_id_per_information_type_per_house_index: HashMap<usize, HashMap<&InformationType, String>> = HashMap::new();
+        let mut existing_node_state_collection_ids_per_to_node_id_per_from_node_id: HashMap<String, HashMap<String, Vec<String>>> = HashMap::new();
+        {
+            let mut existing_node_state_collection_id_per_to_node_state_id_per_from_node_state_id: HashMap<String, HashMap<String, String>> = HashMap::new();
+            for from_house_index in 0..node_id_per_information_type_per_house_index.len() {
+                for (from_information_type, from_node_id) in node_id_per_information_type_per_house_index[from_house_index].iter() {
+                    let from_node_id: String = String::from(*from_node_id);
+                    for dependency in self.dependencies.iter() {
+                        if dependency.is_staticly_applicable(from_house_index, from_information_type) {
+                            // the nth house for this specific information type is this subject value
+                            let node_state_id: String = dependency.subject.get_node_state_id();
+
+                            if !existing_node_state_id_per_information_type_per_house_index.contains_key(&from_house_index) {
+                                let node_state_id_per_information_type: HashMap<&InformationType, String> = HashMap::new();
+                                existing_node_state_id_per_information_type_per_house_index.insert(from_house_index, node_state_id_per_information_type);
+                            }
+                            existing_node_state_id_per_information_type_per_house_index.get_mut(&from_house_index).unwrap().insert(from_information_type, node_state_id);
+                        }
+                    }
+
+                    for to_house_index in 0..node_id_per_information_type_per_house_index.len() {
+                        for (to_information_type, to_node_id) in node_id_per_information_type_per_house_index[to_house_index].iter() {
+                            let to_node_id: String = String::from(*to_node_id);
+                            if from_node_id != to_node_id {
+                                let mut used_from_node_state_ids: HashSet<String> = HashSet::new();
+                                for dependency in self.dependencies.iter() {
+                                    if dependency.is_relatively_applicable(from_house_index, from_information_type, to_house_index, to_information_type) {
+                                        // TODO create specific node state collection, if it does not yet exist
+                                        let from_node_state_id: String = dependency.subject.get_node_state_id();
+                                        let to_node_state_id: String = dependency.target.as_ref().unwrap().get_node_state_id();
+
+                                        used_from_node_state_ids.insert(from_node_state_id.clone());
+
+                                        if !existing_node_state_collection_id_per_to_node_state_id_per_from_node_state_id.contains_key(&from_node_state_id) {
+                                            existing_node_state_collection_id_per_to_node_state_id_per_from_node_state_id.insert(from_node_state_id.clone(), HashMap::new());
+                                        }
+                                        if !existing_node_state_collection_id_per_to_node_state_id_per_from_node_state_id.get(from_node_state_id.as_str()).unwrap().contains_key(&to_node_state_id) {
+                                            let node_state_collection_id: String = Uuid::new_v4().to_string();
+                                            let node_state_collection = NodeStateCollection {
+                                                id: node_state_collection_id.clone(),
+                                                node_state_id: from_node_state_id.clone(),
+                                                node_state_ids: vec![to_node_state_id.clone()]
+                                            };
+                                            node_state_collections.push(node_state_collection);
+                                            existing_node_state_collection_id_per_to_node_state_id_per_from_node_state_id.get_mut(from_node_state_id.as_str()).unwrap().insert(to_node_state_id.clone(), node_state_collection_id.clone());
+                                        }
+                                        let existing_node_state_collection_id: &str = existing_node_state_collection_id_per_to_node_state_id_per_from_node_state_id.get(from_node_state_id.as_str()).unwrap().get(&to_node_state_id).unwrap();
+
+                                        if !existing_node_state_collection_ids_per_to_node_id_per_from_node_id.contains_key(&from_node_id) {
+                                            existing_node_state_collection_ids_per_to_node_id_per_from_node_id.insert(from_node_id.clone(), HashMap::new());
+                                        }
+                                        if !existing_node_state_collection_ids_per_to_node_id_per_from_node_id.get(&from_node_id).unwrap().contains_key(&to_node_id) {
+                                            existing_node_state_collection_ids_per_to_node_id_per_from_node_id.get_mut(&from_node_id).unwrap().insert(to_node_id.clone(), Vec::new());
+                                        }
+                                        existing_node_state_collection_ids_per_to_node_id_per_from_node_id.get_mut(&from_node_id).unwrap().get_mut(&to_node_id).unwrap().push(String::from(existing_node_state_collection_id));
+                                    }
+                                }
+
+                                if existing_node_state_collection_ids_per_to_node_id_per_from_node_id.contains_key(&from_node_id) && existing_node_state_collection_ids_per_to_node_id_per_from_node_id.get(&from_node_id).unwrap().contains_key(&to_node_id) {
+                                    if from_house_index != to_house_index && from_information_type == to_information_type {
+                                        // fill in the remaining not-same node state collection ids
+                                        for node_state_id in from_information_type.get_node_state_ids().iter() {
+                                            let node_state_id: &str = node_state_id;
+                                            if !used_from_node_state_ids.contains(node_state_id) {
+                                                // this is a node state id that was not tied to this neighbor
+                                                let missing_node_state_collection_id = not_same_node_state_collection_id_per_node_state_id_per_information_type.get(from_information_type).unwrap().get(node_state_id).unwrap();
+                                                existing_node_state_collection_ids_per_to_node_id_per_from_node_id.get_mut(&from_node_id).unwrap().get_mut(&to_node_id).unwrap().push(missing_node_state_collection_id.clone());
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
-            */
         }
 
-        // iterate over each node with each other node to create node state collections per combination
-        for from_house_index in 0..node_per_information_type_per_house_index.len() {
-            for (from_information_type, from_node) in node_per_information_type_per_house_index[from_house_index].iter() {
-                for to_house_index in 0..node_per_information_type_per_house_index.len() {
-                    for (to_information_type, to_node) in node_per_information_type_per_house_index[to_house_index].iter() {
+        // create nodes, using either all possible node states or the specific previously determined state
+        // set the possible node states per node given its information type
+        let mut node_index: usize = 0;
+        for house_index in 0..6 as usize {
+            for information_type in InformationType::iter() {
+                let node_id: &str = all_node_ids.get(node_index).unwrap();
+                let mut node_state_ids: Vec<String> = Vec::new();
+                if existing_node_state_id_per_information_type_per_house_index.contains_key(&house_index) && existing_node_state_id_per_information_type_per_house_index.get(&house_index).unwrap().contains_key(information_type) {
+                    let node_state_id = existing_node_state_id_per_information_type_per_house_index.get(&house_index).unwrap().get(information_type).unwrap();
+                    node_state_ids.push(node_state_id.clone());
+                }
+                else {
+                    node_state_ids.extend(information_type.get_node_state_ids());
+                }
 
+                // tie this node to all other neighbors of the same information type
+                let mut node_state_collection_ids_per_neighbor_node_id: HashMap<String, Vec<String>> = HashMap::new();
+                let mut neighbor_node_index: usize = 0;
+                for neighbor_house_index in 0..6 as usize {
+                    for neighbor_information_type in InformationType::iter() {
+                        let neighbor_node_id: &str = all_node_ids.get(neighbor_node_index).unwrap();
+                        if node_index != neighbor_node_index {
+                            if existing_node_state_collection_ids_per_to_node_id_per_from_node_id.contains_key(node_id) && existing_node_state_collection_ids_per_to_node_id_per_from_node_id.get(node_id).unwrap().contains_key(neighbor_node_id) {
+                                let existing_node_state_collection_ids = existing_node_state_collection_ids_per_to_node_id_per_from_node_id.get(node_id).unwrap().get(neighbor_node_id).unwrap();
+                                node_state_collection_ids_per_neighbor_node_id.insert(String::from(neighbor_node_id), existing_node_state_collection_ids.clone());
+                            }
+                            else if house_index != neighbor_house_index && neighbor_information_type == information_type {
+                                let not_same_node_state_collection_ids: Vec<String> = not_same_node_state_collection_id_per_node_state_id_per_information_type.get(information_type).unwrap().values().cloned().collect();
+                                node_state_collection_ids_per_neighbor_node_id.insert(String::from(neighbor_node_id), not_same_node_state_collection_ids);
+                            }
+                        }
+                        neighbor_node_index += 1;
                     }
                 }
+
+                let node = Node {
+                    id: String::from(node_id),
+                    node_state_ids: node_state_ids,
+                    node_state_collection_ids_per_neighbor_node_id: node_state_collection_ids_per_neighbor_node_id
+                };
+                nodes.push(node);
+                node_index += 1;
             }
         }
 
-        // TODO construct NodeStateCollection instances per scenario
-        for dependency in self.dependencies.iter() {
-            let from_information_type: InformationType;
-            let to_information_type: Option<InformationType>;
-            let proximity: &Proximity = &dependency.proximity;
-            let from_node_state_id: String;
-            let to_node_state_id: String;
-            if let Some(national_origin) = &dependency.subject.national_origin {
-                from_information_type = InformationType::NationalOrigin;
-                from_node_state_id = national_origin.get_node_state_id();
-            }
-            else if let Some(house_color) = &dependency.subject.house_color {
-                from_information_type = InformationType::HouseColor;
-                from_node_state_id = house_color.get_node_state_id();
-            }
-            else if let Some(cigarette_type) = &dependency.subject.cigarette_type {
-                from_information_type = InformationType::CigaretteType;
-                from_node_state_id = cigarette_type.get_node_state_id();
-            }
-            else if let Some(pet) = &dependency.subject.pet {
-                from_information_type = InformationType::Pet;
-                from_node_state_id = pet.get_node_state_id();
-            }
-            else if let Some(drink) = &dependency.subject.drink {
-                from_information_type = InformationType::Drink;
-                from_node_state_id = drink.get_node_state_id();
-            }
-            else {
-                panic!("Unexpected subject information type.");
-            }
-
-            if let Some(national_origin) = &dependency.subject.national_origin {
-                to_information_type = Some(InformationType::NationalOrigin);
-                to_node_state_id = national_origin.get_node_state_id();
-            }
-            else if let Some(house_color) = &dependency.subject.house_color {
-                to_information_type = Some(InformationType::HouseColor);
-                to_node_state_id = house_color.get_node_state_id();
-            }
-            else if let Some(cigarette_type) = &dependency.subject.cigarette_type {
-                to_information_type = Some(InformationType::CigaretteType);
-                to_node_state_id = cigarette_type.get_node_state_id();
-            }
-            else if let Some(pet) = &dependency.subject.pet {
-                to_information_type = Some(InformationType::Pet);
-                to_node_state_id = pet.get_node_state_id();
-            }
-            else if let Some(drink) = &dependency.subject.drink {
-                to_information_type = Some(InformationType::Drink);
-                to_node_state_id = drink.get_node_state_id();
-            }
-            else {
-                panic!("Unexpected subject information type.");
-            }
-
-            match proximity {
-                Proximity::First => {
-                    if let Some(information_type) = &to_information_type {
-                        panic!("Unexpected comparison. Must use relative proximity.");
-                    }
-                    else {
-                        // only the from_node_state_id can exist in the first position
-
-                    }
-                },
-                Proximity::Second => {
-                    if let Some(information_type) = &to_information_type {
-                        panic!("Unexpected comparison. Must use relative proximity.");
-                    }
-                    else {
-                        // only the from_node_state_id can exist in the second position
-                    }
-                },
-                Proximity::Third => {
-                    if let Some(information_type) = &to_information_type {
-                        panic!("Unexpected comparison. Must use relative proximity.");
-                    }
-                    else {
-                        // only the from_node_state_id can exist in the third position
-                    }
-                },
-                Proximity::Fourth => {
-                    if let Some(information_type) = &to_information_type {
-                        panic!("Unexpected comparison. Must use relative proximity.");
-                    }
-                    else {
-                        // only the from_node_state_id can exist in the fourth position
-                    }
-                },
-                Proximity::Fifth => {
-                    if let Some(information_type) = &to_information_type {
-                        panic!("Unexpected comparison. Must use relative proximity.");
-                    }
-                    else {
-                        // only the from_node_state_id can exist in the fifth position
-                    }
-                },
-                Proximity::Adjacent => {
-                    if let Some(information_type) = &to_information_type {
-                        // the from_node_state_id is next to the to_node_state_id
-
-                        let mut from_to_node_state_collection: NodeStateCollection = NodeStateCollection {
-                            id: Uuid::new_v4().to_string(),
-                            node_state_id: from_node_state_id.clone(),
-                            node_state_ids: vec![to_node_state_id.clone()]
-                        };
-                        let mut to_from_node_state_collection: NodeStateCollection = NodeStateCollection {
-                            id: Uuid::new_v4().to_string(),
-                            node_state_id: to_node_state_id.clone(),
-                            node_state_ids: vec![from_node_state_id.clone()]
-                        };
-
-                        node_state_collections.push(from_to_node_state_collection);
-                        node_state_collections.push(to_from_node_state_collection);
-                    }
-                    else {
-                        panic!("Unexpected lack of comparison. Must specify a target.");
-                    }
-                },
-                Proximity::Left => {
-                    if let Some(information_type) = &to_information_type {
-                        // the from_node_state_id is to the left of the to_node_state_id
-                    }
-                    else {
-                        panic!("Unexpected lack of comparison. Must specify a target.");
-                    }
-                },
-                Proximity::Right => {
-                    if let Some(information_type) = &to_information_type {
-                        // the from_node_state_id is to the right of the to_node_state_id
-                    }
-                    else {
-                        panic!("Unexpected lack of comparison. Must specify a target.");
-                    }
-                },
-                Proximity::Same => {
-                    if let Some(information_type) = &to_information_type {
-                        // the from_node_state_id is in the same house as the to_node_state_id
-                    }
-                    else {
-                        panic!("Unexpected lack of comparison. Must specify a target.");
-                    }
-                }
-            }
-        }
-
-        todo!()
+        WaveFunction::new(nodes, node_state_collections)
     }
 }
 
@@ -464,7 +630,7 @@ fn main() {
 
     let mut puzzle = ZebraPuzzle::new();
     puzzle.insert_dependency(Dependency::new(
-        Information::new_national_origin(NationalOrigin::English),
+        Information::new_national_origin(NationalOrigin::England),
         Proximity::Same,
         Some(Information::new_house_color(HouseColor::Red))
     ));
@@ -485,7 +651,7 @@ fn main() {
     ));
     puzzle.insert_dependency(Dependency::new(
         Information::new_house_color(HouseColor::Green),
-        Proximity::Right,
+        Proximity::ImmediateRight,
         Some(Information::new_house_color(HouseColor::Ivory))
     ));
     puzzle.insert_dependency(Dependency::new(
@@ -500,22 +666,22 @@ fn main() {
     ));
     puzzle.insert_dependency(Dependency::new(
         Information::new_drink(Drink::Milk),
-        Proximity::Third,
+        Proximity::Index(2),
         None
     ));
     puzzle.insert_dependency(Dependency::new(
         Information::new_national_origin(NationalOrigin::Norway),
-        Proximity::First,
+        Proximity::Index(0),
         None
     ));
     puzzle.insert_dependency(Dependency::new(
         Information::new_cigarette_type(CigaretteType::Chesterfields),
-        Proximity::Adjacent,
+        Proximity::ImmediateAdjacent,
         Some(Information::new_pet(Pet::Fox))
     ));
     puzzle.insert_dependency(Dependency::new(
         Information::new_cigarette_type(CigaretteType::Kools),
-        Proximity::Adjacent,
+        Proximity::ImmediateAdjacent,
         Some(Information::new_pet(Pet::Horse))
     ));
     puzzle.insert_dependency(Dependency::new(
@@ -530,7 +696,7 @@ fn main() {
     ));
     puzzle.insert_dependency(Dependency::new(
         Information::new_national_origin(NationalOrigin::Norway),
-        Proximity::Adjacent,
+        Proximity::ImmediateAdjacent,
         Some(Information::new_house_color(HouseColor::Blue))
     ));
 
