@@ -201,8 +201,13 @@ impl SudokuPuzzle {
                         }
                     }
                 }
+                let mut node_state_ids: Vec<String> = Vec::new();
+                for number in 1u8..10 {
+                    node_state_ids.push(format!("state_{number}"));
+                }
                 let node = Node {
                     id: node_id_per_y_per_x.get(&from_x_index).unwrap().get(&from_y_index).unwrap().clone(),
+                    node_state_ids: node_state_ids,
                     node_state_collection_ids_per_neighbor_node_id: node_state_collection_ids_per_neighbor_node_id
                 };
                 nodes.push(node);
@@ -211,31 +216,6 @@ impl SudokuPuzzle {
 
         let wave_function = WaveFunction::new(nodes, node_state_collection_per_id.values().cloned().collect());
         wave_function.validate().unwrap();
-
-        /*
-        let steps_result = wave_function.collapse_into_steps(None);
-        if let Ok(steps) = steps_result {
-            // print out steps
-            for (index, step) in steps.into_iter().enumerate() {
-                if index > 1700 {
-                    if let Some(node_state_id) = step.node_state_id {
-                        println!("{}: {}: {}", index, step.node_id, node_state_id);
-                    }
-                    else {
-                        println!("{}: {}: reverted", index, step.node_id);
-                    }
-
-                    if index == 2700 {
-                        break;
-                    }
-                }
-            }
-            Err(String::from("Not implemented"))
-        }
-        else {
-            Err(steps_result.err().unwrap())
-        }
-        */
 
         let collapsed_wave_function_result = wave_function.collapse(None);
 
@@ -270,15 +250,15 @@ impl SudokuPuzzle {
 fn main() {
 
     let mut number_per_row_per_column: Vec<Vec<Option<u8>>> = Vec::new();
-    number_per_row_per_column.push(vec![None, Some(7), Some(3), Some(2), None, Some(4), Some(6), Some(9), Some(1)]);
-    number_per_row_per_column.push(vec![None, Some(2), Some(8), None, None, Some(6), None, None, Some(7)]);
-    number_per_row_per_column.push(vec![None, None, Some(6), Some(1), None, Some(7), None, None, Some(8)]);
-    number_per_row_per_column.push(vec![None, Some(1), Some(5), Some(7), Some(6), Some(3), None, Some(2), Some(4)]);
-    number_per_row_per_column.push(vec![Some(6), None, None, None, None, None, Some(8), Some(7), None]);
-    number_per_row_per_column.push(vec![Some(7), None, None, Some(9), None, None, None, None, None]);
-    number_per_row_per_column.push(vec![Some(3), None, Some(1), Some(6), None, None, None, None, None]);
-    number_per_row_per_column.push(vec![Some(2), Some(8), None, Some(5), Some(4), Some(9), Some(3), None, None]);
-    number_per_row_per_column.push(vec![None, Some(6), None, Some(8), None, None, None, None, None]);
+    number_per_row_per_column.push(vec![None,    Some(7), Some(3), Some(2), None,    Some(4), Some(6), Some(9), Some(1)]);
+    number_per_row_per_column.push(vec![None,    Some(2), Some(8), None,    None,    Some(6), None,    None,    Some(7)]);
+    number_per_row_per_column.push(vec![None,    None,    Some(6), Some(1), None,    Some(7), None,    None,    Some(8)]);
+    number_per_row_per_column.push(vec![None,    Some(1), Some(5), Some(7), Some(6), Some(3), None,    Some(2), Some(4)]);
+    number_per_row_per_column.push(vec![Some(6), None,    None,    None,    None,    None,    Some(8), Some(7), None]);
+    number_per_row_per_column.push(vec![Some(7), None,    None,    Some(9), None,    None,    None,    None,    None]);
+    number_per_row_per_column.push(vec![Some(3), None,    Some(1), Some(6), None,    None,    None,    None,    None]);
+    number_per_row_per_column.push(vec![Some(2), Some(8), None,    Some(5), Some(4), Some(9), Some(3), None,    None]);
+    number_per_row_per_column.push(vec![None,    Some(6), None,    Some(8), None,    None,    None,    None,    None]);
     let puzzle = SudokuPuzzle {
         number_per_row_per_column: number_per_row_per_column
     };
