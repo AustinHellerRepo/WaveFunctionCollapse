@@ -418,6 +418,12 @@ impl Dependency {
     }
 }
 
+#[derive(PartialEq, Eq, Hash, Clone, Debug)]
+struct NodeStateCollectionKey {
+    from_node_state_id: String,
+    to_node_state_ids: Vec<String>
+}
+
 struct ZebraPuzzle {
     dependencies: Vec<Dependency>
 }
@@ -563,6 +569,7 @@ impl ZebraPuzzle {
 
         // create nodes, using either all possible node states or the specific previously determined state
         // set the possible node states per node given its information type
+        let mut node_state_collection_id_per_node_state_collection_key: HashMap<NodeStateCollectionKey, String> = HashMap::new();
         let mut node_index: usize = 0;
         for house_index in 0..5 as usize {
             for information_type in InformationType::iter() {
@@ -583,13 +590,67 @@ impl ZebraPuzzle {
                     for neighbor_information_type in InformationType::iter() {
                         let neighbor_node_id: &str = all_node_ids.get(neighbor_node_index).unwrap();
                         if node_index != neighbor_node_index {
-                            if existing_node_state_collection_ids_per_to_node_id_per_from_node_id.contains_key(node_id) && existing_node_state_collection_ids_per_to_node_id_per_from_node_id.get(node_id).unwrap().contains_key(neighbor_node_id) {
-                                let existing_node_state_collection_ids = existing_node_state_collection_ids_per_to_node_id_per_from_node_id.get(node_id).unwrap().get(neighbor_node_id).unwrap();
-                                node_state_collection_ids_per_neighbor_node_id.insert(String::from(neighbor_node_id), existing_node_state_collection_ids.clone());
+                            if information_type == neighbor_information_type {
+                                for from_node_state_id in information_type.get_node_state_ids().into_iter() {
+                                    let mut permitted_node_state_ids = information_type.get_node_state_ids();
+                                    if restricted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.contains_key(node_id) &&
+                                        restricted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get(node_id).unwrap().contains_key(neighbor_node_id) &&
+                                        restricted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get(node_id).unwrap().get(neighbor_node_id).unwrap().contains_key(&from_node_state_id) {
+
+                                        let restricted_node_state_ids = restricted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get(node_id).unwrap().get(neighbor_node_id).unwrap().get(&from_node_state_id).unwrap();
+                                        permitted_node_state_ids.retain(|node_state_id| !restricted_node_state_ids.contains(node_state_id));
+                                    }
+                                    permitted_node_state_ids.retain(|node_state_id| node_state_id != &from_node_state_id);
+                                    let node_state_collection_key = NodeStateCollectionKey {
+                                        from_node_state_id: from_node_state_id,
+                                        to_node_state_ids: permitted_node_state_ids
+                                    };
+                                    debug!("connection {house_index} {:?} to {neighbor_house_index} {:?} via {:?}.", information_type, neighbor_information_type, node_state_collection_key);
+                                    if !node_state_collection_id_per_node_state_collection_key.contains_key(&node_state_collection_key) {
+                                        let cloned_node_state_collection_key = node_state_collection_key.clone();
+                                        let node_state_collection_id: String = Uuid::new_v4().to_string();
+                                        let node_state_collection = NodeStateCollection {
+                                            id: node_state_collection_id.clone(),
+                                            node_state_id: cloned_node_state_collection_key.from_node_state_id.clone(),
+                                            node_state_ids: cloned_node_state_collection_key.to_node_state_ids.clone()
+                                        };
+                                        node_state_collections.push(node_state_collection);
+                                        node_state_collection_id_per_node_state_collection_key.insert(cloned_node_state_collection_key, node_state_collection_id);
+                                    }
+                                    if !node_state_collection_ids_per_neighbor_node_id.contains_key(neighbor_node_id) {
+                                        node_state_collection_ids_per_neighbor_node_id.insert(String::from(neighbor_node_id), Vec::new());
+                                    }
+                                    let node_state_collection_id: String = node_state_collection_id_per_node_state_collection_key.get(&node_state_collection_key).unwrap().clone();
+                                    node_state_collection_ids_per_neighbor_node_id.get_mut(neighbor_node_id).unwrap().push(node_state_collection_id);
+                                }
                             }
-                            else if house_index != neighbor_house_index && neighbor_information_type == information_type {
-                                let not_same_node_state_collection_ids: Vec<String> = not_same_node_state_collection_id_per_node_state_id_per_information_type.get(information_type).unwrap().values().cloned().collect();
-                                node_state_collection_ids_per_neighbor_node_id.insert(String::from(neighbor_node_id), not_same_node_state_collection_ids);
+                            else {
+                                if permitted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.contains_key(node_id) &&
+                                    permitted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get(node_id).unwrap().contains_key(neighbor_node_id) {
+
+                                    for (from_node_state_id, to_node_state_ids) in permitted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get(node_id).unwrap().get(neighbor_node_id).unwrap().iter() {
+                                        let node_state_collection_key = NodeStateCollectionKey {
+                                            from_node_state_id: from_node_state_id.clone(),
+                                            to_node_state_ids: to_node_state_ids.clone()
+                                        };
+                                        if !node_state_collection_id_per_node_state_collection_key.contains_key(&node_state_collection_key) {
+                                            let cloned_node_state_collection_key = node_state_collection_key.clone();
+                                            let node_state_collection_id: String = Uuid::new_v4().to_string();
+                                            let node_state_collection = NodeStateCollection {
+                                                id: node_state_collection_id.clone(),
+                                                node_state_id: cloned_node_state_collection_key.from_node_state_id.clone(),
+                                                node_state_ids: cloned_node_state_collection_key.to_node_state_ids.clone()
+                                            };
+                                            node_state_collections.push(node_state_collection);
+                                            node_state_collection_id_per_node_state_collection_key.insert(cloned_node_state_collection_key, node_state_collection_id);
+                                        }
+                                        if !node_state_collection_ids_per_neighbor_node_id.contains_key(neighbor_node_id) {
+                                            node_state_collection_ids_per_neighbor_node_id.insert(String::from(neighbor_node_id), Vec::new());
+                                        }
+                                        let node_state_collection_id: String = node_state_collection_id_per_node_state_collection_key.get(&node_state_collection_key).unwrap().clone();
+                                        node_state_collection_ids_per_neighbor_node_id.get_mut(neighbor_node_id).unwrap().push(node_state_collection_id);
+                                    }
+                                }
                             }
                         }
                         neighbor_node_index += 1;
@@ -616,7 +677,35 @@ struct ZebraSolution {
 
 impl ZebraSolution {
     fn print(&self) {
-        todo!()
+        let mut node_state_per_column_per_row: Vec<Vec<Option<String>>> = Vec::new();
+        for information_type in InformationType::iter() {
+            let mut node_state_per_column: Vec<Option<String>> = Vec::new();
+            for house_index in 0..5 {
+                node_state_per_column.push(None);
+            }
+            node_state_per_column_per_row.push(node_state_per_column);
+        }
+
+        for (node, node_state) in self.collapsed_wave_function.node_state_per_node.iter() {
+            let node_split = node.split("_").collect::<Vec<&str>>();
+            let collapsed_node_house_index: usize = node_split[0].parse::<u8>().unwrap() as usize;
+            let collapsed_node_information_type: &str = node_split[1];
+
+            for (information_type_index, information_type) in InformationType::iter().enumerate() {
+                if format!("{:?}", information_type) == collapsed_node_information_type {
+                    node_state_per_column_per_row[information_type_index][collapsed_node_house_index] = Some(node_state.clone());
+                }
+            }
+        }
+
+        println!("----------------------");
+        for row in node_state_per_column_per_row.into_iter() {
+            print!("|");
+            for column in row.into_iter() {
+                print!("{}|", column.unwrap());
+            }
+            println!("");
+        }
     }
 }
 
@@ -714,6 +803,7 @@ fn main() {
 
     let wave_function: WaveFunction = puzzle.get_wave_function();
     wave_function.validate().unwrap();
+    return;
 
     let solution_result = wave_function.collapse(None);
 
@@ -722,6 +812,11 @@ fn main() {
         for (node, node_state) in solution.node_state_per_node.iter() {
             println!("{} is {}", node, node_state);
         }
+
+        let zebra_solution = ZebraSolution {
+            collapsed_wave_function: solution
+        };
+        zebra_solution.print();
     }
     else {
         println!("Error: {}", solution_result.err().unwrap());
