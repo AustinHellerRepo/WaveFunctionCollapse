@@ -1,4 +1,6 @@
 use std::{default, collections::{HashMap, HashSet}, slice::Iter};
+use log::debug;
+extern crate pretty_env_logger;
 
 use uuid::Uuid;
 use wave_function_collapse::wave_function::{
@@ -8,7 +10,7 @@ use wave_function_collapse::wave_function::{
     CollapsedWaveFunction
 };
 
-#[derive(Eq, Hash, PartialEq)]
+#[derive(Eq, Hash, PartialEq, Debug)]
 enum InformationType {
     NationalOrigin,
     HouseColor,
@@ -313,6 +315,9 @@ impl Dependency {
             target: target
         }
     }
+    fn is_static(&self) -> bool {
+        self.target.is_none()
+    }
     fn is_staticly_applicable(&self, from_house_index: usize, from_information_type: &InformationType) -> bool {
         if self.subject.information_type.as_ref().unwrap() == from_information_type {
             if self.target.is_none() {
@@ -348,6 +353,12 @@ impl Dependency {
         }
         false
     }
+    fn is_cross_domain(&self) -> bool {
+        if let Some(target) = &self.target {
+            return self.subject.information_type.as_ref().unwrap() != target.information_type.as_ref().unwrap()
+        }
+        false
+    }
     fn is_relatively_applicable(&self, from_house_index: usize, from_information_type: &InformationType, to_house_index: usize, to_information_type: &InformationType) -> bool {
         if self.subject.information_type.as_ref().unwrap() == from_information_type {
             if let Some(target) = &self.target {
@@ -365,7 +376,9 @@ impl Dependency {
                             }
                         },
                         Proximity::RelativeLeft => {
-                            // when the from_house_index is to the immediate left of to_house_index
+                            // when the from_house_index is somewhere to the left of to_house_index
+                            // TODO do not force the target but instead restrict all other house indexes
+                            todo!("need to add another 'is' method for 'is target restricted' and maybe only use that");
                             if from_house_index < to_house_index {
                                 return true;
                             }
@@ -376,6 +389,7 @@ impl Dependency {
                             }
                         },
                         Proximity::RelativeRight => {
+                            todo!("need to add another 'is' method for 'is target restricted' and maybe only use that");
                             if from_house_index > to_house_index {
                                 return true;
                             }
@@ -386,6 +400,7 @@ impl Dependency {
                             }
                         }
                         Proximity::NotSame => {
+                            todo!("need to add another 'is' method for 'is target restricted' and maybe only use that");
                             if from_house_index != to_house_index {
                                 return true;
                             }
@@ -425,9 +440,9 @@ impl ZebraPuzzle {
         let mut node_id_per_information_type_per_house_index: Vec<HashMap<InformationType, &str>> = Vec::new();
         {
             // create all node ids
-            for _ in 0..6 {
-                for _ in InformationType::iter() {
-                    let node_id: String = Uuid::new_v4().to_string();
+            for house_index in 0..5 {
+                for information_type in InformationType::iter() {
+                    let node_id: String = format!("{}_{:?}_{}", house_index, information_type, Uuid::new_v4().to_string());
                     all_node_ids.push(node_id);
                 }
             }
@@ -473,74 +488,69 @@ impl ZebraPuzzle {
         }
 
         // iterate over each node with each other node to create node state collections per combination
+        let mut permitted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id: HashMap<&str, HashMap<&str, HashMap<String, Vec<String>>>> = HashMap::new();
+        let mut restricted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id: HashMap<&str, HashMap<&str, HashMap<String, Vec<String>>>> = HashMap::new();
+
         let mut existing_node_state_id_per_information_type_per_house_index: HashMap<usize, HashMap<&InformationType, String>> = HashMap::new();
-        let mut existing_node_state_collection_ids_per_to_node_id_per_from_node_id: HashMap<String, HashMap<String, Vec<String>>> = HashMap::new();
         {
-            let mut existing_node_state_collection_id_per_to_node_state_id_per_from_node_state_id: HashMap<String, HashMap<String, String>> = HashMap::new();
             for from_house_index in 0..node_id_per_information_type_per_house_index.len() {
                 for (from_information_type, from_node_id) in node_id_per_information_type_per_house_index[from_house_index].iter() {
-                    let from_node_id: String = String::from(*from_node_id);
+                    let from_node_id: &str = from_node_id;
                     for dependency in self.dependencies.iter() {
-                        if dependency.is_staticly_applicable(from_house_index, from_information_type) {
-                            // the nth house for this specific information type is this subject value
-                            let node_state_id: String = dependency.subject.get_node_state_id();
+                        if dependency.is_static() {
+                            if dependency.is_staticly_applicable(from_house_index, from_information_type) {
+                                // the nth house for this specific information type is this subject value
+                                let node_state_id: String = dependency.subject.get_node_state_id();
 
-                            if !existing_node_state_id_per_information_type_per_house_index.contains_key(&from_house_index) {
-                                let node_state_id_per_information_type: HashMap<&InformationType, String> = HashMap::new();
-                                existing_node_state_id_per_information_type_per_house_index.insert(from_house_index, node_state_id_per_information_type);
+                                if !existing_node_state_id_per_information_type_per_house_index.contains_key(&from_house_index) {
+                                    let node_state_id_per_information_type: HashMap<&InformationType, String> = HashMap::new();
+                                    existing_node_state_id_per_information_type_per_house_index.insert(from_house_index, node_state_id_per_information_type);
+                                }
+                                existing_node_state_id_per_information_type_per_house_index.get_mut(&from_house_index).unwrap().insert(from_information_type, node_state_id);
                             }
-                            existing_node_state_id_per_information_type_per_house_index.get_mut(&from_house_index).unwrap().insert(from_information_type, node_state_id);
                         }
                     }
 
                     for to_house_index in 0..node_id_per_information_type_per_house_index.len() {
                         for (to_information_type, to_node_id) in node_id_per_information_type_per_house_index[to_house_index].iter() {
-                            let to_node_id: String = String::from(*to_node_id);
+                            let to_node_id: &str = to_node_id;
                             if from_node_id != to_node_id {
-                                let mut used_from_node_state_ids: HashSet<String> = HashSet::new();
                                 for dependency in self.dependencies.iter() {
-                                    if dependency.is_relatively_applicable(from_house_index, from_information_type, to_house_index, to_information_type) {
-                                        // TODO create specific node state collection, if it does not yet exist
-                                        let from_node_state_id: String = dependency.subject.get_node_state_id();
-                                        let to_node_state_id: String = dependency.target.as_ref().unwrap().get_node_state_id();
+                                    if !dependency.is_static() {
+                                        if !dependency.is_cross_domain() && !dependency.is_relatively_applicable(from_house_index, from_information_type, to_house_index, to_information_type) {
+                                            // if the information types are the same, then any applicable dependencies should be restrictive
 
-                                        used_from_node_state_ids.insert(from_node_state_id.clone());
+                                            let from_node_state_id: String = dependency.subject.get_node_state_id();
+                                            let to_node_state_id: String = dependency.target.as_ref().unwrap().get_node_state_id();
 
-                                        if !existing_node_state_collection_id_per_to_node_state_id_per_from_node_state_id.contains_key(&from_node_state_id) {
-                                            existing_node_state_collection_id_per_to_node_state_id_per_from_node_state_id.insert(from_node_state_id.clone(), HashMap::new());
-                                        }
-                                        if !existing_node_state_collection_id_per_to_node_state_id_per_from_node_state_id.get(from_node_state_id.as_str()).unwrap().contains_key(&to_node_state_id) {
-                                            let node_state_collection_id: String = Uuid::new_v4().to_string();
-                                            let node_state_collection = NodeStateCollection {
-                                                id: node_state_collection_id.clone(),
-                                                node_state_id: from_node_state_id.clone(),
-                                                node_state_ids: vec![to_node_state_id.clone()]
-                                            };
-                                            node_state_collections.push(node_state_collection);
-                                            existing_node_state_collection_id_per_to_node_state_id_per_from_node_state_id.get_mut(from_node_state_id.as_str()).unwrap().insert(to_node_state_id.clone(), node_state_collection_id.clone());
-                                        }
-                                        let existing_node_state_collection_id: &str = existing_node_state_collection_id_per_to_node_state_id_per_from_node_state_id.get(from_node_state_id.as_str()).unwrap().get(&to_node_state_id).unwrap();
-
-                                        if !existing_node_state_collection_ids_per_to_node_id_per_from_node_id.contains_key(&from_node_id) {
-                                            existing_node_state_collection_ids_per_to_node_id_per_from_node_id.insert(from_node_id.clone(), HashMap::new());
-                                        }
-                                        if !existing_node_state_collection_ids_per_to_node_id_per_from_node_id.get(&from_node_id).unwrap().contains_key(&to_node_id) {
-                                            existing_node_state_collection_ids_per_to_node_id_per_from_node_id.get_mut(&from_node_id).unwrap().insert(to_node_id.clone(), Vec::new());
-                                        }
-                                        existing_node_state_collection_ids_per_to_node_id_per_from_node_id.get_mut(&from_node_id).unwrap().get_mut(&to_node_id).unwrap().push(String::from(existing_node_state_collection_id));
-                                    }
-                                }
-
-                                if existing_node_state_collection_ids_per_to_node_id_per_from_node_id.contains_key(&from_node_id) && existing_node_state_collection_ids_per_to_node_id_per_from_node_id.get(&from_node_id).unwrap().contains_key(&to_node_id) {
-                                    if from_house_index != to_house_index && from_information_type == to_information_type {
-                                        // fill in the remaining not-same node state collection ids
-                                        for node_state_id in from_information_type.get_node_state_ids().iter() {
-                                            let node_state_id: &str = node_state_id;
-                                            if !used_from_node_state_ids.contains(node_state_id) {
-                                                // this is a node state id that was not tied to this neighbor
-                                                let missing_node_state_collection_id = not_same_node_state_collection_id_per_node_state_id_per_information_type.get(from_information_type).unwrap().get(node_state_id).unwrap();
-                                                existing_node_state_collection_ids_per_to_node_id_per_from_node_id.get_mut(&from_node_id).unwrap().get_mut(&to_node_id).unwrap().push(missing_node_state_collection_id.clone());
+                                            // this dependency does not exist between these two nodes and should therefore be restricted
+                                            if !restricted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.contains_key(from_node_id) {
+                                                restricted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.insert(from_node_id, HashMap::new());
                                             }
+                                            if !restricted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get(from_node_id).unwrap().contains_key(to_node_id) {
+                                                restricted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get_mut(from_node_id).unwrap().insert(to_node_id, HashMap::new());
+                                            }
+                                            if !restricted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get(from_node_id).unwrap().get(to_node_id).unwrap().contains_key(&from_node_state_id) {
+                                                restricted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get_mut(from_node_id).unwrap().get_mut(to_node_id).unwrap().insert(from_node_state_id.clone(), Vec::new());
+                                            }
+                                            restricted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get_mut(from_node_id).unwrap().get_mut(to_node_id).unwrap().get_mut(&from_node_state_id).unwrap().push(to_node_state_id);
+                                        }
+                                        else if dependency.is_cross_domain() && dependency.is_relatively_applicable(from_house_index, from_information_type, to_house_index, to_information_type) {
+                                            // else if the information types are different, then node state collection is purely additive
+                                            
+                                            let from_node_state_id: String = dependency.subject.get_node_state_id();
+                                            let to_node_state_id: String = dependency.target.as_ref().unwrap().get_node_state_id();
+
+                                            if !permitted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.contains_key(from_node_id) {
+                                                permitted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.insert(from_node_id, HashMap::new());
+                                            }
+                                            if !permitted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get(from_node_id).unwrap().contains_key(to_node_id) {
+                                                permitted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get_mut(from_node_id).unwrap().insert(to_node_id, HashMap::new());
+                                            }
+                                            if !permitted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get(from_node_id).unwrap().get(to_node_id).unwrap().contains_key(&from_node_state_id) {
+                                                permitted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get_mut(from_node_id).unwrap().get_mut(to_node_id).unwrap().insert(from_node_state_id.clone(), Vec::new());
+                                            }
+                                            permitted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get_mut(from_node_id).unwrap().get_mut(to_node_id).unwrap().get_mut(&from_node_state_id).unwrap().push(to_node_state_id);
                                         }
                                     }
                                 }
@@ -554,7 +564,7 @@ impl ZebraPuzzle {
         // create nodes, using either all possible node states or the specific previously determined state
         // set the possible node states per node given its information type
         let mut node_index: usize = 0;
-        for house_index in 0..6 as usize {
+        for house_index in 0..5 as usize {
             for information_type in InformationType::iter() {
                 let node_id: &str = all_node_ids.get(node_index).unwrap();
                 let mut node_state_ids: Vec<String> = Vec::new();
@@ -569,7 +579,7 @@ impl ZebraPuzzle {
                 // tie this node to all other neighbors of the same information type
                 let mut node_state_collection_ids_per_neighbor_node_id: HashMap<String, Vec<String>> = HashMap::new();
                 let mut neighbor_node_index: usize = 0;
-                for neighbor_house_index in 0..6 as usize {
+                for neighbor_house_index in 0..5 as usize {
                     for neighbor_information_type in InformationType::iter() {
                         let neighbor_node_id: &str = all_node_ids.get(neighbor_node_index).unwrap();
                         if node_index != neighbor_node_index {
@@ -611,6 +621,8 @@ impl ZebraSolution {
 }
 
 fn main() {
+    std::env::set_var("RUST_LOG", "trace");
+    pretty_env_logger::init();
 
     // There are five houses.
     // The Englishman lives in the red house.
@@ -707,6 +719,9 @@ fn main() {
 
     if let Ok(solution) = solution_result {
         // TODO print the result
+        for (node, node_state) in solution.node_state_per_node.iter() {
+            println!("{} is {}", node, node_state);
+        }
     }
     else {
         println!("Error: {}", solution_result.err().unwrap());

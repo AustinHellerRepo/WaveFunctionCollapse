@@ -165,10 +165,12 @@ impl<'a> CollapsableWaveFunction<'a> {
             // if there is a mask_per_neighbor for this node's current state
             if let Some(mask_per_neighbor) = current_collapsable_node.mask_per_neighbor_per_state.get(current_possible_state) {
                 for neighbor_node_id in current_collapsable_node.neighbor_node_ids.iter() {
-                    let wrapped_neighbor_collapsable_node = self.collapsable_node_per_id.get(neighbor_node_id).unwrap();
-                    let mut neighbor_collapsable_node = wrapped_neighbor_collapsable_node.borrow_mut();
-                    let mask = mask_per_neighbor.get(neighbor_node_id).unwrap();
-                    neighbor_collapsable_node.subtract_mask(mask);  // TODO make each node contain a memo structure such that the masks are not needed to revert to the previous state since subtractions happen in reverse order anyway
+                    if mask_per_neighbor.contains_key(neighbor_node_id) {
+                        let wrapped_neighbor_collapsable_node = self.collapsable_node_per_id.get(neighbor_node_id).unwrap();
+                        let mut neighbor_collapsable_node = wrapped_neighbor_collapsable_node.borrow_mut();
+                        let mask = mask_per_neighbor.get(neighbor_node_id).unwrap();
+                        neighbor_collapsable_node.subtract_mask(mask);  // TODO make each node contain a memo structure such that the masks are not needed to revert to the previous state since subtractions happen in reverse order anyway
+                    }
                 }
             }
         }
@@ -208,10 +210,14 @@ impl<'a> CollapsableWaveFunction<'a> {
             mask_per_neighbor_per_state = &current_collapsable_node.mask_per_neighbor_per_state;
             if let Some(mask_per_neighbor) = mask_per_neighbor_per_state.get(current_possible_state) {
                 for neighbor_node_id in neighbor_node_ids.iter() {
-                    let wrapped_neighbor_collapsable_node = self.collapsable_node_per_id.get(neighbor_node_id).unwrap();
-                    let mut neighbor_collapsable_node = wrapped_neighbor_collapsable_node.borrow_mut();
-                    let mask = mask_per_neighbor.get(neighbor_node_id).unwrap();
-                    neighbor_collapsable_node.add_mask(mask);
+                    if mask_per_neighbor.contains_key(neighbor_node_id) {
+                        let wrapped_neighbor_collapsable_node = self.collapsable_node_per_id.get(neighbor_node_id).unwrap();
+                        let mut neighbor_collapsable_node = wrapped_neighbor_collapsable_node.borrow_mut();
+                        //debug!("looking for mask from parent {:?} to child {:?}.", current_collapsable_node.id, neighbor_node_id);
+                        //debug!("mask_per_neighbor: {:?}", mask_per_neighbor);
+                        let mask = mask_per_neighbor.get(neighbor_node_id).unwrap();
+                        neighbor_collapsable_node.add_mask(mask);
+                    }
                 }
             }
         }
@@ -557,12 +563,15 @@ impl WaveFunction {
             is_sort_required: false
         }
     }
+
     pub fn get_nodes(&self) -> Vec<Node> {
         self.nodes.clone()
     }
+
     pub fn get_node_state_collections(&self) -> Vec<NodeStateCollection> {
         self.node_state_collections.clone()
     }
+
     pub fn validate(&self) -> Result<(), String> {
         let nodes_length: usize = self.nodes.len();
 
@@ -637,9 +646,11 @@ impl WaveFunction {
             Ok(())
         }
     }
+
     pub fn sort(&mut self) {
         self.is_sort_required = true;
     }
+
     #[time_graph::instrument]
     fn get_collapsable_wave_function(&self, random_seed: Option<u64>) -> CollapsableWaveFunction {
         let mut node_per_id: HashMap<&str, &Node> = HashMap::new();
@@ -659,7 +670,7 @@ impl WaveFunction {
         //              push the boolean into bit vector
         //          push bit vector into hashmap of mask per node state per neighbor node
 
-        // the mapped view, oriented by the node's state, returning a specific BitVec for the provided neighbor node id, per node
+        // neighbor_mask_mapped_view_per_node_id is equivalent to mask_per_child_neighbor_per_state_per_node
         let mut neighbor_mask_mapped_view_per_node_id: HashMap<&str, HashMap<&str, HashMap<&str, BitVec>>> = HashMap::new();
 
         time_graph::spanned!("creating masks for nodes", {
@@ -675,6 +686,8 @@ impl WaveFunction {
                 for parent_neighbor_node in self.nodes.iter() {
                     // if you find that this is a parent neighbor node
                     if parent_neighbor_node.node_state_collection_ids_per_neighbor_node_id.contains_key(&child_node.id) {
+
+                        debug!("constructing mask for {:?}'s child node {:?}.", parent_neighbor_node.id, child_node.id);
 
                         let mut mask_per_parent_state: HashMap<&str, BitVec> = HashMap::new();
 
@@ -731,70 +744,6 @@ impl WaveFunction {
 
                 neighbor_mask_mapped_view_per_node_id.insert(node_id, mask_per_neighbor_per_state);
             }
-
-            /*
-            let mut mask_per_node_state_collection_id: HashMap<&str, BitVec> = HashMap::new();
-            {
-                let node_state_ids = &self.all_possible_node_state_ids;
-                for (node_state_collection_id_string, node_state_collection) in node_state_collection_per_id.iter() {
-                    let node_state_collection_id: &str = node_state_collection_id_string;
-                    let mut mask = BitVec::new();
-                    for node_state_id_string in node_state_ids.iter() {
-                        if node_state_collection.node_state_ids.contains(node_state_id_string) {
-                            mask.push(true)
-                        }
-                        else {
-                            mask.push(false)
-                        }
-                    }
-                    mask_per_node_state_collection_id.insert(node_state_collection_id, mask);
-                }
-            }
-
-            for node in self.nodes.iter() {
-                let node_id: &str = &node.id;
-
-                //debug!("creating masks for node {node_id}.");
-
-                let mut mask_per_neighbor_per_state: HashMap<&str, HashMap<&str, BitVec>> = HashMap::new();
-
-                for (neighbor_node_id_string, node_state_collection_ids) in node.node_state_collection_ids_per_neighbor_node_id.iter() {
-                    let neighbor_node_id: &str = neighbor_node_id_string;
-
-                    //debug!("creating neighbor mask for node {node_id} neighbor {neighbor_node_id}.");
-
-                    // TODO determine the masks for this neighbor based on its possible node states instead of using all states in mask creation
-
-                    // this loop ultimately is over each possible state of this node
-                    for node_state_collection_id_string in node_state_collection_ids.iter() {
-                        let node_state_collection_id: &str = &node_state_collection_id_string;
-                        let node_state_collection = node_state_collection_per_id.get(node_state_collection_id).expect("The node state collection id should exist in the complete list of node state collections.");
-                        let node_state_id: &str = &node_state_collection.node_state_id;
-                        let mask = mask_per_node_state_collection_id.get(node_state_collection_id).unwrap().clone();
-
-                        if !mask_per_neighbor_per_state.contains_key(node_state_id) {
-                            mask_per_neighbor_per_state.insert(node_state_id, HashMap::new());
-                        }
-                        let mask_per_neighbor = mask_per_neighbor_per_state.get_mut(node_state_id).unwrap();
-                        
-                        mask_per_neighbor.insert(neighbor_node_id, mask);
-                    }
-
-                    //debug!("storing for neighbor node {neighbor_node_id} neighbor_mask_mapped_view {:?}.", node_state_mask_per_node_state_id);
-                    //neighbor_mask_mapped_view.insert_individual(neighbor_node_id, node_state_mask_per_node_state_id);
-                }
-
-                //debug!("created masks for node {node_id} as neighbor_mask_mapped_view {:?}.", neighbor_mask_mapped_view);
-
-                //let boxed_neighbor_mask_mapped_view = Rc::new(RefCell::new(neighbor_mask_mapped_view));
-                //neighbor_mask_mapped_view_per_node_id.insert(node_id, boxed_neighbor_mask_mapped_view.clone());
-                neighbor_mask_mapped_view_per_node_id.insert(node_id, mask_per_neighbor_per_state);
-                
-                for neighbor_node_id_string in node.node_state_collection_ids_per_neighbor_node_id.keys() {
-                    let neighbor_node_id: &str = neighbor_node_id_string;
-                }
-            }
-            */
         });
 
         let mut node_state_indexed_view_per_node_id: HashMap<&str, IndexedView<&str>> = HashMap::new();
@@ -821,7 +770,6 @@ impl WaveFunction {
 
         let mut random_instance: Option<ChaCha8Rng> = None;
 
-        let mut collapsable_node_index: usize = 0;
         let mut collapsable_nodes: Vec<Rc<RefCell<CollapsableNode>>> = Vec::new();
         let mut collapsable_node_per_id: HashMap<&str, Rc<RefCell<CollapsableNode>>> = HashMap::new();
         // contains the mask to apply to the neighbor when this node is in a specific state
@@ -841,7 +789,6 @@ impl WaveFunction {
             }
 
             collapsable_nodes.push(Rc::new(RefCell::new(collapsable_node)));
-            collapsable_node_index = collapsable_node_index + 1;
         }
 
         for wrapped_collapsable_node in collapsable_nodes.iter() {
@@ -851,6 +798,7 @@ impl WaveFunction {
 
         CollapsableWaveFunction::new(collapsable_nodes, collapsable_node_per_id)
     }
+
     #[time_graph::instrument]
     pub fn collapse_into_steps(&self, random_seed: Option<u64>) -> Result<Vec<NodeState>, String> {
         let mut node_states: Vec<NodeState> = Vec::new();
@@ -878,7 +826,7 @@ impl WaveFunction {
 
             debug!("stored node state");
             if is_successful {
-                debug!("incremented node state");
+                debug!("incremented node state: {:?}", node_states.last());
                 collapsable_wave_function.alter_reference_to_current_collapsable_node_mask();
                 debug!("altered reference");
                 if !collapsable_wave_function.is_at_least_one_neighbor_fully_restricted() {
@@ -914,6 +862,7 @@ impl WaveFunction {
 
         Ok(node_states)
     }
+
     #[time_graph::instrument]
     pub fn collapse(&self, random_seed: Option<u64>) -> Result<CollapsedWaveFunction, String> {
 
@@ -1034,11 +983,13 @@ impl WaveFunction {
             Ok(collapsed_wave_function)
         }
     }
+
     #[time_graph::instrument]
     pub fn save_to_file(&self, file_path: &str) {
         let serialized_self = serde_json::to_string(self).unwrap();
         std::fs::write(file_path, serialized_self).unwrap();
     }
+
     #[time_graph::instrument]
     pub fn load_from_file(file_path: &str) -> Self {
         let serialized_self = std::fs::read_to_string(file_path).unwrap();
@@ -1224,6 +1175,58 @@ mod unit_tests {
         let wave_function = WaveFunction::new(nodes, node_state_collections);
         let validation_result = wave_function.validate();
         assert_eq!("Not all nodes connect together. At least one node must be able to traverse to all other nodes.", validation_result.err().unwrap());
+    }
+
+    #[test]
+    fn two_nodes_with_only_one_is_a_neighbor_restriction_ignored() {
+        init();
+
+        let mut nodes: Vec<Node> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection> = Vec::new();
+
+        let unrestricted_node_state_id: String = String::from("unrestricted");
+        let from_restrictive_node_state_id: String = String::from("from_restrictive");
+        let to_restrictive_node_state_id: String = String::from("to_restrictive");
+
+        nodes.push(Node { 
+            id: Uuid::new_v4().to_string(),
+            node_state_ids: vec![from_restrictive_node_state_id.clone(), unrestricted_node_state_id.clone()],
+            node_state_collection_ids_per_neighbor_node_id: HashMap::new()
+        });
+
+        nodes.push(Node { 
+            id: Uuid::new_v4().to_string(),
+            node_state_ids: vec![unrestricted_node_state_id.clone()],
+            node_state_collection_ids_per_neighbor_node_id: HashMap::new()
+        });
+
+        let first_node_id: String = nodes[0].id.clone();
+        let second_node_id: String = nodes[1].id.clone();
+
+        let restrictive_node_state_collection_id: String = Uuid::new_v4().to_string();
+        let restrictive_node_state_collection = NodeStateCollection {
+            id: restrictive_node_state_collection_id.clone(),
+            node_state_id: from_restrictive_node_state_id.clone(),
+            node_state_ids: vec![to_restrictive_node_state_id.clone()]
+        };
+        node_state_collections.push(restrictive_node_state_collection);
+
+        nodes[0].node_state_collection_ids_per_neighbor_node_id.insert(second_node_id.clone(), Vec::new());
+        nodes[0].node_state_collection_ids_per_neighbor_node_id.get_mut(&second_node_id).unwrap().push(restrictive_node_state_collection_id.clone());
+
+        let mut wave_function = WaveFunction::new(nodes, node_state_collections);
+        wave_function.validate().unwrap();
+
+        for is_sort_required in [false, true] {
+            if is_sort_required {
+                wave_function.sort();
+            }
+            let collapsed_wave_function_result = wave_function.collapse(None);
+            let collapsed_wave_function = collapsed_wave_function_result.unwrap();
+
+            assert_eq!(&unrestricted_node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
+            assert_eq!(&unrestricted_node_state_id, collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap());
+        }
     }
 
     #[test]
@@ -2737,6 +2740,239 @@ mod unit_tests {
                 assert_ne!(collapsed_wave_function.node_state_per_node.get("node_4").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1").unwrap());
                 assert_eq!(collapsed_wave_function.node_state_per_node.get("node_4").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2").unwrap());
                 assert_ne!(collapsed_wave_function.node_state_per_node.get("node_4").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3").unwrap());
+            }
+        }
+    }
+
+    #[test]
+    fn four_nodes_as_square_neighbors_in_cycle_alone() {
+        init();
+
+        let mut rng = rand::thread_rng();
+
+        for _ in 0..100 {
+
+            let random_seed = Some(rng.next_u64());
+
+            let mut nodes: Vec<Node> = Vec::new();
+            let mut node_state_collections: Vec<NodeStateCollection> = Vec::new();
+
+            let one_node_state_id: String = String::from("state_A");
+            let two_node_state_id: String = String::from("state_B");
+
+            nodes.push(Node { 
+                id: String::from("node_1"),
+                node_state_ids: vec![one_node_state_id.clone(), two_node_state_id.clone()],
+                node_state_collection_ids_per_neighbor_node_id: HashMap::new()
+            });
+            nodes.push(Node { 
+                id: String::from("node_2"),
+                node_state_ids: vec![one_node_state_id.clone(), two_node_state_id.clone()],
+                node_state_collection_ids_per_neighbor_node_id: HashMap::new()
+            });
+            nodes.push(Node { 
+                id: String::from("node_3"),
+                node_state_ids: vec![one_node_state_id.clone(), two_node_state_id.clone()],
+                node_state_collection_ids_per_neighbor_node_id: HashMap::new()
+            });
+            nodes.push(Node { 
+                id: String::from("node_4"),
+                node_state_ids: vec![one_node_state_id.clone(), two_node_state_id.clone()],
+                node_state_collection_ids_per_neighbor_node_id: HashMap::new()
+            });
+
+            let one_forces_two_node_state_collection_id: String = Uuid::new_v4().to_string();
+            let one_forces_two_node_state_collection = NodeStateCollection {
+                id: one_forces_two_node_state_collection_id.clone(),
+                node_state_id: one_node_state_id.clone(),
+                node_state_ids: vec![two_node_state_id.clone()]
+            };
+            node_state_collections.push(one_forces_two_node_state_collection);
+
+            let two_forces_one_node_state_collection_id: String = Uuid::new_v4().to_string();
+            let two_forces_one_node_state_collection = NodeStateCollection {
+                id: two_forces_one_node_state_collection_id.clone(),
+                node_state_id: two_node_state_id.clone(),
+                node_state_ids: vec![one_node_state_id.clone()]
+            };
+            node_state_collections.push(two_forces_one_node_state_collection);
+
+            let possible_node_ids: Vec<&str> = vec!["node_1", "node_2", "node_3", "node_4"];
+            for (node_index, node) in nodes.iter_mut().enumerate() {
+                for (other_node_index, other_node_id) in possible_node_ids.iter().enumerate() {
+                    if (node_index + 1) % 4 == other_node_index {
+                        node.node_state_collection_ids_per_neighbor_node_id.insert(String::from(*other_node_id), vec![one_forces_two_node_state_collection_id.clone(), two_forces_one_node_state_collection_id.clone()]);
+                    }
+                }
+            }
+
+            let mut wave_function = WaveFunction::new(nodes, node_state_collections);
+            wave_function.validate().unwrap();
+            
+            for is_sort_required in [false, true] {
+                if is_sort_required {
+                    wave_function.sort();
+                }
+                let collapsed_wave_function_result = wave_function.collapse(random_seed);
+
+                if let Err(error_message) = collapsed_wave_function_result {
+                    panic!("Error: {error_message}");
+                }
+
+                let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
+
+                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_1").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2").unwrap());
+                assert_eq!(collapsed_wave_function.node_state_per_node.get("node_1").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3").unwrap());
+                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_1").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4").unwrap());
+                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_2").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1").unwrap());
+                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_2").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3").unwrap());
+                assert_eq!(collapsed_wave_function.node_state_per_node.get("node_2").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4").unwrap());
+                assert_eq!(collapsed_wave_function.node_state_per_node.get("node_3").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1").unwrap());
+                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_3").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2").unwrap());
+                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_3").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4").unwrap());
+                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_4").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1").unwrap());
+                assert_eq!(collapsed_wave_function.node_state_per_node.get("node_4").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2").unwrap());
+                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_4").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3").unwrap());
+            }
+        }
+    }
+
+    #[test]
+    fn four_nodes_as_square_neighbors_in_cycle_affects_another_square() {
+        init();
+
+        let mut rng = rand::thread_rng();
+
+        for _ in 0..100 {
+
+            let random_seed = Some(rng.next_u64());
+
+            let mut nodes: Vec<Node> = Vec::new();
+            let mut node_state_collections: Vec<NodeStateCollection> = Vec::new();
+
+            let one_node_state_id: String = String::from("state_A");
+            let two_node_state_id: String = String::from("state_B");
+
+            let one_forces_two_node_state_collection_id: String = Uuid::new_v4().to_string();
+            let one_forces_two_node_state_collection = NodeStateCollection {
+                id: one_forces_two_node_state_collection_id.clone(),
+                node_state_id: one_node_state_id.clone(),
+                node_state_ids: vec![two_node_state_id.clone()]
+            };
+            node_state_collections.push(one_forces_two_node_state_collection);
+
+            let two_forces_one_node_state_collection_id: String = Uuid::new_v4().to_string();
+            let two_forces_one_node_state_collection = NodeStateCollection {
+                id: two_forces_one_node_state_collection_id.clone(),
+                node_state_id: two_node_state_id.clone(),
+                node_state_ids: vec![one_node_state_id.clone()]
+            };
+            node_state_collections.push(two_forces_one_node_state_collection);
+
+            nodes.push(Node { 
+                id: String::from("node_1a"),
+                node_state_ids: vec![two_node_state_id.clone()],
+                node_state_collection_ids_per_neighbor_node_id: HashMap::new()
+            });
+            nodes.push(Node { 
+                id: String::from("node_2a"),
+                node_state_ids: vec![one_node_state_id.clone(), two_node_state_id.clone()],
+                node_state_collection_ids_per_neighbor_node_id: HashMap::new()
+            });
+            nodes.push(Node { 
+                id: String::from("node_3a"),
+                node_state_ids: vec![one_node_state_id.clone(), two_node_state_id.clone()],
+                node_state_collection_ids_per_neighbor_node_id: HashMap::new()
+            });
+            nodes.push(Node { 
+                id: String::from("node_4a"),
+                node_state_ids: vec![one_node_state_id.clone(), two_node_state_id.clone()],
+                node_state_collection_ids_per_neighbor_node_id: HashMap::new()
+            });
+
+            let possible_node_ids: Vec<&str> = vec!["node_1a", "node_2a", "node_3a", "node_4a"];
+            for (node_index, node) in nodes.iter_mut().enumerate() {
+                for (other_node_index, other_node_id) in possible_node_ids.iter().enumerate() {
+                    if (node_index + 1) % 4 == other_node_index {
+                        node.node_state_collection_ids_per_neighbor_node_id.insert(String::from(*other_node_id), vec![one_forces_two_node_state_collection_id.clone(), two_forces_one_node_state_collection_id.clone()]);
+                    }
+                }
+            }
+
+            nodes.push(Node { 
+                id: String::from("node_1b"),
+                node_state_ids: vec![two_node_state_id.clone()],
+                node_state_collection_ids_per_neighbor_node_id: HashMap::new()
+            });
+            nodes.push(Node { 
+                id: String::from("node_2b"),
+                node_state_ids: vec![one_node_state_id.clone(), two_node_state_id.clone()],
+                node_state_collection_ids_per_neighbor_node_id: HashMap::new()
+            });
+            nodes.push(Node { 
+                id: String::from("node_3b"),
+                node_state_ids: vec![one_node_state_id.clone(), two_node_state_id.clone()],
+                node_state_collection_ids_per_neighbor_node_id: HashMap::new()
+            });
+            nodes.push(Node { 
+                id: String::from("node_4b"),
+                node_state_ids: vec![one_node_state_id.clone(), two_node_state_id.clone()],
+                node_state_collection_ids_per_neighbor_node_id: HashMap::new()
+            });
+
+            let possible_node_ids: Vec<&str> = vec!["node_1b", "node_2b", "node_3b", "node_4b"];
+            for (node_index, node) in nodes.iter_mut().enumerate() {
+                if node_index > 3 {
+                    for (other_node_index, other_node_id) in possible_node_ids.iter().enumerate() {
+                        if (node_index + 1) % 4 == other_node_index {
+                            node.node_state_collection_ids_per_neighbor_node_id.insert(String::from(*other_node_id), vec![one_forces_two_node_state_collection_id.clone(), two_forces_one_node_state_collection_id.clone()]);
+                        }
+                    }
+                }
+            }
+
+            nodes[0].node_state_collection_ids_per_neighbor_node_id.insert(String::from("node_1b"), vec![one_forces_two_node_state_collection_id]);
+
+            let mut wave_function = WaveFunction::new(nodes, node_state_collections);
+            wave_function.validate().unwrap();
+            
+            for is_sort_required in [false, true] {
+                if is_sort_required {
+                    wave_function.sort();
+                }
+                let collapsed_wave_function_result = wave_function.collapse(random_seed);
+
+                if let Err(error_message) = collapsed_wave_function_result {
+                    panic!("Error: {error_message}");
+                }
+
+                let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
+
+                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_1a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2a").unwrap());
+                assert_eq!(collapsed_wave_function.node_state_per_node.get("node_1a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3a").unwrap());
+                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_1a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4a").unwrap());
+                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_2a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1a").unwrap());
+                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_2a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3a").unwrap());
+                assert_eq!(collapsed_wave_function.node_state_per_node.get("node_2a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4a").unwrap());
+                assert_eq!(collapsed_wave_function.node_state_per_node.get("node_3a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1a").unwrap());
+                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_3a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2a").unwrap());
+                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_3a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4a").unwrap());
+                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_4a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1a").unwrap());
+                assert_eq!(collapsed_wave_function.node_state_per_node.get("node_4a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2a").unwrap());
+                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_4a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3a").unwrap());
+                assert_eq!(collapsed_wave_function.node_state_per_node.get("node_1a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1b").unwrap());
+                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_1b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2b").unwrap());
+                assert_eq!(collapsed_wave_function.node_state_per_node.get("node_1b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3b").unwrap());
+                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_1b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4b").unwrap());
+                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_2b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1b").unwrap());
+                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_2b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3b").unwrap());
+                assert_eq!(collapsed_wave_function.node_state_per_node.get("node_2b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4b").unwrap());
+                assert_eq!(collapsed_wave_function.node_state_per_node.get("node_3b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1b").unwrap());
+                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_3b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2b").unwrap());
+                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_3b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4b").unwrap());
+                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_4b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1b").unwrap());
+                assert_eq!(collapsed_wave_function.node_state_per_node.get("node_4b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2b").unwrap());
+                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_4b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3b").unwrap());
             }
         }
     }
