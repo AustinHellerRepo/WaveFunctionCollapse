@@ -539,7 +539,19 @@ impl ZebraPuzzle {
                                             if !restricted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get(from_node_id).unwrap().get(to_node_id).unwrap().contains_key(&from_node_state_id) {
                                                 restricted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get_mut(from_node_id).unwrap().get_mut(to_node_id).unwrap().insert(from_node_state_id.clone(), Vec::new());
                                             }
-                                            restricted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get_mut(from_node_id).unwrap().get_mut(to_node_id).unwrap().get_mut(&from_node_state_id).unwrap().push(to_node_state_id);
+                                            restricted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get_mut(from_node_id).unwrap().get_mut(to_node_id).unwrap().get_mut(&from_node_state_id).unwrap().push(to_node_state_id.clone());
+
+                                            // create inverse connections
+                                            if !restricted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.contains_key(to_node_id) {
+                                                restricted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.insert(to_node_id, HashMap::new());
+                                            }
+                                            if !restricted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get(to_node_id).unwrap().contains_key(from_node_id) {
+                                                restricted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get_mut(to_node_id).unwrap().insert(from_node_id, HashMap::new());
+                                            }
+                                            if !restricted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get(to_node_id).unwrap().get(from_node_id).unwrap().contains_key(&to_node_state_id) {
+                                                restricted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get_mut(to_node_id).unwrap().get_mut(from_node_id).unwrap().insert(to_node_state_id.clone(), Vec::new());
+                                            }
+                                            restricted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get_mut(to_node_id).unwrap().get_mut(from_node_id).unwrap().get_mut(&to_node_state_id).unwrap().push(from_node_state_id);
                                         }
                                         else if dependency.is_cross_domain() && dependency.is_relatively_applicable(from_house_index, from_information_type, to_house_index, to_information_type) {
                                             // else if the information types are different, then node state collection is purely additive
@@ -556,7 +568,19 @@ impl ZebraPuzzle {
                                             if !permitted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get(from_node_id).unwrap().get(to_node_id).unwrap().contains_key(&from_node_state_id) {
                                                 permitted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get_mut(from_node_id).unwrap().get_mut(to_node_id).unwrap().insert(from_node_state_id.clone(), Vec::new());
                                             }
-                                            permitted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get_mut(from_node_id).unwrap().get_mut(to_node_id).unwrap().get_mut(&from_node_state_id).unwrap().push(to_node_state_id);
+                                            permitted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get_mut(from_node_id).unwrap().get_mut(to_node_id).unwrap().get_mut(&from_node_state_id).unwrap().push(to_node_state_id.clone());
+
+                                            // create inverse connection
+                                            if !permitted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.contains_key(to_node_id) {
+                                                permitted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.insert(to_node_id, HashMap::new());
+                                            }
+                                            if !permitted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get(to_node_id).unwrap().contains_key(from_node_id) {
+                                                permitted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get_mut(to_node_id).unwrap().insert(from_node_id, HashMap::new());
+                                            }
+                                            if !permitted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get(to_node_id).unwrap().get(from_node_id).unwrap().contains_key(&to_node_state_id) {
+                                                permitted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get_mut(to_node_id).unwrap().get_mut(from_node_id).unwrap().insert(to_node_state_id.clone(), Vec::new());
+                                            }
+                                            permitted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get_mut(to_node_id).unwrap().get_mut(from_node_id).unwrap().get_mut(&to_node_state_id).unwrap().push(from_node_state_id);
                                         }
                                     }
                                 }
@@ -633,6 +657,7 @@ impl ZebraPuzzle {
                                             from_node_state_id: from_node_state_id.clone(),
                                             to_node_state_ids: to_node_state_ids.clone()
                                         };
+                                        debug!("permitting {house_index} {:?} to {neighbor_house_index} {:?} via {:?}", information_type, neighbor_information_type, node_state_collection_key);
                                         if !node_state_collection_id_per_node_state_collection_key.contains_key(&node_state_collection_key) {
                                             let cloned_node_state_collection_key = node_state_collection_key.clone();
                                             let node_state_collection_id: String = Uuid::new_v4().to_string();
