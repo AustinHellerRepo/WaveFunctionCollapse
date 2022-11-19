@@ -608,7 +608,7 @@ impl ZebraPuzzle {
                                                 }
                                                 overriding_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get_mut(to_node_id).unwrap().get_mut(from_node_id).unwrap().get_mut(&to_node_state_id).unwrap().push(from_node_state_id.clone());
 
-                                                // TODO account for when pointing from house 0 to house 1 that, when red, do not permit green since green is to the right of ivory
+                                                // account for when pointing from house 0 to house 1 that, when red, do not permit green since green is to the right of ivory
                                                 for looping_from_node_state_id in from_information_type.get_node_state_ids().iter() {
                                                     if looping_from_node_state_id != &from_node_state_id {
                                                         // this dependency does not exist between these two nodes and should therefore be restricted
