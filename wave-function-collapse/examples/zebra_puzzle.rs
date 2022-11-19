@@ -642,34 +642,39 @@ impl ZebraPuzzle {
                                                 }
                                             }
                                         }
-                                        else if dependency.is_cross_domain() && dependency.is_relatively_applicable(from_house_index, from_information_type, to_house_index, to_information_type) {
+                                        else if dependency.is_cross_domain() {
                                             // else if the information types are different, then node state collection is purely additive
                                             
-                                            let from_node_state_id: String = dependency.subject.get_node_state_id();
-                                            let to_node_state_id: String = dependency.target.as_ref().unwrap().get_node_state_id();
+                                            if dependency.is_relatively_applicable(from_house_index, from_information_type, to_house_index, to_information_type) {
+                                                if dependency.is_direct_pointer() {
+                                                    if !permitted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.contains_key(from_node_id) {
+                                                        permitted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.insert(from_node_id, HashMap::new());
+                                                    }
+                                                    if !permitted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get(from_node_id).unwrap().contains_key(to_node_id) {
+                                                        permitted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get_mut(from_node_id).unwrap().insert(to_node_id, HashMap::new());
+                                                    }
+                                                    if !permitted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get(from_node_id).unwrap().get(to_node_id).unwrap().contains_key(&from_node_state_id) {
+                                                        permitted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get_mut(from_node_id).unwrap().get_mut(to_node_id).unwrap().insert(from_node_state_id.clone(), Vec::new());
+                                                    }
+                                                    permitted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get_mut(from_node_id).unwrap().get_mut(to_node_id).unwrap().get_mut(&from_node_state_id).unwrap().push(to_node_state_id.clone());
 
-                                            if !permitted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.contains_key(from_node_id) {
-                                                permitted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.insert(from_node_id, HashMap::new());
+                                                    // create inverse connection
+                                                    if !permitted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.contains_key(to_node_id) {
+                                                        permitted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.insert(to_node_id, HashMap::new());
+                                                    }
+                                                    if !permitted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get(to_node_id).unwrap().contains_key(from_node_id) {
+                                                        permitted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get_mut(to_node_id).unwrap().insert(from_node_id, HashMap::new());
+                                                    }
+                                                    if !permitted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get(to_node_id).unwrap().get(from_node_id).unwrap().contains_key(&to_node_state_id) {
+                                                        permitted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get_mut(to_node_id).unwrap().get_mut(from_node_id).unwrap().insert(to_node_state_id.clone(), Vec::new());
+                                                    }
+                                                    permitted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get_mut(to_node_id).unwrap().get_mut(from_node_id).unwrap().get_mut(&to_node_state_id).unwrap().push(from_node_state_id);
+                                                }
                                             }
-                                            if !permitted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get(from_node_id).unwrap().contains_key(to_node_id) {
-                                                permitted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get_mut(from_node_id).unwrap().insert(to_node_id, HashMap::new());
+                                            else {
+                                                // TODO tie the domains together such that to_node_id and from_node_id, for all states, only the from_node_state_id contains the to_node_state_id, all others are restricted
+                                                // TODO consider just adding to the restricted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id logic and make a pseudo-fully connected graph cross-domain
                                             }
-                                            if !permitted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get(from_node_id).unwrap().get(to_node_id).unwrap().contains_key(&from_node_state_id) {
-                                                permitted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get_mut(from_node_id).unwrap().get_mut(to_node_id).unwrap().insert(from_node_state_id.clone(), Vec::new());
-                                            }
-                                            permitted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get_mut(from_node_id).unwrap().get_mut(to_node_id).unwrap().get_mut(&from_node_state_id).unwrap().push(to_node_state_id.clone());
-
-                                            // create inverse connection
-                                            if !permitted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.contains_key(to_node_id) {
-                                                permitted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.insert(to_node_id, HashMap::new());
-                                            }
-                                            if !permitted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get(to_node_id).unwrap().contains_key(from_node_id) {
-                                                permitted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get_mut(to_node_id).unwrap().insert(from_node_id, HashMap::new());
-                                            }
-                                            if !permitted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get(to_node_id).unwrap().get(from_node_id).unwrap().contains_key(&to_node_state_id) {
-                                                permitted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get_mut(to_node_id).unwrap().get_mut(from_node_id).unwrap().insert(to_node_state_id.clone(), Vec::new());
-                                            }
-                                            permitted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get_mut(to_node_id).unwrap().get_mut(from_node_id).unwrap().get_mut(&to_node_state_id).unwrap().push(from_node_state_id);
                                         }
                                     }
                                 }
