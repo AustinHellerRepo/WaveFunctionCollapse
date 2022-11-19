@@ -1,5 +1,7 @@
 use std::{slice::Iter, collections::HashMap};
 use colored::{Colorize, ColoredString};
+use log::debug;
+extern crate pretty_env_logger;
 
 use rand::Rng;
 use uuid::Uuid;
@@ -134,21 +136,21 @@ impl Landscape {
             node_state_collection_ids.push(node_state_collection_id);
         }
 
-        let mut node_ids: Vec<String> = Vec::new();
         let mut node_id_per_x_per_y: HashMap<u32, HashMap<u32, String>> = HashMap::new();
         for height_index in 0..self.height {
             let mut node_id_per_x: HashMap<u32, String> = HashMap::new();
             for width_index in 0..self.width {
                 let node_id = format!("{}_{}", width_index, height_index);
-                node_id_per_x.insert(width_index, node_id.clone());
-                node_ids.push(node_id);
+                node_id_per_x.insert(width_index, node_id);
             }
             node_id_per_x_per_y.insert(height_index, node_id_per_x);
         }
 
+        debug!("connecting nodes");
         let mut nodes: Vec<Node> = Vec::new();
         for from_height_index in 0..self.height {
-            for from_width_index in 0..self.width {
+            for from_width_index in (0..self.width) {
+                debug!("setup ({from_width_index}, {from_height_index})");
                 let from_node_id: String = node_id_per_x_per_y.get(&from_height_index).unwrap().get(&from_width_index).unwrap().clone();
                 let min_to_height_index: u32;
                 if from_height_index == 0 {
@@ -159,7 +161,7 @@ impl Landscape {
                 }
                 let max_to_height_index: u32;
                 if from_height_index == self.height - 1 {
-                    max_to_height_index = self.height;
+                    max_to_height_index = self.height - 1;
                 }
                 else {
                     max_to_height_index = from_height_index + 1;
@@ -173,15 +175,16 @@ impl Landscape {
                 }
                 let max_to_width_index: u32;
                 if from_width_index == self.width - 1 {
-                    max_to_width_index = self.width;
+                    max_to_width_index = self.width - 1;
                 }
                 else {
                     max_to_width_index = from_width_index + 1;
                 }
                 let mut node_state_collection_ids_per_neighbor_node_id: HashMap<String, Vec<String>> = HashMap::new();
-                for to_height_index in min_to_height_index..max_to_height_index {
-                    for to_width_index in min_to_width_index..max_to_width_index {
+                for to_height_index in min_to_height_index..=max_to_height_index {
+                    for to_width_index in min_to_width_index..=max_to_width_index {
                         if !(from_height_index == to_height_index && from_width_index == to_width_index) {
+                            debug!("connecting ({from_width_index}, {from_height_index}) to ({to_width_index}, {to_height_index})");
                             let to_node_id: String = node_id_per_x_per_y.get(&to_height_index).unwrap().get(&to_width_index).unwrap().clone();
                             node_state_collection_ids_per_neighbor_node_id.insert(to_node_id, node_state_collection_ids.clone());
                         }
@@ -205,12 +208,13 @@ fn main() {
     //pretty_env_logger::init();
 
     let width: u32 = 100;
-    let height: u32 = 30;
+    let height: u32 = 60;
     let landscape = Landscape::new(width, height);
 
-    let wave_function = landscape.get_wave_function();
+    let mut wave_function = landscape.get_wave_function();
 
     wave_function.validate().unwrap();
+    //wave_function.sort();
 
     let mut rng = rand::thread_rng();
     let random_seed = Some(rng.gen::<u64>());

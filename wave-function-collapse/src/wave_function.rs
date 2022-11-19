@@ -773,7 +773,7 @@ impl WaveFunction {
         let mut collapsable_nodes: Vec<Rc<RefCell<CollapsableNode>>> = Vec::new();
         let mut collapsable_node_per_id: HashMap<&str, Rc<RefCell<CollapsableNode>>> = HashMap::new();
         // contains the mask to apply to the neighbor when this node is in a specific state
-        for node in self.nodes.iter() {
+        for (node_index, node) in self.nodes.iter().enumerate() {
             let node_id: &str = &node.id;
 
             let node_state_indexed_view: IndexedView<&str> = node_state_indexed_view_per_node_id.remove(node_id).unwrap();
@@ -783,7 +783,8 @@ impl WaveFunction {
 
             if let Some(seed) = random_seed {
                 if random_instance.is_none() {
-                    random_instance = Some(ChaCha8Rng::seed_from_u64(seed));
+                    let seed_offset: u64 = node_index as u64;
+                    random_instance = Some(ChaCha8Rng::seed_from_u64(seed + seed_offset));
                 }
                 collapsable_node.randomize(random_instance.as_mut().unwrap());
             }
