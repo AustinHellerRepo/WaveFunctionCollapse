@@ -11,6 +11,8 @@ mod indexed_view;
 use self::indexed_view::IndexedView;
 mod probability_collection;
 use self::probability_collection::ProbabilityCollection;
+mod probability_tree;
+use self::probability_tree::ProbabilityTree;
 mod tests;
 
 pub struct NodeStateProbability;
