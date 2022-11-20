@@ -9,7 +9,7 @@ use wave_function_collapse::wave_function::{
     Node,
     NodeStateCollection,
     WaveFunction,
-    CollapsedWaveFunction
+    CollapsedWaveFunction, NodeStateProbability
 };
 
 #[derive(Debug)]
@@ -88,47 +88,47 @@ impl Landscape {
 
         let mut node_state_collections: Vec<NodeStateCollection> = Vec::new();
         // water
-        node_state_collections.push(NodeStateCollection {
-            id: Uuid::new_v4().to_string(),
-            node_state_id: LandscapeElement::Water.to_string(),
-            node_state_ids: vec![LandscapeElement::Water.to_string(), LandscapeElement::Sand.to_string()]
-        });
+        node_state_collections.push(NodeStateCollection::new(
+            Uuid::new_v4().to_string(),
+            LandscapeElement::Water.to_string(),
+            NodeStateProbability::new_equal_probabilities(vec![LandscapeElement::Water.to_string(), LandscapeElement::Sand.to_string()])
+        ));
         // sand
-        node_state_collections.push(NodeStateCollection {
-            id: Uuid::new_v4().to_string(),
-            node_state_id: LandscapeElement::Sand.to_string(),
-            node_state_ids: vec![LandscapeElement::Water.to_string(), LandscapeElement::Sand.to_string(), LandscapeElement::Grass.to_string()]
-        });
+        node_state_collections.push(NodeStateCollection::new(
+            Uuid::new_v4().to_string(),
+            LandscapeElement::Sand.to_string(),
+            NodeStateProbability::new_equal_probabilities(vec![LandscapeElement::Water.to_string(), LandscapeElement::Sand.to_string(), LandscapeElement::Grass.to_string()])
+        ));
         // grass
-        node_state_collections.push(NodeStateCollection {
-            id: Uuid::new_v4().to_string(),
-            node_state_id: LandscapeElement::Grass.to_string(),
-            node_state_ids: vec![LandscapeElement::Sand.to_string(), LandscapeElement::Grass.to_string(), LandscapeElement::Tree.to_string(), LandscapeElement::Hill.to_string()]
-        });
+        node_state_collections.push(NodeStateCollection::new(
+            Uuid::new_v4().to_string(),
+            LandscapeElement::Grass.to_string(),
+            NodeStateProbability::new_equal_probabilities(vec![LandscapeElement::Sand.to_string(), LandscapeElement::Grass.to_string(), LandscapeElement::Tree.to_string(), LandscapeElement::Hill.to_string()])
+        ));
         // tree
-        node_state_collections.push(NodeStateCollection {
-            id: Uuid::new_v4().to_string(),
-            node_state_id: LandscapeElement::Tree.to_string(),
-            node_state_ids: vec![LandscapeElement::Grass.to_string(), LandscapeElement::Tree.to_string(), LandscapeElement::Forest.to_string()]
-        });
+        node_state_collections.push(NodeStateCollection::new(
+            Uuid::new_v4().to_string(),
+            LandscapeElement::Tree.to_string(),
+            NodeStateProbability::new_equal_probabilities(vec![LandscapeElement::Grass.to_string(), LandscapeElement::Tree.to_string(), LandscapeElement::Forest.to_string()])
+        ));
         // forest
-        node_state_collections.push(NodeStateCollection {
-            id: Uuid::new_v4().to_string(),
-            node_state_id: LandscapeElement::Forest.to_string(),
-            node_state_ids: vec![LandscapeElement::Tree.to_string(), LandscapeElement::Forest.to_string()]
-        });
+        node_state_collections.push(NodeStateCollection::new(
+            Uuid::new_v4().to_string(),
+            LandscapeElement::Forest.to_string(),
+            NodeStateProbability::new_equal_probabilities(vec![LandscapeElement::Tree.to_string(), LandscapeElement::Forest.to_string()])
+        ));
         // hill
-        node_state_collections.push(NodeStateCollection {
-            id: Uuid::new_v4().to_string(),
-            node_state_id: LandscapeElement::Hill.to_string(),
-            node_state_ids: vec![LandscapeElement::Grass.to_string(), LandscapeElement::Hill.to_string(), LandscapeElement::Mountain.to_string()]
-        });
+        node_state_collections.push(NodeStateCollection::new(
+            Uuid::new_v4().to_string(),
+            LandscapeElement::Hill.to_string(),
+            NodeStateProbability::new_equal_probabilities(vec![LandscapeElement::Grass.to_string(), LandscapeElement::Hill.to_string(), LandscapeElement::Mountain.to_string()])
+        ));
         // mountain
-        node_state_collections.push(NodeStateCollection {
-            id: Uuid::new_v4().to_string(),
-            node_state_id: LandscapeElement::Mountain.to_string(),
-            node_state_ids: vec![LandscapeElement::Hill.to_string(), LandscapeElement::Mountain.to_string()]
-        });
+        node_state_collections.push(NodeStateCollection::new(
+            Uuid::new_v4().to_string(),
+            LandscapeElement::Mountain.to_string(),
+            NodeStateProbability::new_equal_probabilities(vec![LandscapeElement::Hill.to_string(), LandscapeElement::Mountain.to_string()])
+        ));
 
         let mut node_state_collection_ids: Vec<String> = Vec::new();
         for node_state_collection in node_state_collections.iter() {

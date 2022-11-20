@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use wave_function_collapse::wave_function::{
     Node,
     NodeStateCollection,
-    WaveFunction
+    WaveFunction, NodeStateProbability
 };
 
 struct SudokuPuzzle {
@@ -59,11 +59,11 @@ impl SudokuPuzzle {
                     node_state_ids.push(format!("state_{other_number}"));
                 }
             }
-            let node_state_collection = NodeStateCollection {
-                id: format!("exclusive_{number}"),
-                node_state_id: format!("state_{number}"),
-                node_state_ids: node_state_ids
-            };
+            let node_state_collection = NodeStateCollection::new(
+                format!("exclusive_{number}"),
+                format!("state_{number}"),
+                NodeStateProbability::new_equal_probabilities(node_state_ids)
+            );
             exclusive_node_state_collections.push(node_state_collection);
         }
 
@@ -76,22 +76,22 @@ impl SudokuPuzzle {
                     node_state_ids.push(format!("state_{state}"));
                 }
             }
-            let node_state_collection = NodeStateCollection {
-                id: format!("specific_{number}_possible"),
-                node_state_id: format!("state_{number}"),
-                node_state_ids: node_state_ids
-            };
+            let node_state_collection = NodeStateCollection::new(
+                format!("specific_{number}_possible"),
+                format!("state_{number}"),
+                NodeStateProbability::new_equal_probabilities(node_state_ids)
+            );
             possible_node_state_collection_per_number.insert(number, node_state_collection);
         }
 
         // no node states are possible if "number"
         let mut impossible_node_state_collection_per_number: HashMap<u8, NodeStateCollection> = HashMap::new();
         for number in 1u8..10 {
-            let node_state_collection = NodeStateCollection {
-                id: format!("specific_{number}_impossible"),
-                node_state_id: format!("state_{number}"),
-                node_state_ids: vec![]
-            };
+            let node_state_collection = NodeStateCollection::new(
+                format!("specific_{number}_impossible"),
+                format!("state_{number}"),
+                NodeStateProbability::new_equal_probabilities(vec![])
+            );
             impossible_node_state_collection_per_number.insert(number, node_state_collection);
         }
 
@@ -103,11 +103,11 @@ impl SudokuPuzzle {
             for to_number in 1u8..10 {
                 let to_number_node_state_id = format!("state_{to_number}");
 
-                let node_state_collection = NodeStateCollection {
-                    id: format!("from_{from_number}_to_{to_number}"),
-                    node_state_id: from_number_node_state_id.clone(),
-                    node_state_ids: vec![to_number_node_state_id]
-                };
+                let node_state_collection = NodeStateCollection::new(
+                    format!("from_{from_number}_to_{to_number}"),
+                    from_number_node_state_id.clone(),
+                    NodeStateProbability::new_equal_probabilities(vec![to_number_node_state_id])
+                );
 
                 always_node_state_collection_per_to_number.insert(to_number, node_state_collection);
             }

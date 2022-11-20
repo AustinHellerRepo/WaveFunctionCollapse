@@ -31,14 +31,54 @@ impl Node {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct NodeStateProbability {
+    pub node_state_id: String,
+    pub probability: f32
+}
+
+impl NodeStateProbability {
+    pub fn new_equal_probabilities(node_state_ids: Vec<String>) -> Vec<Self> {
+        let probability: f32 = 1.0 / (node_state_ids.len() as f32);
+        let mut node_state_probabilities: Vec<NodeStateProbability> = Vec::new();
+        for node_state_id in node_state_ids {
+            let node_state_probability = NodeStateProbability {
+                node_state_id: node_state_id,
+                probability: probability
+            };
+            node_state_probabilities.push(node_state_probability);
+        }
+        node_state_probabilities
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct NodeStateCollection {
     pub id: String,
     pub node_state_id: String,
-    pub node_state_ids: Vec<String>
+    pub node_state_probabilities: Vec<NodeStateProbability>,
+    node_state_ids: HashSet<String>
+}
+
+impl NodeStateCollection {
+    pub fn new(id: String, node_state_id: String, node_state_probabilities: Vec<NodeStateProbability>) -> Self {
+        let mut node_state_ids: HashSet<String> = HashSet::new();
+        for node_state_probability in node_state_probabilities.iter() {
+            node_state_ids.insert(node_state_probability.node_state_id.clone());
+        }
+        NodeStateCollection {
+            id: id,
+            node_state_id: node_state_id,
+            node_state_probabilities: node_state_probabilities,
+            node_state_ids: node_state_ids
+        }
+    }
+    fn contains_node_state(&self, node_state_id: &str) -> bool {
+        self.node_state_ids.contains(node_state_id)
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, Hash)]
-pub struct NodeState {
+pub struct CollapsedNodeState {
     pub node_id: String,
     pub node_state_id: Option<String>
 }
@@ -176,28 +216,28 @@ impl<'a> CollapsableWaveFunction<'a> {
         }
     }
     #[time_graph::instrument]
-    fn try_increment_current_collapsable_node_state(&mut self) -> NodeState {
+    fn try_increment_current_collapsable_node_state(&mut self) -> CollapsedNodeState {
         let wrapped_current_collapsable_node = self.collapsable_nodes.get(self.current_collapsable_node_index).unwrap();
         let mut current_collapsable_node = wrapped_current_collapsable_node.borrow_mut();
 
         let is_successful = current_collapsable_node.node_state_indexed_view.try_move_next();
-        let node_state: NodeState;
+        let collapsed_node_state: CollapsedNodeState;
         if is_successful {
             current_collapsable_node.current_chosen_from_sort_index = Some(self.current_collapsable_node_index);
-            node_state = NodeState {
+            collapsed_node_state = CollapsedNodeState {
                 node_id: String::from(current_collapsable_node.id),
                 node_state_id: Some(String::from(*current_collapsable_node.node_state_indexed_view.get().unwrap()))
             };
         }
         else {
             current_collapsable_node.current_chosen_from_sort_index = None;
-            node_state = NodeState {
+            collapsed_node_state = CollapsedNodeState {
                 node_id: String::from(current_collapsable_node.id),
                 node_state_id: None
             };
         }
 
-        node_state
+        collapsed_node_state
     }
     #[time_graph::instrument]
     fn alter_reference_to_current_collapsable_node_mask(&mut self) {
@@ -261,215 +301,6 @@ impl<'a> CollapsableWaveFunction<'a> {
     #[time_graph::instrument]
     fn is_fully_collapsed(&self) -> bool {
         self.current_collapsable_node_index == self.collapsable_nodes_length
-    }
-    #[time_graph::instrument]
-    fn sort_collapsable_nodes(&mut self) {
-        //let current_collapsable_nodes_display = CollapsableNode::get_ids(&self.collapsable_nodes);
-        //debug!("current sort order: {current_collapsable_nodes_display}.");
-
-        // sort by most neighbors
-        {
-            self.collapsable_nodes.sort_by(|a, b| {
-
-                let a_collapsed_node = a.borrow();
-                let b_collapsed_node = b.borrow();
-
-                a_collapsed_node.random_sort_index.cmp(&b_collapsed_node.random_sort_index)
-            });
-
-            let current_collapsable_nodes_display = CollapsableNode::get_ids(&self.collapsable_nodes);
-            debug!("after random_sort_index sort order: {current_collapsable_nodes_display}.");
-
-            self.collapsable_nodes.sort_by(|a, b| {
-
-                let a_collapsed_node = a.borrow();
-                let b_collapsed_node = b.borrow();
-
-                a_collapsed_node.neighbor_node_ids.len().cmp(&b_collapsed_node.neighbor_node_ids.len())
-            });
-
-            let current_collapsable_nodes_display = CollapsableNode::get_ids(&self.collapsable_nodes);
-            debug!("after neighbor_node_ids sort order: {current_collapsable_nodes_display}.");
-
-            let mut found_neighbor_node_ids: HashSet<&str> = HashSet::new();
-            let mut searching_neighbor_node_ids: VecDeque<&str> = VecDeque::new();
-            searching_neighbor_node_ids.push_back(&self.collapsable_nodes.first().unwrap().borrow().id);
-
-            let mut choice_index: usize = 0;
-            while !searching_neighbor_node_ids.is_empty() {
-                let searching_neighbor_node_id = searching_neighbor_node_ids.pop_front().unwrap();
-                debug!("searching: {:?}", searching_neighbor_node_ids);
-                for finding_index in choice_index..self.collapsable_nodes_length {
-                    let finding_collapsable_node_id: &str;
-                    {
-                        let wrapped_finding_collapsable_node = self.collapsable_nodes.get(finding_index).unwrap();
-                        let finding_collapsable_node = wrapped_finding_collapsable_node.borrow();
-                        finding_collapsable_node_id = finding_collapsable_node.id;
-                    }
-                    
-                    if searching_neighbor_node_id == finding_collapsable_node_id {
-                        debug!("found at {finding_index} and moving to {choice_index}.");
-                        if choice_index != finding_index {
-                            self.collapsable_nodes.swap(choice_index, finding_index);
-                        }
-                        choice_index += 1;
-                        found_neighbor_node_ids.insert(finding_collapsable_node_id);
-                        let wrapped_neighbor = self.collapsable_node_per_id.get(finding_collapsable_node_id).unwrap();
-                        let neighbor = wrapped_neighbor.borrow();
-                        for neighbors_neighbor_node_id in neighbor.neighbor_node_ids.iter() {
-                            if !found_neighbor_node_ids.contains(neighbors_neighbor_node_id) {
-                                debug!("adding potential neighbor: {neighbors_neighbor_node_id}");
-                                searching_neighbor_node_ids.push_back(*neighbors_neighbor_node_id);
-                            }
-                        }
-                        break;
-                    }
-                }
-            }
-
-            /*
-            while choice_index + 1 < self.collapsable_nodes_length {
-                let mut neighbor_indexes: Vec<usize> = Vec::new();
-                {
-                    let wrapper_choice_node = self.collapsable_nodes.get(choice_index).unwrap();
-                    let choice_node = wrapper_choice_node.borrow();
-                    for other_index in (choice_index + 1)..self.collapsable_nodes_length {
-                        let wrapper_other_node = self.collapsable_nodes.get(other_index).unwrap();
-                        let other_node = wrapper_other_node.borrow();
-
-                        if choice_node.neighbor_node_ids.contains(&other_node.id) {
-                            neighbor_indexes.push(other_index);
-                        }
-                    }
-                }
-                for (choice_index_offset, neighbor_index) in neighbor_indexes.iter().enumerate() {
-                    let neighbor_node = self.collapsable_nodes.remove(*neighbor_index);
-                    self.collapsable_nodes.insert(choice_index + choice_index_offset + 1, neighbor_node);
-                }
-                if neighbor_indexes.len() == 0 {
-                    choice_index += 1;
-                }
-                else {
-                    choice_index += neighbor_indexes.len();
-                }
-            }
-            */
-        }
-
-        // sort by restriction ratio
-        /*{
-            let mut lowest_sort_criteria: f32 = f32::MAX;
-            let mut lowest_sort_criteria_index = self.current_collapsable_node_index;
-            for collapsable_node_index in self.current_collapsable_node_index..self.collapsable_nodes_length {
-                let wrapped_collapsable_node = self.collapsable_nodes.get(collapsable_node_index).unwrap();
-                let collapsable_node = wrapped_collapsable_node.borrow();
-                let collapsable_node_sort_criteria = collapsable_node.restriction_ratio;
-                if collapsable_node_sort_criteria < lowest_sort_criteria {
-                    lowest_sort_criteria = collapsable_node_sort_criteria;
-                    lowest_sort_criteria_index = collapsable_node_index;
-                }
-            }
-
-            if lowest_sort_criteria_index != self.current_collapsable_node_index {
-                self.collapsable_nodes.swap(lowest_sort_criteria_index, self.current_collapsable_node_index);
-            }
-        }*/
-
-        // sort by random sort index
-        /*{
-            let mut lowest_number_of_possible_states: u32 = u32::MAX;
-            let mut lowest_number_of_possible_states_index = self.current_collapsable_node_index;
-            for collapsable_node_index in self.current_collapsable_node_index..self.collapsable_nodes_length {
-                let wrapped_collapsable_node = self.collapsable_nodes.get(collapsable_node_index).unwrap();
-                let collapsable_node = wrapped_collapsable_node.borrow();
-                let collapsable_node_random_sort_index = collapsable_node.random_sort_index;
-                if collapsable_node_random_sort_index < lowest_number_of_possible_states {
-                    lowest_number_of_possible_states = collapsable_node_random_sort_index;
-                    lowest_number_of_possible_states_index = collapsable_node_index;
-                }
-            }
-
-            if lowest_number_of_possible_states_index != self.current_collapsable_node_index {
-                self.collapsable_nodes.swap(lowest_number_of_possible_states_index, self.current_collapsable_node_index);
-            }
-        }*/
-
-        // sort by if selected, then restriction ratio, then random
-        /*
-        self.collapsable_nodes.sort_unstable_by(|a, b| {
-
-            let a_collapsed_node = a.borrow();
-            let b_collapsed_node = b.borrow();
-
-            let a_node_id: &str = a_collapsed_node.id;
-            let b_node_id: &str = b_collapsed_node.id;
-
-            let comparison: std::cmp::Ordering;
-            if let Some(a_chosen_from_sort_index) = a_collapsed_node.current_chosen_from_sort_index {
-                if let Some(b_chosen_from_sort_index) = b_collapsed_node.current_chosen_from_sort_index {
-                    comparison = a_chosen_from_sort_index.cmp(&b_chosen_from_sort_index);
-                    match &comparison {
-                        std::cmp::Ordering::Less => {
-                            debug!("node {a_node_id} is less than node {b_node_id} after finding both have a chosen sort index.");
-                        },
-                        std::cmp::Ordering::Equal => {
-                            debug!("node {a_node_id} are equal to node {b_node_id} after finding both have a chosen sort index.");
-                        }
-                        std::cmp::Ordering::Greater => {
-                            debug!("node {a_node_id} is greater than node {b_node_id} after finding both have a chosen sort index.");
-                        }
-                    }
-                }
-                else {
-                    debug!("node {a_node_id} is less than node {b_node_id} since the latter has not yet been chosen.");
-                    comparison = std::cmp::Ordering::Less;
-                }
-            }
-            else if b_collapsed_node.current_chosen_from_sort_index.is_some() {
-                debug!("node {a_node_id} is greater than node {b_node_id} since the former has not yet been chosen.");
-                comparison = std::cmp::Ordering::Greater;
-            }
-            else {
-                debug!("determining restriction ratio for node {a_node_id}.");
-                let a_restriction_ratio = a_collapsed_node.restriction_ratio;
-                debug!("determined restriction ratio for node {a_node_id} as {a_restriction_ratio}.");
-                debug!("determining restriction ratio for node {b_node_id}.");
-                let b_restriction_ratio = b_collapsed_node.restriction_ratio;
-                debug!("determined restriction ratio for node {b_node_id} as {b_restriction_ratio}.");
-
-                if b_restriction_ratio < a_restriction_ratio {
-                    debug!("node {a_node_id} is greater than node {b_node_id} after comparing restriction ratios {a_restriction_ratio} to {b_restriction_ratio}.");
-                    comparison = std::cmp::Ordering::Greater;
-                }
-                else if b_restriction_ratio == a_restriction_ratio {
-
-                    let a_random_sort_index = a_collapsed_node.random_sort_index;
-                    let b_random_sort_index = b_collapsed_node.random_sort_index;
-
-                    comparison = a_random_sort_index.cmp(&b_random_sort_index);
-                    match &comparison {
-                        std::cmp::Ordering::Less => {
-                            debug!("node {a_node_id} is less than node {b_node_id} after comparing random sort indexes {a_random_sort_index} to {b_random_sort_index}.");
-                        },
-                        std::cmp::Ordering::Equal => {
-                            debug!("node {a_node_id} are equal to node {b_node_id} after comparing random sort indexes {a_random_sort_index} to {b_random_sort_index}.");
-                        }
-                        std::cmp::Ordering::Greater => {
-                            debug!("node {a_node_id} is greater than node {b_node_id} after comparing random sort indexes {a_random_sort_index} to {b_random_sort_index}.");
-                        }
-                    }
-                }
-                else {
-                    debug!("node {a_node_id} is less than node {b_node_id} after comparing restriction ratios {a_restriction_ratio} to {b_restriction_ratio}.");
-                    comparison = std::cmp::Ordering::Less;
-                }
-            }
-            comparison
-        });
-        */
-
-        //let next_collapsable_nodes_display = CollapsableNode::get_ids(&self.collapsable_nodes);
-        //debug!("next sort order: {next_collapsable_nodes_display}.");
     }
     #[time_graph::instrument]
     fn try_move_to_previous_collapsable_node_neighbor(&mut self) {
@@ -647,8 +478,68 @@ impl WaveFunction {
         }
     }
 
-    pub fn sort(&mut self) {
-        self.is_sort_required = true;
+    pub fn optimize(&mut self) {
+        //let current_collapsable_nodes_display = CollapsableNode::get_ids(&self.collapsable_nodes);
+        //debug!("current sort order: {current_collapsable_nodes_display}.");
+
+        // sort by most neighbors
+        {
+            self.nodes.sort_by(|a, b| {
+
+                let a_neighbors_length = a.get_neighbor_node_ids().len();
+                let b_neighbors_length = b.get_neighbor_node_ids().len();
+
+                a_neighbors_length.cmp(&b_neighbors_length)
+            });
+
+            let mut next_node_index_per_node_id: HashMap<String, usize> = HashMap::new();
+
+            {
+                let mut found_neighbor_node_ids: HashSet<String> = HashSet::new();
+                let mut searching_neighbor_node_ids: VecDeque<String> = VecDeque::new();
+                searching_neighbor_node_ids.push_back(self.nodes.first().unwrap().id.clone());
+
+                let mut node_per_id: HashMap<String, &Node> = HashMap::new();
+                for node in self.nodes.iter() {
+                    node_per_id.insert(node.id.clone(), node);
+                }
+
+                let mut node_index_per_id: HashMap<&str, usize> = HashMap::new();
+                for (node_index, node) in self.nodes.iter().enumerate() {
+                    node_index_per_id.insert(&node.id, node_index);
+                }
+
+                let mut next_node_index: usize = 0;
+                while !searching_neighbor_node_ids.is_empty() {
+                    let searching_neighbor_node_id = searching_neighbor_node_ids.pop_front().unwrap();
+                    debug!("searching: {:?}", searching_neighbor_node_ids);
+
+                    next_node_index_per_node_id.insert(searching_neighbor_node_id.clone(), next_node_index);
+                    next_node_index += 1;
+
+                    found_neighbor_node_ids.insert(searching_neighbor_node_id.clone());
+                    let neighbor = node_per_id.get(&searching_neighbor_node_id).unwrap();
+                    for neighbors_neighbor_node_id in neighbor.node_state_collection_ids_per_neighbor_node_id.keys() {
+                        let neighbors_neighbor_node_id: &str = neighbors_neighbor_node_id;
+                        if !found_neighbor_node_ids.contains(neighbors_neighbor_node_id) {
+                            debug!("adding potential neighbor: {neighbors_neighbor_node_id}");
+                            searching_neighbor_node_ids.push_back(String::from(neighbors_neighbor_node_id));
+                        }
+                    }
+                }
+            }
+            
+            self.nodes.sort_by(|a, b| {
+
+                let a_node_index = next_node_index_per_node_id.get(&a.id);
+                let b_node_index = next_node_index_per_node_id.get(&b.id);
+
+                a_node_index.cmp(&b_node_index)
+            });
+        }
+
+        //let next_collapsable_nodes_display = CollapsableNode::get_ids(&self.collapsable_nodes);
+        //debug!("next sort order: {next_collapsable_nodes_display}.");
     }
 
     #[time_graph::instrument]
@@ -801,18 +692,10 @@ impl WaveFunction {
     }
 
     #[time_graph::instrument]
-    pub fn collapse_into_steps(&self, random_seed: Option<u64>) -> Result<Vec<NodeState>, String> {
-        let mut node_states: Vec<NodeState> = Vec::new();
+    pub fn collapse_into_steps(&self, random_seed: Option<u64>) -> Result<Vec<CollapsedNodeState>, String> {
+        let mut collapsed_node_states: Vec<CollapsedNodeState> = Vec::new();
 
         let mut collapsable_wave_function = self.get_collapsable_wave_function(random_seed);
-
-        time_graph::spanned!("sort_collapsable_nodes (first)", {
-            if self.is_sort_required {
-                debug!("sorting initial list of collapsable nodes");
-                collapsable_wave_function.sort_collapsable_nodes();
-                debug!("sorted initial list of collapsable nodes");
-            }
-        });
 
         let mut is_unable_to_collapse = false;
         debug!("starting while loop");
@@ -821,13 +704,13 @@ impl WaveFunction {
                 collapsable_wave_function.revert_existing_neighbor_masks();
             });
             debug!("incrementing node state");
-            let node_state = collapsable_wave_function.try_increment_current_collapsable_node_state();
-            let is_successful: bool = node_state.node_state_id.is_some();
-            node_states.push(node_state);
+            let collapsed_node_state = collapsable_wave_function.try_increment_current_collapsable_node_state();
+            let is_successful: bool = collapsed_node_state.node_state_id.is_some();
+            collapsed_node_states.push(collapsed_node_state);
 
             debug!("stored node state");
             if is_successful {
-                debug!("incremented node state: {:?}", node_states.last());
+                debug!("incremented node state: {:?}", collapsed_node_states.last());
                 collapsable_wave_function.alter_reference_to_current_collapsable_node_mask();
                 debug!("altered reference");
                 if !collapsable_wave_function.is_at_least_one_neighbor_fully_restricted() {
@@ -861,7 +744,7 @@ impl WaveFunction {
         }
         debug!("finished while loop");
 
-        Ok(node_states)
+        Ok(collapsed_node_states)
     }
 
     #[time_graph::instrument]
@@ -904,14 +787,6 @@ impl WaveFunction {
         //                      set found neighbor to true
 
         let mut collapsable_wave_function = self.get_collapsable_wave_function(random_seed);
-
-        debug!("sorting initial list of collapsable nodes");
-        time_graph::spanned!("sort_collapsable_nodes (first)", {
-            if self.is_sort_required {
-                collapsable_wave_function.sort_collapsable_nodes();
-            }
-        });
-        debug!("sorted initial list of collapsable nodes");
 
         let mut is_unable_to_collapse = false;
         debug!("starting while loop");
@@ -1205,11 +1080,11 @@ mod unit_tests {
         let second_node_id: String = nodes[1].id.clone();
 
         let restrictive_node_state_collection_id: String = Uuid::new_v4().to_string();
-        let restrictive_node_state_collection = NodeStateCollection {
-            id: restrictive_node_state_collection_id.clone(),
-            node_state_id: from_restrictive_node_state_id.clone(),
-            node_state_ids: vec![to_restrictive_node_state_id.clone()]
-        };
+        let restrictive_node_state_collection = NodeStateCollection::new(
+            restrictive_node_state_collection_id.clone(),
+            from_restrictive_node_state_id.clone(),
+            NodeStateProbability::new_equal_probabilities(vec![to_restrictive_node_state_id.clone()])
+        );
         node_state_collections.push(restrictive_node_state_collection);
 
         nodes[0].node_state_collection_ids_per_neighbor_node_id.insert(second_node_id.clone(), Vec::new());
@@ -1218,16 +1093,11 @@ mod unit_tests {
         let mut wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
-        for is_sort_required in [false, true] {
-            if is_sort_required {
-                wave_function.sort();
-            }
-            let collapsed_wave_function_result = wave_function.collapse(None);
-            let collapsed_wave_function = collapsed_wave_function_result.unwrap();
+        let collapsed_wave_function_result = wave_function.collapse(None);
+        let collapsed_wave_function = collapsed_wave_function_result.unwrap();
 
-            assert_eq!(&unrestricted_node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
-            assert_eq!(&unrestricted_node_state_id, collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap());
-        }
+        assert_eq!(&unrestricted_node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
+        assert_eq!(&unrestricted_node_state_id, collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap());
     }
 
     #[test]
@@ -1261,11 +1131,11 @@ mod unit_tests {
         let second_node_id: String = nodes[1].id.clone();
 
         let same_node_state_collection_id: String = Uuid::new_v4().to_string();
-        let same_node_state_collection = NodeStateCollection {
-            id: same_node_state_collection_id.clone(),
-            node_state_id: node_state_id.clone(),
-            node_state_ids: vec![node_state_id.clone()]
-        };
+        let same_node_state_collection = NodeStateCollection::new(
+            same_node_state_collection_id.clone(),
+            node_state_id.clone(),
+            NodeStateProbability::new_equal_probabilities(vec![node_state_id.clone()])
+        );
         node_state_collections.push(same_node_state_collection);
 
         nodes[0].node_state_collection_ids_per_neighbor_node_id.insert(second_node_id.clone(), Vec::new());
@@ -1274,16 +1144,11 @@ mod unit_tests {
         let mut wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
-        for is_sort_required in [false, true] {
-            if is_sort_required {
-                wave_function.sort();
-            }
-            let collapsed_wave_function_result = wave_function.collapse(None);
-            let collapsed_wave_function = collapsed_wave_function_result.unwrap();
+        let collapsed_wave_function_result = wave_function.collapse(None);
+        let collapsed_wave_function = collapsed_wave_function_result.unwrap();
 
-            assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
-            assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap());
-        }
+        assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
+        assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap());
     }
 
     #[test]
@@ -1317,11 +1182,11 @@ mod unit_tests {
         let second_node_id: String = nodes[0].id.clone();
 
         let same_node_state_collection_id: String = Uuid::new_v4().to_string();
-        let same_node_state_collection = NodeStateCollection {
-            id: same_node_state_collection_id.clone(),
-            node_state_id: node_state_id.clone(),
-            node_state_ids: vec![node_state_id.clone()]
-        };
+        let same_node_state_collection = NodeStateCollection::new(
+            same_node_state_collection_id.clone(),
+            node_state_id.clone(),
+            NodeStateProbability::new_equal_probabilities(vec![node_state_id.clone()])
+        );
         node_state_collections.push(same_node_state_collection);
 
         nodes[1].node_state_collection_ids_per_neighbor_node_id.insert(second_node_id.clone(), Vec::new());
@@ -1330,16 +1195,11 @@ mod unit_tests {
         let mut wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
-        for is_sort_required in [false, true] {
-            if is_sort_required {
-                wave_function.sort();
-            }
-            let collapsed_wave_function_result = wave_function.collapse(None);
-            let collapsed_wave_function = collapsed_wave_function_result.unwrap();
+        let collapsed_wave_function_result = wave_function.collapse(None);
+        let collapsed_wave_function = collapsed_wave_function_result.unwrap();
 
-            assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
-            assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap());
-        }
+        assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
+        assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap());
     }
 
     #[test]
@@ -1373,11 +1233,11 @@ mod unit_tests {
         let second_node_id: String = nodes[1].id.clone();
 
         let same_node_state_collection_id: String = Uuid::new_v4().to_string();
-        let same_node_state_collection = NodeStateCollection {
-            id: same_node_state_collection_id.clone(),
-            node_state_id: node_state_id.clone(),
-            node_state_ids: vec![node_state_id.clone()]
-        };
+        let same_node_state_collection = NodeStateCollection::new(
+            same_node_state_collection_id.clone(),
+            node_state_id.clone(),
+            NodeStateProbability::new_equal_probabilities(vec![node_state_id.clone()])
+        );
         node_state_collections.push(same_node_state_collection);
 
         nodes[0].node_state_collection_ids_per_neighbor_node_id.insert(second_node_id.clone(), Vec::new());
@@ -1389,21 +1249,16 @@ mod unit_tests {
         let mut wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
-        for is_sort_required in [false, true] {
-            if is_sort_required {
-                wave_function.sort();
-            }
-            let collapsed_wave_function_result = wave_function.collapse(None);
+        let collapsed_wave_function_result = wave_function.collapse(None);
 
-            if let Err(error_message) = collapsed_wave_function_result {
-                panic!("Error: {error_message}");
-            }
-
-            let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
-
-            assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
-            assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap());
+        if let Err(error_message) = collapsed_wave_function_result {
+            panic!("Error: {error_message}");
         }
+
+        let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
+
+        assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
+        assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap());
     }
 
     #[test]
@@ -1437,11 +1292,11 @@ mod unit_tests {
         let second_node_id: String = nodes[1].id.clone();
 
         let same_node_state_collection_id: String = Uuid::new_v4().to_string();
-        let same_node_state_collection = NodeStateCollection {
-            id: same_node_state_collection_id.clone(),
-            node_state_id: node_state_id.clone(),
-            node_state_ids: vec![node_state_id.clone()]
-        };
+        let same_node_state_collection = NodeStateCollection::new(
+            same_node_state_collection_id.clone(),
+            node_state_id.clone(),
+            NodeStateProbability::new_equal_probabilities(vec![node_state_id.clone()])
+        );
         node_state_collections.push(same_node_state_collection);
 
         nodes[0].node_state_collection_ids_per_neighbor_node_id.insert(second_node_id.clone(), Vec::new());
@@ -1453,21 +1308,16 @@ mod unit_tests {
         let mut wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
-        for is_sort_required in [false, true] {
-            if is_sort_required {
-                wave_function.sort();
-            }
-            let collapsed_wave_function_result = wave_function.collapse(None);
+        let collapsed_wave_function_result = wave_function.collapse(None);
 
-            if let Err(error_message) = collapsed_wave_function_result {
-                panic!("Error: {error_message}");
-            }
-
-            let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
-
-            assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
-            assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap());
+        if let Err(error_message) = collapsed_wave_function_result {
+            panic!("Error: {error_message}");
         }
+
+        let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
+
+        assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
+        assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap());
     }
 
     #[test]
@@ -1496,19 +1346,19 @@ mod unit_tests {
         let second_node_id: String = nodes[1].id.clone();
 
         let if_one_not_two_node_state_collection_id: String = Uuid::new_v4().to_string();
-        let if_one_not_two_node_state_collection = NodeStateCollection {
-            id: if_one_not_two_node_state_collection_id.clone(),
-            node_state_id: one_node_state_id.clone(),
-            node_state_ids: vec![two_node_state_id.clone()]
-        };
+        let if_one_not_two_node_state_collection = NodeStateCollection::new(
+            if_one_not_two_node_state_collection_id.clone(),
+            one_node_state_id.clone(),
+            NodeStateProbability::new_equal_probabilities(vec![two_node_state_id.clone()])
+        );
         node_state_collections.push(if_one_not_two_node_state_collection);
 
         let if_two_not_one_node_state_collection_id: String = Uuid::new_v4().to_string();
-        let if_two_not_one_node_state_collection = NodeStateCollection {
-            id: if_two_not_one_node_state_collection_id.clone(),
-            node_state_id: two_node_state_id.clone(),
-            node_state_ids: vec![one_node_state_id.clone()]
-        };
+        let if_two_not_one_node_state_collection = NodeStateCollection::new(
+            if_two_not_one_node_state_collection_id.clone(),
+            two_node_state_id.clone(),
+            NodeStateProbability::new_equal_probabilities(vec![one_node_state_id.clone()])
+        );
         node_state_collections.push(if_two_not_one_node_state_collection);
 
         nodes[0].node_state_collection_ids_per_neighbor_node_id.insert(second_node_id.clone(), Vec::new());
@@ -1522,20 +1372,15 @@ mod unit_tests {
         let mut wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
-        for is_sort_required in [false, true] {
-            if is_sort_required {
-                wave_function.sort();
-            }
-            let collapsed_wave_function_result = wave_function.collapse(None);
+        let collapsed_wave_function_result = wave_function.collapse(None);
 
-            if let Err(error_message) = collapsed_wave_function_result {
-                panic!("Error: {error_message}");
-            }
-
-            let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
-
-            assert_ne!(collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap(), collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
+        if let Err(error_message) = collapsed_wave_function_result {
+            panic!("Error: {error_message}");
         }
+
+        let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
+
+        assert_ne!(collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap(), collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
     }
 
     #[test]
@@ -1566,19 +1411,19 @@ mod unit_tests {
             let second_node_id: String = nodes[1].id.clone();
 
             let if_one_not_two_node_state_collection_id: String = Uuid::new_v4().to_string();
-            let if_one_not_two_node_state_collection = NodeStateCollection {
-                id: if_one_not_two_node_state_collection_id.clone(),
-                node_state_id: one_node_state_id.clone(),
-                node_state_ids: vec![two_node_state_id.clone()]
-            };
+            let if_one_not_two_node_state_collection = NodeStateCollection::new(
+                if_one_not_two_node_state_collection_id.clone(),
+                one_node_state_id.clone(),
+                NodeStateProbability::new_equal_probabilities(vec![two_node_state_id.clone()])
+            );
             node_state_collections.push(if_one_not_two_node_state_collection);
 
             let if_two_not_one_node_state_collection_id: String = Uuid::new_v4().to_string();
-            let if_two_not_one_node_state_collection = NodeStateCollection {
-                id: if_two_not_one_node_state_collection_id.clone(),
-                node_state_id: two_node_state_id.clone(),
-                node_state_ids: vec![one_node_state_id.clone()]
-            };
+            let if_two_not_one_node_state_collection = NodeStateCollection::new(
+                if_two_not_one_node_state_collection_id.clone(),
+                two_node_state_id.clone(),
+                NodeStateProbability::new_equal_probabilities(vec![one_node_state_id.clone()])
+            );
             node_state_collections.push(if_two_not_one_node_state_collection);
 
             nodes[0].node_state_collection_ids_per_neighbor_node_id.insert(second_node_id.clone(), Vec::new());
@@ -1593,20 +1438,15 @@ mod unit_tests {
             wave_function.validate().unwrap();
             let random_seed = Some(rng.gen::<u64>());
 
-            for is_sort_required in [false, true] {
-                if is_sort_required {
-                    wave_function.sort();
-                }
-                let collapsed_wave_function_result = wave_function.collapse(random_seed);
+            let collapsed_wave_function_result = wave_function.collapse(random_seed);
 
-                if let Err(error_message) = collapsed_wave_function_result {
-                    panic!("Error: {error_message}");
-                }
-
-                let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
-
-                assert_ne!(collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap(), collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
+            if let Err(error_message) = collapsed_wave_function_result {
+                panic!("Error: {error_message}");
             }
+
+            let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
+
+            assert_ne!(collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap(), collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
         }
     }
 
@@ -1640,67 +1480,67 @@ mod unit_tests {
             let second_node_id: String = nodes[1].id.clone();
 
             let if_one_then_three_node_state_collection_id: String = Uuid::new_v4().to_string();
-            let if_one_then_three_node_state_collection = NodeStateCollection {
-                id: if_one_then_three_node_state_collection_id.clone(),
-                node_state_id: one_node_state_id.clone(),
-                node_state_ids: vec![three_node_state_id.clone()]
-            };
+            let if_one_then_three_node_state_collection = NodeStateCollection::new(
+                if_one_then_three_node_state_collection_id.clone(),
+                one_node_state_id.clone(),
+                NodeStateProbability::new_equal_probabilities(vec![three_node_state_id.clone()])
+            );
             node_state_collections.push(if_one_then_three_node_state_collection);
 
             let if_two_then_four_node_state_collection_id: String = Uuid::new_v4().to_string();
-            let if_two_then_four_node_state_collection = NodeStateCollection {
-                id: if_two_then_four_node_state_collection_id.clone(),
-                node_state_id: two_node_state_id.clone(),
-                node_state_ids: vec![four_node_state_id.clone()]
-            };
+            let if_two_then_four_node_state_collection = NodeStateCollection::new(
+                if_two_then_four_node_state_collection_id.clone(),
+                two_node_state_id.clone(),
+                NodeStateProbability::new_equal_probabilities(vec![four_node_state_id.clone()])
+            );
             node_state_collections.push(if_two_then_four_node_state_collection);
 
             let if_three_then_no_node_state_collection_id: String = Uuid::new_v4().to_string();
-            let if_three_then_no_node_state_collection = NodeStateCollection {
-                id: if_three_then_no_node_state_collection_id.clone(),
-                node_state_id: three_node_state_id.clone(),
-                node_state_ids: Vec::new()
-            };
+            let if_three_then_no_node_state_collection = NodeStateCollection::new(
+                if_three_then_no_node_state_collection_id.clone(),
+                three_node_state_id.clone(),
+                NodeStateProbability::new_equal_probabilities(Vec::new())
+            );
             node_state_collections.push(if_three_then_no_node_state_collection);
 
             let if_four_then_no_node_state_collection_id: String = Uuid::new_v4().to_string();
-            let if_four_then_no_node_state_collection = NodeStateCollection {
-                id: if_four_then_no_node_state_collection_id.clone(),
-                node_state_id: four_node_state_id.clone(),
-                node_state_ids: Vec::new()
-            };
+            let if_four_then_no_node_state_collection = NodeStateCollection::new(
+                if_four_then_no_node_state_collection_id.clone(),
+                four_node_state_id.clone(),
+                NodeStateProbability::new_equal_probabilities(Vec::new())
+            );
             node_state_collections.push(if_four_then_no_node_state_collection);
 
             let if_three_then_two_node_state_collection_id: String = Uuid::new_v4().to_string();
-            let if_three_then_two_node_state_collection = NodeStateCollection {
-                id: if_three_then_two_node_state_collection_id.clone(),
-                node_state_id: three_node_state_id.clone(),
-                node_state_ids: vec![two_node_state_id.clone()]
-            };
+            let if_three_then_two_node_state_collection = NodeStateCollection::new(
+                if_three_then_two_node_state_collection_id.clone(),
+                three_node_state_id.clone(),
+                NodeStateProbability::new_equal_probabilities(vec![two_node_state_id.clone()])
+            );
             node_state_collections.push(if_three_then_two_node_state_collection);
 
             let if_four_then_one_node_state_collection_id: String = Uuid::new_v4().to_string();
-            let if_four_then_one_node_state_collection = NodeStateCollection {
-                id: if_four_then_one_node_state_collection_id.clone(),
-                node_state_id: four_node_state_id.clone(),
-                node_state_ids: vec![one_node_state_id.clone()]
-            };
+            let if_four_then_one_node_state_collection = NodeStateCollection::new(
+                if_four_then_one_node_state_collection_id.clone(),
+                four_node_state_id.clone(),
+                NodeStateProbability::new_equal_probabilities(vec![one_node_state_id.clone()])
+            );
             node_state_collections.push(if_four_then_one_node_state_collection);
 
             let if_one_then_no_node_state_collection_id: String = Uuid::new_v4().to_string();
-            let if_one_then_no_node_state_collection = NodeStateCollection {
-                id: if_one_then_no_node_state_collection_id.clone(),
-                node_state_id: one_node_state_id.clone(),
-                node_state_ids: Vec::new()
-            };
+            let if_one_then_no_node_state_collection = NodeStateCollection::new(
+                if_one_then_no_node_state_collection_id.clone(),
+                one_node_state_id.clone(),
+                NodeStateProbability::new_equal_probabilities(Vec::new())
+            );
             node_state_collections.push(if_one_then_no_node_state_collection);
 
             let if_two_then_no_node_state_collection_id: String = Uuid::new_v4().to_string();
-            let if_two_then_no_node_state_collection = NodeStateCollection {
-                id: if_two_then_no_node_state_collection_id.clone(),
-                node_state_id: two_node_state_id.clone(),
-                node_state_ids: Vec::new()
-            };
+            let if_two_then_no_node_state_collection = NodeStateCollection::new(
+                if_two_then_no_node_state_collection_id.clone(),
+                two_node_state_id.clone(),
+                NodeStateProbability::new_equal_probabilities(Vec::new())
+            );
             node_state_collections.push(if_two_then_no_node_state_collection);
 
             nodes[0].node_state_collection_ids_per_neighbor_node_id.insert(second_node_id.clone(), Vec::new());
@@ -1719,14 +1559,9 @@ mod unit_tests {
             wave_function.validate().unwrap();
             let random_seed = Some(rng.gen::<u64>());
 
-            for is_sort_required in [false, true] {
-                if is_sort_required {
-                    wave_function.sort();
-                }
-                let collapsed_wave_function_result = wave_function.collapse(random_seed);
+            let collapsed_wave_function_result = wave_function.collapse(random_seed);
 
-                assert_eq!("Cannot collapse wave function.", collapsed_wave_function_result.err().unwrap());
-            }
+            assert_eq!("Cannot collapse wave function.", collapsed_wave_function_result.err().unwrap());
         }
     }
 
@@ -1760,11 +1595,11 @@ mod unit_tests {
         let third_node_id: String = nodes[2].id.clone();
 
         let same_node_state_collection_id: String = String::from("nsc_1");
-        let same_node_state_collection = NodeStateCollection {
-            id: same_node_state_collection_id.clone(),
-            node_state_id: node_state_id.clone(),
-            node_state_ids: vec![node_state_id.clone()]
-        };
+        let same_node_state_collection = NodeStateCollection::new(
+            same_node_state_collection_id.clone(),
+            node_state_id.clone(),
+            NodeStateProbability::new_equal_probabilities(vec![node_state_id.clone()])
+        );
         node_state_collections.push(same_node_state_collection);
 
         nodes[0].node_state_collection_ids_per_neighbor_node_id.insert(second_node_id.clone(), Vec::new());
@@ -1779,22 +1614,17 @@ mod unit_tests {
         let mut wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
-        for is_sort_required in [false, true] {
-            if is_sort_required {
-                wave_function.sort();
-            }
-            let collapsed_wave_function_result = wave_function.collapse(None);
+        let collapsed_wave_function_result = wave_function.collapse(None);
 
-            if let Err(error_message) = collapsed_wave_function_result {
-                panic!("Error: {error_message}");
-            }
-
-            let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
-
-            assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
-            assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap());
-            assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&third_node_id).unwrap());
+        if let Err(error_message) = collapsed_wave_function_result {
+            panic!("Error: {error_message}");
         }
+
+        let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
+
+        assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
+        assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap());
+        assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&third_node_id).unwrap());
     }
 
     #[test]
@@ -1829,27 +1659,27 @@ mod unit_tests {
         let third_node_id: String = nodes[2].id.clone();
 
         let all_but_first_node_state_collection_id: String = String::from("nsc_1");
-        let all_but_first_node_state_collection = NodeStateCollection {
-            id: all_but_first_node_state_collection_id.clone(),
-            node_state_id: first_node_state_id.clone(),
-            node_state_ids: vec![second_node_state_id.clone(), third_node_state_id.clone()]
-        };
+        let all_but_first_node_state_collection = NodeStateCollection::new(
+            all_but_first_node_state_collection_id.clone(),
+            first_node_state_id.clone(),
+            NodeStateProbability::new_equal_probabilities(vec![second_node_state_id.clone(), third_node_state_id.clone()])
+        );
         node_state_collections.push(all_but_first_node_state_collection);
 
         let all_but_second_node_state_collection_id: String = String::from("nsc_2");
-        let all_but_second_node_state_collection = NodeStateCollection {
-            id: all_but_second_node_state_collection_id.clone(),
-            node_state_id: second_node_state_id.clone(),
-            node_state_ids: vec![first_node_state_id.clone(), third_node_state_id.clone()]
-        };
+        let all_but_second_node_state_collection = NodeStateCollection::new(
+            all_but_second_node_state_collection_id.clone(),
+            second_node_state_id.clone(),
+            NodeStateProbability::new_equal_probabilities(vec![first_node_state_id.clone(), third_node_state_id.clone()])
+        );
         node_state_collections.push(all_but_second_node_state_collection);
 
         let all_but_third_node_state_collection_id: String = String::from("nsc_3");
-        let all_but_third_node_state_collection = NodeStateCollection {
-            id: all_but_third_node_state_collection_id.clone(),
-            node_state_id: third_node_state_id.clone(),
-            node_state_ids: vec![first_node_state_id.clone(), second_node_state_id.clone()]
-        };
+        let all_but_third_node_state_collection = NodeStateCollection::new(
+            all_but_third_node_state_collection_id.clone(),
+            third_node_state_id.clone(),
+            NodeStateProbability::new_equal_probabilities(vec![first_node_state_id.clone(), second_node_state_id.clone()])
+        );
         node_state_collections.push(all_but_third_node_state_collection);
 
         nodes[0].node_state_collection_ids_per_neighbor_node_id.insert(second_node_id.clone(), Vec::new());
@@ -1882,24 +1712,19 @@ mod unit_tests {
         let mut wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
-        for is_sort_required in [false, true] {
-            if is_sort_required {
-                wave_function.sort();
-            }
-            let collapsed_wave_function_result = wave_function.collapse(None);
+        let collapsed_wave_function_result = wave_function.collapse(None);
 
-            if let Err(error_message) = collapsed_wave_function_result {
-                panic!("Error: {error_message}");
-            }
-
-            let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
-
-            debug!("collapsed_wave_function.node_state_per_node: {:?}", collapsed_wave_function.node_state_per_node);
-
-            assert_eq!(&first_node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
-            assert_eq!(&second_node_state_id, collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap());
-            assert_eq!(&third_node_state_id, collapsed_wave_function.node_state_per_node.get(&third_node_id).unwrap());
+        if let Err(error_message) = collapsed_wave_function_result {
+            panic!("Error: {error_message}");
         }
+
+        let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
+
+        debug!("collapsed_wave_function.node_state_per_node: {:?}", collapsed_wave_function.node_state_per_node);
+
+        assert_eq!(&first_node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
+        assert_eq!(&second_node_state_id, collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap());
+        assert_eq!(&third_node_state_id, collapsed_wave_function.node_state_per_node.get(&third_node_id).unwrap());
     }
 
     #[test]
@@ -1940,27 +1765,27 @@ mod unit_tests {
             let third_node_id: String = nodes[2].id.clone();
 
             let all_but_first_node_state_collection_id: String = String::from("nsc_1");
-            let all_but_first_node_state_collection = NodeStateCollection {
-                id: all_but_first_node_state_collection_id.clone(),
-                node_state_id: first_node_state_id.clone(),
-                node_state_ids: vec![second_node_state_id.clone(), third_node_state_id.clone()]
-            };
+            let all_but_first_node_state_collection = NodeStateCollection::new(
+                all_but_first_node_state_collection_id.clone(),
+                first_node_state_id.clone(),
+                NodeStateProbability::new_equal_probabilities(vec![second_node_state_id.clone(), third_node_state_id.clone()])
+            );
             node_state_collections.push(all_but_first_node_state_collection);
 
             let all_but_second_node_state_collection_id: String = String::from("nsc_2");
-            let all_but_second_node_state_collection = NodeStateCollection {
-                id: all_but_second_node_state_collection_id.clone(),
-                node_state_id: second_node_state_id.clone(),
-                node_state_ids: vec![first_node_state_id.clone(), third_node_state_id.clone()]
-            };
+            let all_but_second_node_state_collection = NodeStateCollection::new(
+                all_but_second_node_state_collection_id.clone(),
+                second_node_state_id.clone(),
+                NodeStateProbability::new_equal_probabilities(vec![first_node_state_id.clone(), third_node_state_id.clone()])
+            );
             node_state_collections.push(all_but_second_node_state_collection);
 
             let all_but_third_node_state_collection_id: String = String::from("nsc_3");
-            let all_but_third_node_state_collection = NodeStateCollection {
-                id: all_but_third_node_state_collection_id.clone(),
-                node_state_id: third_node_state_id.clone(),
-                node_state_ids: vec![first_node_state_id.clone(), second_node_state_id.clone()]
-            };
+            let all_but_third_node_state_collection = NodeStateCollection::new(
+                all_but_third_node_state_collection_id.clone(),
+                third_node_state_id.clone(),
+                NodeStateProbability::new_equal_probabilities(vec![first_node_state_id.clone(), second_node_state_id.clone()])
+            );
             node_state_collections.push(all_but_third_node_state_collection);
 
             nodes[0].node_state_collection_ids_per_neighbor_node_id.insert(second_node_id.clone(), Vec::new());
@@ -1994,28 +1819,23 @@ mod unit_tests {
             wave_function.validate().unwrap();
             let random_seed = rng.next_u64();
 
-            for is_sort_required in [false, true] {
-                if is_sort_required {
-                    wave_function.sort();
-                }
-                let collapsed_wave_function_result = wave_function.collapse(Some(random_seed));
+            let collapsed_wave_function_result = wave_function.collapse(Some(random_seed));
 
-                if let Err(error_message) = collapsed_wave_function_result {
-                    panic!("Error: {error_message}");
-                }
-
-                let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
-
-                let first_node_state_id = collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap();
-                let second_node_state_id = collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap();
-                let third_node_state_id = collapsed_wave_function.node_state_per_node.get(&third_node_id).unwrap();
-                assert_ne!(second_node_state_id, first_node_state_id);
-                assert_ne!(third_node_state_id, first_node_state_id);
-                assert_ne!(first_node_state_id, second_node_state_id);
-                assert_ne!(third_node_state_id, second_node_state_id);
-                assert_ne!(first_node_state_id, third_node_state_id);
-                assert_ne!(second_node_state_id, third_node_state_id);
+            if let Err(error_message) = collapsed_wave_function_result {
+                panic!("Error: {error_message}");
             }
+
+            let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
+
+            let first_node_state_id = collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap();
+            let second_node_state_id = collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap();
+            let third_node_state_id = collapsed_wave_function.node_state_per_node.get(&third_node_id).unwrap();
+            assert_ne!(second_node_state_id, first_node_state_id);
+            assert_ne!(third_node_state_id, first_node_state_id);
+            assert_ne!(first_node_state_id, second_node_state_id);
+            assert_ne!(third_node_state_id, second_node_state_id);
+            assert_ne!(first_node_state_id, third_node_state_id);
+            assert_ne!(second_node_state_id, third_node_state_id);
         }
     }
     
@@ -2058,11 +1878,11 @@ mod unit_tests {
                 
                 let node_state_collection_id: String = Uuid::new_v4().to_string();
                 node_state_collection_ids.push(node_state_collection_id.clone());
-                node_state_collections.push(NodeStateCollection {
-                    id: node_state_collection_id,
-                    node_state_id: node_state_id.clone(),
-                    node_state_ids: other_node_state_ids
-                });
+                node_state_collections.push(NodeStateCollection::new(
+                    node_state_collection_id,
+                    node_state_id.clone(),
+                    NodeStateProbability::new_equal_probabilities(other_node_state_ids)
+                ));
             }
 
             // tie nodes to their neighbors
@@ -2085,40 +1905,34 @@ mod unit_tests {
             wave_function.validate().unwrap();
         });
 
-        for is_sort_required in [false, true] {
-            if is_sort_required {
-                wave_function.sort();
+        let collapsed_wave_function_result: Result<CollapsedWaveFunction, String>;
+
+        time_graph::spanned!("collapsing wave function", {
+            collapsed_wave_function_result = wave_function.collapse(None);
+        });
+
+        time_graph::spanned!("check results", {
+
+            if let Err(error_message) = collapsed_wave_function_result {
+                panic!("Error: {error_message}");
             }
-        
-            let collapsed_wave_function_result: Result<CollapsedWaveFunction, String>;
 
-            time_graph::spanned!("collapsing wave function", {
-                collapsed_wave_function_result = wave_function.collapse(None);
-            });
+            let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
 
-            time_graph::spanned!("check results", {
-
-                if let Err(error_message) = collapsed_wave_function_result {
-                    panic!("Error: {error_message}");
-                }
-
-                let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
-
-                // check that no nodes have the same state
-                for (first_index, (first_node, first_node_state)) in collapsed_wave_function.node_state_per_node.iter().enumerate() {
-                    for (second_index, (second_node, second_node_state)) in collapsed_wave_function.node_state_per_node.iter().enumerate() {
-                        if first_index == second_index {
-                            assert_eq!(first_node, second_node);
-                            assert_eq!(first_node_state, second_node_state);
-                        }
-                        else {
-                            assert_ne!(first_node, second_node);
-                            assert_ne!(first_node_state, second_node_state);
-                        }
+            // check that no nodes have the same state
+            for (first_index, (first_node, first_node_state)) in collapsed_wave_function.node_state_per_node.iter().enumerate() {
+                for (second_index, (second_node, second_node_state)) in collapsed_wave_function.node_state_per_node.iter().enumerate() {
+                    if first_index == second_index {
+                        assert_eq!(first_node, second_node);
+                        assert_eq!(first_node_state, second_node_state);
+                    }
+                    else {
+                        assert_ne!(first_node, second_node);
+                        assert_ne!(first_node_state, second_node_state);
                     }
                 }
-            });
-        }
+            }
+        });
 
         println!("{}", time_graph::get_full_graph().as_dot());
     }
@@ -2166,11 +1980,11 @@ mod unit_tests {
                     
                     let node_state_collection_id: String = Uuid::new_v4().to_string();
                     node_state_collection_ids.push(node_state_collection_id.clone());
-                    node_state_collections.push(NodeStateCollection {
-                        id: node_state_collection_id,
-                        node_state_id: node_state_id.clone(),
-                        node_state_ids: other_node_state_ids
-                    });
+                    node_state_collections.push(NodeStateCollection::new(
+                        node_state_collection_id,
+                        node_state_id.clone(),
+                        NodeStateProbability::new_equal_probabilities(other_node_state_ids)
+                    ));
                 }
 
                 // tie nodes to their neighbors
@@ -2193,36 +2007,30 @@ mod unit_tests {
                 wave_function.validate().unwrap();
             });
 
-            for is_sort_required in [false, true] {
-                if is_sort_required {
-                    wave_function.sort();
+            let collapsed_wave_function_result: Result<CollapsedWaveFunction, String>;
+            
+            time_graph::spanned!("collapsing wave function", {
+                let random_seed = rng.next_u64();
+                collapsed_wave_function_result = wave_function.collapse(Some(random_seed));
+            });
+
+            time_graph::spanned!("check results", {
+
+                if let Err(error_message) = collapsed_wave_function_result {
+                    panic!("Error: {error_message}");
                 }
 
-                let collapsed_wave_function_result: Result<CollapsedWaveFunction, String>;
-                
-                time_graph::spanned!("collapsing wave function", {
-                    let random_seed = rng.next_u64();
-                    collapsed_wave_function_result = wave_function.collapse(Some(random_seed));
-                });
+                let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
 
-                time_graph::spanned!("check results", {
-
-                    if let Err(error_message) = collapsed_wave_function_result {
-                        panic!("Error: {error_message}");
+                let mut all_node_state_ids: Vec<String> = Vec::new();
+                for (node_state_id, node_id) in std::iter::zip(&node_state_ids, &node_ids) {
+                    if !all_node_state_ids.contains(&node_state_id) {
+                        all_node_state_ids.push(node_state_id.clone());
                     }
+                }
 
-                    let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
-
-                    let mut all_node_state_ids: Vec<String> = Vec::new();
-                    for (node_state_id, node_id) in std::iter::zip(&node_state_ids, &node_ids) {
-                        if !all_node_state_ids.contains(&node_state_id) {
-                            all_node_state_ids.push(node_state_id.clone());
-                        }
-                    }
-
-                    assert_eq!(nodes_total, all_node_state_ids.len());
-                });
-            }
+                assert_eq!(nodes_total, all_node_state_ids.len());
+            });
         }
 
         println!("{}", time_graph::get_full_graph().as_dot());
@@ -2271,11 +2079,11 @@ mod unit_tests {
                 
                 let node_state_collection_id: String = Uuid::new_v4().to_string();
                 node_state_collection_ids.push(node_state_collection_id.clone());
-                node_state_collections.push(NodeStateCollection {
-                    id: node_state_collection_id,
-                    node_state_id: node_state_id.clone(),
-                    node_state_ids: other_node_state_ids
-                });
+                node_state_collections.push(NodeStateCollection::new(
+                    node_state_collection_id,
+                    node_state_id.clone(),
+                    NodeStateProbability::new_equal_probabilities(other_node_state_ids)
+                ));
             }
 
             // tie nodes to their neighbors
@@ -2308,44 +2116,37 @@ mod unit_tests {
         time_graph::spanned!("validating wave function", {
             wave_function.validate().unwrap();
         });
+    
+        let collapsed_wave_function_result: Result<CollapsedWaveFunction, String>;
         
+        time_graph::spanned!("collapsing wave function", {
+            collapsed_wave_function_result = wave_function.collapse(None);
+        });
 
-        for is_sort_required in [false, true] {
-            if is_sort_required {
-                wave_function.sort();
+        time_graph::spanned!("check results", {
+
+            if let Err(error_message) = collapsed_wave_function_result {
+                println!("{}", time_graph::get_full_graph().as_dot());
+                panic!("Error: {error_message}");
             }
 
-            let collapsed_wave_function_result: Result<CollapsedWaveFunction, String>;
-            
-            time_graph::spanned!("collapsing wave function", {
-                collapsed_wave_function_result = wave_function.collapse(None);
-            });
+            let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
 
-            time_graph::spanned!("check results", {
-
-                if let Err(error_message) = collapsed_wave_function_result {
-                    println!("{}", time_graph::get_full_graph().as_dot());
-                    panic!("Error: {error_message}");
-                }
-
-                let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
-
-                // check that none of the neighbors match the same state
-                for (node_index, node_id) in std::iter::zip(0..nodes_total, node_ids.iter()) {
-                    let node_x: i32 = node_index % nodes_width;
-                    let node_y: i32 = (node_index / nodes_width) % nodes_height;
-                    let node_z: i32 = (node_index / (nodes_width * nodes_height)) % nodes_depth;
-                    for (other_node_index, other_node_id) in std::iter::zip(0..nodes_total, node_ids.iter()) {
-                        let other_node_x: i32 = other_node_index % nodes_width;
-                        let other_node_y: i32 = (other_node_index / nodes_width) % nodes_height;
-                        let other_node_z: i32 = (other_node_index / (nodes_width * nodes_height)) % nodes_depth;
-                        if node_index != other_node_index && (node_x - other_node_x).abs() <= 1 && (node_y - other_node_y).abs() <= 1 && (node_z - other_node_z).abs() <= 1 {
-                            assert_ne!(collapsed_wave_function.node_state_per_node.get(node_id), collapsed_wave_function.node_state_per_node.get(other_node_id));
-                        }
+            // check that none of the neighbors match the same state
+            for (node_index, node_id) in std::iter::zip(0..nodes_total, node_ids.iter()) {
+                let node_x: i32 = node_index % nodes_width;
+                let node_y: i32 = (node_index / nodes_width) % nodes_height;
+                let node_z: i32 = (node_index / (nodes_width * nodes_height)) % nodes_depth;
+                for (other_node_index, other_node_id) in std::iter::zip(0..nodes_total, node_ids.iter()) {
+                    let other_node_x: i32 = other_node_index % nodes_width;
+                    let other_node_y: i32 = (other_node_index / nodes_width) % nodes_height;
+                    let other_node_z: i32 = (other_node_index / (nodes_width * nodes_height)) % nodes_depth;
+                    if node_index != other_node_index && (node_x - other_node_x).abs() <= 1 && (node_y - other_node_y).abs() <= 1 && (node_z - other_node_z).abs() <= 1 {
+                        assert_ne!(collapsed_wave_function.node_state_per_node.get(node_id), collapsed_wave_function.node_state_per_node.get(other_node_id));
                     }
                 }
-            });
-        }
+            }
+        });
 
         println!("{}", time_graph::get_full_graph().as_dot());
     }
@@ -2403,11 +2204,11 @@ mod unit_tests {
                     
                     let node_state_collection_id: String = Uuid::new_v4().to_string();
                     node_state_collection_ids.push(node_state_collection_id.clone());
-                    node_state_collections.push(NodeStateCollection {
-                        id: node_state_collection_id,
-                        node_state_id: node_state_id.clone(),
-                        node_state_ids: other_node_state_ids
-                    });
+                    node_state_collections.push(NodeStateCollection::new(
+                        node_state_collection_id,
+                        node_state_id.clone(),
+                        NodeStateProbability::new_equal_probabilities(other_node_state_ids)
+                    ));
                 }
 
                 // tie nodes to their neighbors
@@ -2441,7 +2242,9 @@ mod unit_tests {
                 wave_function.validate().unwrap();
             });
 
-            wave_function.sort();
+            time_graph::spanned!("optimizing wave function", {
+                wave_function.optimize();
+            });
 
             let collapsed_wave_function_result: Result<CollapsedWaveFunction, String>;
             
@@ -2532,11 +2335,11 @@ mod unit_tests {
                     
                     let node_state_collection_id: String = format!("{}{}", node_state_id, Uuid::new_v4().to_string());
                     node_state_collection_ids.push(node_state_collection_id.clone());
-                    node_state_collections.push(NodeStateCollection {
-                        id: node_state_collection_id,
-                        node_state_id: node_state_id.clone(),
-                        node_state_ids: other_node_state_ids
-                    });
+                    node_state_collections.push(NodeStateCollection::new(
+                        node_state_collection_id,
+                        node_state_id.clone(),
+                        NodeStateProbability::new_equal_probabilities(other_node_state_ids)
+                    ));
                 }
 
                 // tie nodes to their neighbors
@@ -2570,22 +2373,24 @@ mod unit_tests {
                 wave_function.validate().unwrap();
             });
 
-            wave_function.sort();
+            time_graph::spanned!("optimizing wave function", {
+                wave_function.optimize();
+            });
 
-            let node_states_result: Result<Vec<NodeState>, String>;
+            let collapsed_node_states_result: Result<Vec<CollapsedNodeState>, String>;
             
             time_graph::spanned!("collapsing wave function", {
                 //let random_seed = Some(rng.gen::<u64>());  // TODO uncomment after fixing
-                node_states_result = wave_function.collapse_into_steps(random_seed);
+                collapsed_node_states_result = wave_function.collapse_into_steps(random_seed);
             });
 
-            if let Err(error_message) = node_states_result {
+            if let Err(error_message) = collapsed_node_states_result {
                 println!("{}", time_graph::get_full_graph().as_dot());
                 println!("tried random seed: {:?}.", random_seed);
                 panic!("Error: {error_message}");
             }
 
-            let node_states = node_states_result.ok().unwrap();
+            let node_states = collapsed_node_states_result.ok().unwrap();
 
             // TODO assert something about the uncollapsed wave functions
             //println!("States: {:?}", node_states);
@@ -2620,11 +2425,11 @@ mod unit_tests {
         let second_node_id: String = nodes[1].id.clone();
 
         let same_node_state_collection_id: String = Uuid::new_v4().to_string();
-        let same_node_state_collection = NodeStateCollection {
-            id: same_node_state_collection_id.clone(),
-            node_state_id: node_state_id.clone(),
-            node_state_ids: vec![node_state_id.clone()]
-        };
+        let same_node_state_collection = NodeStateCollection::new(
+            same_node_state_collection_id.clone(),
+            node_state_id.clone(),
+            NodeStateProbability::new_equal_probabilities(vec![node_state_id.clone()])
+        );
         node_state_collections.push(same_node_state_collection);
 
         nodes[0].node_state_collection_ids_per_neighbor_node_id.insert(second_node_id.clone(), Vec::new());
@@ -2690,19 +2495,19 @@ mod unit_tests {
             });
 
             let one_forces_two_node_state_collection_id: String = Uuid::new_v4().to_string();
-            let one_forces_two_node_state_collection = NodeStateCollection {
-                id: one_forces_two_node_state_collection_id.clone(),
-                node_state_id: one_node_state_id.clone(),
-                node_state_ids: vec![two_node_state_id.clone()]
-            };
+            let one_forces_two_node_state_collection = NodeStateCollection::new(
+                one_forces_two_node_state_collection_id.clone(),
+                one_node_state_id.clone(),
+                NodeStateProbability::new_equal_probabilities(vec![two_node_state_id.clone()])
+            );
             node_state_collections.push(one_forces_two_node_state_collection);
 
             let two_forces_one_node_state_collection_id: String = Uuid::new_v4().to_string();
-            let two_forces_one_node_state_collection = NodeStateCollection {
-                id: two_forces_one_node_state_collection_id.clone(),
-                node_state_id: two_node_state_id.clone(),
-                node_state_ids: vec![one_node_state_id.clone()]
-            };
+            let two_forces_one_node_state_collection = NodeStateCollection::new(
+                two_forces_one_node_state_collection_id.clone(),
+                two_node_state_id.clone(),
+                NodeStateProbability::new_equal_probabilities(vec![one_node_state_id.clone()])
+            );
             node_state_collections.push(two_forces_one_node_state_collection);
 
             let possible_node_ids: Vec<&str> = vec!["node_1", "node_2", "node_3", "node_4"];
@@ -2716,32 +2521,27 @@ mod unit_tests {
 
             let mut wave_function = WaveFunction::new(nodes, node_state_collections);
             wave_function.validate().unwrap();
-            
-            for is_sort_required in [false, true] {
-                if is_sort_required {
-                    wave_function.sort();
-                }
-                let collapsed_wave_function_result = wave_function.collapse(random_seed);
 
-                if let Err(error_message) = collapsed_wave_function_result {
-                    panic!("Error: {error_message}");
-                }
+            let collapsed_wave_function_result = wave_function.collapse(random_seed);
 
-                let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
-
-                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_1").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2").unwrap());
-                assert_eq!(collapsed_wave_function.node_state_per_node.get("node_1").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3").unwrap());
-                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_1").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4").unwrap());
-                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_2").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1").unwrap());
-                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_2").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3").unwrap());
-                assert_eq!(collapsed_wave_function.node_state_per_node.get("node_2").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4").unwrap());
-                assert_eq!(collapsed_wave_function.node_state_per_node.get("node_3").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1").unwrap());
-                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_3").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2").unwrap());
-                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_3").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4").unwrap());
-                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_4").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1").unwrap());
-                assert_eq!(collapsed_wave_function.node_state_per_node.get("node_4").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2").unwrap());
-                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_4").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3").unwrap());
+            if let Err(error_message) = collapsed_wave_function_result {
+                panic!("Error: {error_message}");
             }
+
+            let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
+
+            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_1").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2").unwrap());
+            assert_eq!(collapsed_wave_function.node_state_per_node.get("node_1").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_1").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_2").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_2").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3").unwrap());
+            assert_eq!(collapsed_wave_function.node_state_per_node.get("node_2").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4").unwrap());
+            assert_eq!(collapsed_wave_function.node_state_per_node.get("node_3").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_3").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_3").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_4").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1").unwrap());
+            assert_eq!(collapsed_wave_function.node_state_per_node.get("node_4").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_4").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3").unwrap());
         }
     }
 
@@ -2783,19 +2583,19 @@ mod unit_tests {
             });
 
             let one_forces_two_node_state_collection_id: String = Uuid::new_v4().to_string();
-            let one_forces_two_node_state_collection = NodeStateCollection {
-                id: one_forces_two_node_state_collection_id.clone(),
-                node_state_id: one_node_state_id.clone(),
-                node_state_ids: vec![two_node_state_id.clone()]
-            };
+            let one_forces_two_node_state_collection = NodeStateCollection::new(
+                one_forces_two_node_state_collection_id.clone(),
+                one_node_state_id.clone(),
+                NodeStateProbability::new_equal_probabilities(vec![two_node_state_id.clone()])
+            );
             node_state_collections.push(one_forces_two_node_state_collection);
 
             let two_forces_one_node_state_collection_id: String = Uuid::new_v4().to_string();
-            let two_forces_one_node_state_collection = NodeStateCollection {
-                id: two_forces_one_node_state_collection_id.clone(),
-                node_state_id: two_node_state_id.clone(),
-                node_state_ids: vec![one_node_state_id.clone()]
-            };
+            let two_forces_one_node_state_collection = NodeStateCollection::new(
+                two_forces_one_node_state_collection_id.clone(),
+                two_node_state_id.clone(),
+                NodeStateProbability::new_equal_probabilities(vec![one_node_state_id.clone()])
+            );
             node_state_collections.push(two_forces_one_node_state_collection);
 
             let possible_node_ids: Vec<&str> = vec!["node_1", "node_2", "node_3", "node_4"];
@@ -2809,32 +2609,27 @@ mod unit_tests {
 
             let mut wave_function = WaveFunction::new(nodes, node_state_collections);
             wave_function.validate().unwrap();
-            
-            for is_sort_required in [false, true] {
-                if is_sort_required {
-                    wave_function.sort();
-                }
-                let collapsed_wave_function_result = wave_function.collapse(random_seed);
 
-                if let Err(error_message) = collapsed_wave_function_result {
-                    panic!("Error: {error_message}");
-                }
+            let collapsed_wave_function_result = wave_function.collapse(random_seed);
 
-                let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
-
-                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_1").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2").unwrap());
-                assert_eq!(collapsed_wave_function.node_state_per_node.get("node_1").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3").unwrap());
-                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_1").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4").unwrap());
-                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_2").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1").unwrap());
-                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_2").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3").unwrap());
-                assert_eq!(collapsed_wave_function.node_state_per_node.get("node_2").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4").unwrap());
-                assert_eq!(collapsed_wave_function.node_state_per_node.get("node_3").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1").unwrap());
-                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_3").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2").unwrap());
-                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_3").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4").unwrap());
-                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_4").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1").unwrap());
-                assert_eq!(collapsed_wave_function.node_state_per_node.get("node_4").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2").unwrap());
-                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_4").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3").unwrap());
+            if let Err(error_message) = collapsed_wave_function_result {
+                panic!("Error: {error_message}");
             }
+
+            let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
+
+            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_1").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2").unwrap());
+            assert_eq!(collapsed_wave_function.node_state_per_node.get("node_1").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_1").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_2").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_2").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3").unwrap());
+            assert_eq!(collapsed_wave_function.node_state_per_node.get("node_2").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4").unwrap());
+            assert_eq!(collapsed_wave_function.node_state_per_node.get("node_3").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_3").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_3").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_4").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1").unwrap());
+            assert_eq!(collapsed_wave_function.node_state_per_node.get("node_4").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_4").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3").unwrap());
         }
     }
 
@@ -2855,19 +2650,19 @@ mod unit_tests {
             let two_node_state_id: String = String::from("state_B");
 
             let one_forces_two_node_state_collection_id: String = Uuid::new_v4().to_string();
-            let one_forces_two_node_state_collection = NodeStateCollection {
-                id: one_forces_two_node_state_collection_id.clone(),
-                node_state_id: one_node_state_id.clone(),
-                node_state_ids: vec![two_node_state_id.clone()]
-            };
+            let one_forces_two_node_state_collection = NodeStateCollection::new(
+                one_forces_two_node_state_collection_id.clone(),
+                one_node_state_id.clone(),
+                NodeStateProbability::new_equal_probabilities(vec![two_node_state_id.clone()])
+            );
             node_state_collections.push(one_forces_two_node_state_collection);
 
             let two_forces_one_node_state_collection_id: String = Uuid::new_v4().to_string();
-            let two_forces_one_node_state_collection = NodeStateCollection {
-                id: two_forces_one_node_state_collection_id.clone(),
-                node_state_id: two_node_state_id.clone(),
-                node_state_ids: vec![one_node_state_id.clone()]
-            };
+            let two_forces_one_node_state_collection = NodeStateCollection::new(
+                two_forces_one_node_state_collection_id.clone(),
+                two_node_state_id.clone(),
+                NodeStateProbability::new_equal_probabilities(vec![one_node_state_id.clone()])
+            );
             node_state_collections.push(two_forces_one_node_state_collection);
 
             nodes.push(Node { 
@@ -2936,45 +2731,40 @@ mod unit_tests {
 
             let mut wave_function = WaveFunction::new(nodes, node_state_collections);
             wave_function.validate().unwrap();
-            
-            for is_sort_required in [false, true] {
-                if is_sort_required {
-                    wave_function.sort();
-                }
-                let collapsed_wave_function_result = wave_function.collapse(random_seed);
 
-                if let Err(error_message) = collapsed_wave_function_result {
-                    panic!("Error: {error_message}");
-                }
+            let collapsed_wave_function_result = wave_function.collapse(random_seed);
 
-                let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
-
-                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_1a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2a").unwrap());
-                assert_eq!(collapsed_wave_function.node_state_per_node.get("node_1a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3a").unwrap());
-                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_1a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4a").unwrap());
-                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_2a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1a").unwrap());
-                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_2a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3a").unwrap());
-                assert_eq!(collapsed_wave_function.node_state_per_node.get("node_2a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4a").unwrap());
-                assert_eq!(collapsed_wave_function.node_state_per_node.get("node_3a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1a").unwrap());
-                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_3a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2a").unwrap());
-                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_3a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4a").unwrap());
-                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_4a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1a").unwrap());
-                assert_eq!(collapsed_wave_function.node_state_per_node.get("node_4a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2a").unwrap());
-                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_4a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3a").unwrap());
-                assert_eq!(collapsed_wave_function.node_state_per_node.get("node_1a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1b").unwrap());
-                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_1b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2b").unwrap());
-                assert_eq!(collapsed_wave_function.node_state_per_node.get("node_1b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3b").unwrap());
-                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_1b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4b").unwrap());
-                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_2b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1b").unwrap());
-                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_2b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3b").unwrap());
-                assert_eq!(collapsed_wave_function.node_state_per_node.get("node_2b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4b").unwrap());
-                assert_eq!(collapsed_wave_function.node_state_per_node.get("node_3b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1b").unwrap());
-                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_3b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2b").unwrap());
-                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_3b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4b").unwrap());
-                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_4b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1b").unwrap());
-                assert_eq!(collapsed_wave_function.node_state_per_node.get("node_4b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2b").unwrap());
-                assert_ne!(collapsed_wave_function.node_state_per_node.get("node_4b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3b").unwrap());
+            if let Err(error_message) = collapsed_wave_function_result {
+                panic!("Error: {error_message}");
             }
+
+            let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
+
+            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_1a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2a").unwrap());
+            assert_eq!(collapsed_wave_function.node_state_per_node.get("node_1a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3a").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_1a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4a").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_2a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1a").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_2a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3a").unwrap());
+            assert_eq!(collapsed_wave_function.node_state_per_node.get("node_2a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4a").unwrap());
+            assert_eq!(collapsed_wave_function.node_state_per_node.get("node_3a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1a").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_3a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2a").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_3a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4a").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_4a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1a").unwrap());
+            assert_eq!(collapsed_wave_function.node_state_per_node.get("node_4a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2a").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_4a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3a").unwrap());
+            assert_eq!(collapsed_wave_function.node_state_per_node.get("node_1a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1b").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_1b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2b").unwrap());
+            assert_eq!(collapsed_wave_function.node_state_per_node.get("node_1b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3b").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_1b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4b").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_2b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1b").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_2b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3b").unwrap());
+            assert_eq!(collapsed_wave_function.node_state_per_node.get("node_2b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4b").unwrap());
+            assert_eq!(collapsed_wave_function.node_state_per_node.get("node_3b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1b").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_3b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2b").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_3b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4b").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_4b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1b").unwrap());
+            assert_eq!(collapsed_wave_function.node_state_per_node.get("node_4b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2b").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_4b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3b").unwrap());
         }
     }
 
@@ -3020,43 +2810,43 @@ mod unit_tests {
         let two_node_state_id: String = String::from("state_B");
 
         let one_permits_one_and_two_node_state_collection_id: String = Uuid::new_v4().to_string();
-        let one_permits_one_and_two_node_state_collection = NodeStateCollection {
-            id: one_permits_one_and_two_node_state_collection_id.clone(),
-            node_state_id: one_node_state_id.clone(),
-            node_state_ids: vec![one_node_state_id.clone(), two_node_state_id.clone()]
-        };
+        let one_permits_one_and_two_node_state_collection = NodeStateCollection::new(
+            one_permits_one_and_two_node_state_collection_id.clone(),
+            one_node_state_id.clone(),
+            NodeStateProbability::new_equal_probabilities(vec![one_node_state_id.clone(), two_node_state_id.clone()])
+        );
         node_state_collections.push(one_permits_one_and_two_node_state_collection);
 
         let two_permits_none_node_state_collection_id: String = Uuid::new_v4().to_string();
-        let two_permits_none_node_state_collection = NodeStateCollection {
-            id: two_permits_none_node_state_collection_id.clone(),
-            node_state_id: two_node_state_id.clone(),
-            node_state_ids: vec![]
-        };
+        let two_permits_none_node_state_collection = NodeStateCollection::new(
+            two_permits_none_node_state_collection_id.clone(),
+            two_node_state_id.clone(),
+            NodeStateProbability::new_equal_probabilities(vec![])
+        );
         node_state_collections.push(two_permits_none_node_state_collection);
 
         let two_permits_one_node_state_collection_id: String = Uuid::new_v4().to_string();
-        let two_permits_one_node_state_collection = NodeStateCollection {
-            id: two_permits_one_node_state_collection_id.clone(),
-            node_state_id: two_node_state_id.clone(),
-            node_state_ids: vec![one_node_state_id.clone()]
-        };
+        let two_permits_one_node_state_collection = NodeStateCollection::new(
+            two_permits_one_node_state_collection_id.clone(),
+            two_node_state_id.clone(),
+            NodeStateProbability::new_equal_probabilities(vec![one_node_state_id.clone()])
+        );
         node_state_collections.push(two_permits_one_node_state_collection);
 
         let one_permits_two_node_state_collection_id: String = Uuid::new_v4().to_string();
-        let one_permits_two_node_state_collection = NodeStateCollection {
-            id: one_permits_two_node_state_collection_id.clone(),
-            node_state_id: one_node_state_id.clone(),
-            node_state_ids: vec![two_node_state_id.clone()]
-        };
+        let one_permits_two_node_state_collection = NodeStateCollection::new(
+            one_permits_two_node_state_collection_id.clone(),
+            one_node_state_id.clone(),
+            NodeStateProbability::new_equal_probabilities(vec![two_node_state_id.clone()])
+        );
         node_state_collections.push(one_permits_two_node_state_collection);
 
         let one_permits_one_node_state_collection_id: String = Uuid::new_v4().to_string();
-        let one_permits_one_node_state_collection = NodeStateCollection {
-            id: one_permits_one_node_state_collection_id.clone(),
-            node_state_id: one_node_state_id.clone(),
-            node_state_ids: vec![one_node_state_id.clone()]
-        };
+        let one_permits_one_node_state_collection = NodeStateCollection::new(
+            one_permits_one_node_state_collection_id.clone(),
+            one_node_state_id.clone(),
+            NodeStateProbability::new_equal_probabilities(vec![one_node_state_id.clone()])
+        );
         node_state_collections.push(one_permits_one_node_state_collection);
 
         nodes[0].node_state_collection_ids_per_neighbor_node_id.insert(two_node_id.clone(), vec![one_permits_one_and_two_node_state_collection_id.clone(), two_permits_none_node_state_collection_id.clone()]);
@@ -3070,23 +2860,18 @@ mod unit_tests {
 
         let mut wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
-        
-        for is_sort_required in [false, true] {
-            if is_sort_required {
-                wave_function.sort();
-            }
-            let collapsed_wave_function_result = wave_function.collapse(None);
 
-            if let Err(error_message) = collapsed_wave_function_result {
-                panic!("Error: {error_message}");
-            }
+        let collapsed_wave_function_result = wave_function.collapse(None);
 
-            let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
-
-            assert_eq!(&one_node_state_id, collapsed_wave_function.node_state_per_node.get(&one_node_id).unwrap());
-            assert_eq!(&two_node_state_id, collapsed_wave_function.node_state_per_node.get(&two_node_id).unwrap());
-            assert_eq!(&two_node_state_id, collapsed_wave_function.node_state_per_node.get(&three_node_id).unwrap());
-            assert_eq!(&one_node_state_id, collapsed_wave_function.node_state_per_node.get(&four_node_id).unwrap());
+        if let Err(error_message) = collapsed_wave_function_result {
+            panic!("Error: {error_message}");
         }
+
+        let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
+
+        assert_eq!(&one_node_state_id, collapsed_wave_function.node_state_per_node.get(&one_node_id).unwrap());
+        assert_eq!(&two_node_state_id, collapsed_wave_function.node_state_per_node.get(&two_node_id).unwrap());
+        assert_eq!(&two_node_state_id, collapsed_wave_function.node_state_per_node.get(&three_node_id).unwrap());
+        assert_eq!(&one_node_state_id, collapsed_wave_function.node_state_per_node.get(&four_node_id).unwrap());
     }
 }
