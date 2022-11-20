@@ -907,6 +907,7 @@ fn main() {
     std::env::set_var("RUST_LOG", "trace");
     //pretty_env_logger::init();
 
+    // https://en.wikipedia.org/wiki/Zebra_Puzzle
     // There are five houses.
     // The Englishman lives in the red house.
     // The Spaniard owns the dog.

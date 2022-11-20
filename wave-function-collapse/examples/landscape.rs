@@ -237,7 +237,11 @@ fn main() {
         node_state_per_y_per_x[x][y] = Some(node_state);
     }
 
-    println!("-------------------------------------------------------------------------------------------");
+    print!("-");
+    for _ in 0..width {
+        print!("--");
+    }
+    println!("-");
     for y in 0..height as usize {
         print!("|");
         for x in 0..width as usize {
@@ -247,5 +251,9 @@ fn main() {
         }
         println!("|");
     }
-    println!("-------------------------------------------------------------------------------------------");
+    print!("-");
+    for _ in 0..width {
+        print!("--");
+    }
+    println!("-");
 }
