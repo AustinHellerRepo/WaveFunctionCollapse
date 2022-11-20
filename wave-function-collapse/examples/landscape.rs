@@ -207,7 +207,7 @@ fn main() {
     std::env::set_var("RUST_LOG", "trace");
     //pretty_env_logger::init();
 
-    let width: u32 = 100;
+    let width: u32 = 60;
     let height: u32 = 60;
     let landscape = Landscape::new(width, height);
 
@@ -242,7 +242,8 @@ fn main() {
         print!("|");
         for x in 0..width as usize {
             let node_state_id = node_state_per_y_per_x[x][y].as_ref().unwrap();
-            print!("{}", LandscapeElement::get_colored_text_by_node_state_id(node_state_id));
+            let colored_text = LandscapeElement::get_colored_text_by_node_state_id(node_state_id);
+            print!("{}{}", colored_text, colored_text);
         }
         println!("|");
     }
