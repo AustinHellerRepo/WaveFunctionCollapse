@@ -516,7 +516,7 @@ impl ZebraPuzzle {
                     let node_state_collection = NodeStateCollection::new(
                         node_state_collection_id.clone(),
                         chosen_node_state_id.clone(),
-                        NodeStateProbability::new_equal_probabilities(permitted_node_state_ids)
+                        permitted_node_state_ids
                     );
                     node_state_collections.push(node_state_collection);
                     information_type_node_state_collection_ids.insert(chosen_node_state_id.clone(), node_state_collection_id);
@@ -737,7 +737,7 @@ impl ZebraPuzzle {
                                             let node_state_collection = NodeStateCollection::new(
                                                 node_state_collection_id.clone(),
                                                 cloned_node_state_collection_key.from_node_state_id.clone(),
-                                                NodeStateProbability::new_equal_probabilities(cloned_node_state_collection_key.to_node_state_ids.clone())
+                                                cloned_node_state_collection_key.to_node_state_ids.clone()
                                             );
                                             node_state_collections.push(node_state_collection);
                                             node_state_collection_id_per_node_state_collection_key.insert(cloned_node_state_collection_key, node_state_collection_id);
@@ -769,7 +769,7 @@ impl ZebraPuzzle {
                                             let node_state_collection = NodeStateCollection::new(
                                                 node_state_collection_id.clone(),
                                                 cloned_node_state_collection_key.from_node_state_id.clone(),
-                                                NodeStateProbability::new_equal_probabilities(cloned_node_state_collection_key.to_node_state_ids.clone())
+                                                cloned_node_state_collection_key.to_node_state_ids.clone()
                                             );
                                             node_state_collections.push(node_state_collection);
                                             node_state_collection_id_per_node_state_collection_key.insert(cloned_node_state_collection_key, node_state_collection_id);
@@ -801,7 +801,7 @@ impl ZebraPuzzle {
                                             let node_state_collection = NodeStateCollection::new(
                                                 node_state_collection_id.clone(),
                                                 cloned_node_state_collection_key.from_node_state_id.clone(),
-                                                NodeStateProbability::new_equal_probabilities(cloned_node_state_collection_key.to_node_state_ids.clone())
+                                                cloned_node_state_collection_key.to_node_state_ids.clone()
                                             );
                                             node_state_collections.push(node_state_collection);
                                             node_state_collection_id_per_node_state_collection_key.insert(cloned_node_state_collection_key, node_state_collection_id);
@@ -833,7 +833,7 @@ impl ZebraPuzzle {
                                             let node_state_collection = NodeStateCollection::new(
                                                 node_state_collection_id.clone(),
                                                 cloned_node_state_collection_key.from_node_state_id.clone(),
-                                                NodeStateProbability::new_equal_probabilities(cloned_node_state_collection_key.to_node_state_ids.clone())
+                                                cloned_node_state_collection_key.to_node_state_ids.clone()
                                             );
                                             node_state_collections.push(node_state_collection);
                                             node_state_collection_id_per_node_state_collection_key.insert(cloned_node_state_collection_key, node_state_collection_id);
@@ -851,11 +851,11 @@ impl ZebraPuzzle {
                     }
                 }
 
-                let node = Node {
-                    id: String::from(node_id),
-                    node_state_ids: node_state_ids,
-                    node_state_collection_ids_per_neighbor_node_id: node_state_collection_ids_per_neighbor_node_id
-                };
+                let node = Node::new(
+                    String::from(node_id),
+                    NodeStateProbability::get_equal_probability(node_state_ids),
+                    node_state_collection_ids_per_neighbor_node_id
+                );
                 nodes.push(node);
                 node_index += 1;
             }

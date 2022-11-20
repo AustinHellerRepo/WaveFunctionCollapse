@@ -91,43 +91,43 @@ impl Landscape {
         node_state_collections.push(NodeStateCollection::new(
             Uuid::new_v4().to_string(),
             LandscapeElement::Water.to_string(),
-            NodeStateProbability::new_equal_probabilities(vec![LandscapeElement::Water.to_string(), LandscapeElement::Sand.to_string()])
+            vec![LandscapeElement::Water.to_string(), LandscapeElement::Sand.to_string()]
         ));
         // sand
         node_state_collections.push(NodeStateCollection::new(
             Uuid::new_v4().to_string(),
             LandscapeElement::Sand.to_string(),
-            NodeStateProbability::new_equal_probabilities(vec![LandscapeElement::Water.to_string(), LandscapeElement::Sand.to_string(), LandscapeElement::Grass.to_string()])
+            vec![LandscapeElement::Water.to_string(), LandscapeElement::Sand.to_string(), LandscapeElement::Grass.to_string()]
         ));
         // grass
         node_state_collections.push(NodeStateCollection::new(
             Uuid::new_v4().to_string(),
             LandscapeElement::Grass.to_string(),
-            NodeStateProbability::new_equal_probabilities(vec![LandscapeElement::Sand.to_string(), LandscapeElement::Grass.to_string(), LandscapeElement::Tree.to_string(), LandscapeElement::Hill.to_string()])
+            vec![LandscapeElement::Sand.to_string(), LandscapeElement::Grass.to_string(), LandscapeElement::Tree.to_string(), LandscapeElement::Hill.to_string()]
         ));
         // tree
         node_state_collections.push(NodeStateCollection::new(
             Uuid::new_v4().to_string(),
             LandscapeElement::Tree.to_string(),
-            NodeStateProbability::new_equal_probabilities(vec![LandscapeElement::Grass.to_string(), LandscapeElement::Tree.to_string(), LandscapeElement::Forest.to_string()])
+            vec![LandscapeElement::Grass.to_string(), LandscapeElement::Tree.to_string(), LandscapeElement::Forest.to_string()]
         ));
         // forest
         node_state_collections.push(NodeStateCollection::new(
             Uuid::new_v4().to_string(),
             LandscapeElement::Forest.to_string(),
-            NodeStateProbability::new_equal_probabilities(vec![LandscapeElement::Tree.to_string(), LandscapeElement::Forest.to_string()])
+            vec![LandscapeElement::Tree.to_string(), LandscapeElement::Forest.to_string()]
         ));
         // hill
         node_state_collections.push(NodeStateCollection::new(
             Uuid::new_v4().to_string(),
             LandscapeElement::Hill.to_string(),
-            NodeStateProbability::new_equal_probabilities(vec![LandscapeElement::Grass.to_string(), LandscapeElement::Hill.to_string(), LandscapeElement::Mountain.to_string()])
+            vec![LandscapeElement::Grass.to_string(), LandscapeElement::Hill.to_string(), LandscapeElement::Mountain.to_string()]
         ));
         // mountain
         node_state_collections.push(NodeStateCollection::new(
             Uuid::new_v4().to_string(),
             LandscapeElement::Mountain.to_string(),
-            NodeStateProbability::new_equal_probabilities(vec![LandscapeElement::Hill.to_string(), LandscapeElement::Mountain.to_string()])
+            vec![LandscapeElement::Hill.to_string(), LandscapeElement::Mountain.to_string()]
         ));
 
         let mut node_state_collection_ids: Vec<String> = Vec::new();
@@ -190,11 +190,11 @@ impl Landscape {
                         }
                     }
                 }
-                let node = Node {
-                    id: from_node_id,
-                    node_state_ids: LandscapeElement::get_node_state_ids(),
-                    node_state_collection_ids_per_neighbor_node_id: node_state_collection_ids_per_neighbor_node_id
-                };
+                let node = Node::new(
+                    from_node_id,
+                    NodeStateProbability::get_equal_probability(LandscapeElement::get_node_state_ids()),
+                    node_state_collection_ids_per_neighbor_node_id
+                );
                 nodes.push(node);
             }
         }

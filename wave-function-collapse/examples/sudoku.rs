@@ -62,7 +62,7 @@ impl SudokuPuzzle {
             let node_state_collection = NodeStateCollection::new(
                 format!("exclusive_{number}"),
                 format!("state_{number}"),
-                NodeStateProbability::new_equal_probabilities(node_state_ids)
+                node_state_ids
             );
             exclusive_node_state_collections.push(node_state_collection);
         }
@@ -79,7 +79,7 @@ impl SudokuPuzzle {
             let node_state_collection = NodeStateCollection::new(
                 format!("specific_{number}_possible"),
                 format!("state_{number}"),
-                NodeStateProbability::new_equal_probabilities(node_state_ids)
+                node_state_ids
             );
             possible_node_state_collection_per_number.insert(number, node_state_collection);
         }
@@ -90,7 +90,7 @@ impl SudokuPuzzle {
             let node_state_collection = NodeStateCollection::new(
                 format!("specific_{number}_impossible"),
                 format!("state_{number}"),
-                NodeStateProbability::new_equal_probabilities(vec![])
+                vec![]
             );
             impossible_node_state_collection_per_number.insert(number, node_state_collection);
         }
@@ -106,7 +106,7 @@ impl SudokuPuzzle {
                 let node_state_collection = NodeStateCollection::new(
                     format!("from_{from_number}_to_{to_number}"),
                     from_number_node_state_id.clone(),
-                    NodeStateProbability::new_equal_probabilities(vec![to_number_node_state_id])
+                    vec![to_number_node_state_id]
                 );
 
                 always_node_state_collection_per_to_number.insert(to_number, node_state_collection);
@@ -205,11 +205,11 @@ impl SudokuPuzzle {
                 for number in 1u8..10 {
                     node_state_ids.push(format!("state_{number}"));
                 }
-                let node = Node {
-                    id: node_id_per_y_per_x.get(&from_x_index).unwrap().get(&from_y_index).unwrap().clone(),
-                    node_state_ids: node_state_ids,
-                    node_state_collection_ids_per_neighbor_node_id: node_state_collection_ids_per_neighbor_node_id
-                };
+                let node = Node::new(
+                    node_id_per_y_per_x.get(&from_x_index).unwrap().get(&from_y_index).unwrap().clone(),
+                    NodeStateProbability::get_equal_probability(node_state_ids),
+                    node_state_collection_ids_per_neighbor_node_id
+                );
                 nodes.push(node);
             }
         }

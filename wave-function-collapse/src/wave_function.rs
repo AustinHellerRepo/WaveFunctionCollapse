@@ -1,4 +1,4 @@
-use std::{collections::{HashMap, HashSet, BTreeSet, VecDeque}, cell::{Cell, RefCell}, rc::Rc, fmt::Display, hash::Hash};
+use std::{collections::{HashMap, HashSet, VecDeque}, cell::{RefCell}, rc::Rc, fmt::Display, hash::Hash};
 use serde::{Deserialize, Serialize};
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
@@ -9,15 +9,45 @@ extern crate pretty_env_logger;
 
 mod indexed_view;
 use self::indexed_view::IndexedView;
+mod probability_collection;
+use self::probability_collection::ProbabilityCollection;
+mod tests;
+
+pub struct NodeStateProbability;
+
+impl NodeStateProbability {
+    pub fn get_equal_probability(node_state_ids: Vec<String>) -> HashMap<String, f32> {
+        let mut node_state_probability_per_node_state_id: HashMap<String, f32> = HashMap::new();
+
+        for node_state_id in node_state_ids.into_iter() {
+            node_state_probability_per_node_state_id.insert(node_state_id, 1.0);
+        }
+
+        node_state_probability_per_node_state_id
+    }
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Node {
     pub id: String,
-    pub node_state_ids: Vec<String>,
-    pub node_state_collection_ids_per_neighbor_node_id: HashMap<String, Vec<String>>
+    pub node_state_probability_per_node_state_id: HashMap<String, f32>,
+    pub node_state_collection_ids_per_neighbor_node_id: HashMap<String, Vec<String>>,
+    pub node_state_ids: Vec<String>
 }
 
 impl Node {
+    pub fn new(id: String, node_state_probability_per_node_state_id: HashMap<String, f32>, node_state_collection_ids_per_neighbor_node_id: HashMap<String, Vec<String>>) -> Self {
+        let mut node_state_ids: Vec<String> = Vec::new();
+        for node_state_id in node_state_probability_per_node_state_id.keys() {
+            node_state_ids.push(node_state_id.clone());
+        }
+        Node {
+            id: id,
+            node_state_probability_per_node_state_id: node_state_probability_per_node_state_id,
+            node_state_collection_ids_per_neighbor_node_id: node_state_collection_ids_per_neighbor_node_id,
+            node_state_ids: node_state_ids
+        }
+    }
     pub fn get_id(&self) -> String {
         self.id.clone()
     }
@@ -31,49 +61,19 @@ impl Node {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct NodeStateProbability {
-    pub node_state_id: String,
-    pub probability: f32
-}
-
-impl NodeStateProbability {
-    pub fn new_equal_probabilities(node_state_ids: Vec<String>) -> Vec<Self> {
-        let probability: f32 = 1.0 / (node_state_ids.len() as f32);
-        let mut node_state_probabilities: Vec<NodeStateProbability> = Vec::new();
-        for node_state_id in node_state_ids {
-            let node_state_probability = NodeStateProbability {
-                node_state_id: node_state_id,
-                probability: probability
-            };
-            node_state_probabilities.push(node_state_probability);
-        }
-        node_state_probabilities
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct NodeStateCollection {
     pub id: String,
     pub node_state_id: String,
-    pub node_state_probabilities: Vec<NodeStateProbability>,
-    node_state_ids: HashSet<String>
+    pub node_state_ids: Vec<String>
 }
 
 impl NodeStateCollection {
-    pub fn new(id: String, node_state_id: String, node_state_probabilities: Vec<NodeStateProbability>) -> Self {
-        let mut node_state_ids: HashSet<String> = HashSet::new();
-        for node_state_probability in node_state_probabilities.iter() {
-            node_state_ids.insert(node_state_probability.node_state_id.clone());
-        }
+    pub fn new(id: String, node_state_id: String, node_state_ids: Vec<String>) -> Self {
         NodeStateCollection {
             id: id,
             node_state_id: node_state_id,
-            node_state_probabilities: node_state_probabilities,
             node_state_ids: node_state_ids
         }
-    }
-    fn contains_node_state(&self, node_state_id: &str) -> bool {
-        self.node_state_ids.contains(node_state_id)
     }
 }
 
@@ -94,9 +94,7 @@ struct CollapsableNode<'a> {
     // the mapped view that this node's neighbors will have a reference to and pull their masks from
     mask_per_neighbor_per_state: HashMap<&'a str, HashMap<&'a str, BitVec>>,
     // the index of traversed nodes based on the sorted vector of nodes as they are chosen for state determination
-    current_chosen_from_sort_index: Option<usize>,
-    // a random sort value for adding randomness to the process between runs (if randomized)
-    random_sort_index: u32
+    current_chosen_from_sort_index: Option<usize>
 }
 
 impl<'a> CollapsableNode<'a> {
@@ -116,14 +114,12 @@ impl<'a> CollapsableNode<'a> {
             neighbor_node_ids: neighbor_node_ids,
             node_state_indexed_view: node_state_indexed_view,
             mask_per_neighbor_per_state: mask_per_neighbor_per_state,
-            current_chosen_from_sort_index: None,
-            random_sort_index: 0
+            current_chosen_from_sort_index: None
         }
     }
     #[time_graph::instrument]
     fn randomize<R: Rng + ?Sized>(&mut self, random_instance: &mut R) {
         self.node_state_indexed_view.shuffle(random_instance);
-        self.random_sort_index = random_instance.next_u32();
     }
     #[time_graph::instrument]
     fn is_fully_restricted(&mut self) -> bool {
@@ -376,22 +372,14 @@ impl<'a> CollapsableWaveFunction<'a> {
 #[derive(Serialize, Deserialize, Clone)]
 pub struct WaveFunction {
     nodes: Vec<Node>,
-    node_state_collections: Vec<NodeStateCollection>,
-    is_sort_required: bool
+    node_state_collections: Vec<NodeStateCollection>
 }
 
 impl WaveFunction {
     pub fn new(nodes: Vec<Node>, node_state_collections: Vec<NodeStateCollection>) -> Self {
-        
-        let mut node_state_collection_per_id: HashMap<&str, &NodeStateCollection> = HashMap::new();
-        node_state_collections.iter().for_each(|node_state_collection| {
-            node_state_collection_per_id.insert(&node_state_collection.id, node_state_collection);
-        });
-
         WaveFunction {
             nodes: nodes,
-            node_state_collections: node_state_collections,
-            is_sort_required: false
+            node_state_collections: node_state_collections
         }
     }
 
@@ -954,11 +942,11 @@ mod unit_tests {
         let mut nodes: Vec<Node> = Vec::new();
         let node_state_collections: Vec<NodeStateCollection> = Vec::new();
 
-        nodes.push(Node { 
-            id: Uuid::new_v4().to_string(),
-            node_state_ids: Vec::new(),
-            node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-        });
+        nodes.push(Node::new(
+            Uuid::new_v4().to_string(),
+            HashMap::new(),
+            HashMap::new()
+        ));
 
         let wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
@@ -976,12 +964,12 @@ mod unit_tests {
 
         let node_id: String = Uuid::new_v4().to_string();
         let node_state_id: String = Uuid::new_v4().to_string();
-
-        nodes.push(Node { 
-            id: node_id.clone(),
-            node_state_ids: vec![node_state_id.clone()],
-            node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-        });
+        
+        nodes.push(Node::new(
+            node_id.clone(),
+            NodeStateProbability::get_equal_probability(vec![node_state_id.clone()]),
+            HashMap::new()
+        ));
 
         let wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
@@ -1006,11 +994,11 @@ mod unit_tests {
 
         let node_id: String = Uuid::new_v4().to_string();
 
-        nodes.push(Node { 
-            id: node_id.clone(),
-            node_state_ids: vec![one_node_state_id.clone(), two_node_state_id.clone()],
-            node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-        });
+        nodes.push(Node::new(
+            node_id.clone(),
+            NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+            HashMap::new()
+        ));
 
         let wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
@@ -1037,16 +1025,16 @@ mod unit_tests {
         let mut nodes: Vec<Node> = Vec::new();
         let node_state_collections: Vec<NodeStateCollection> = Vec::new();
 
-        nodes.push(Node { 
-            id: Uuid::new_v4().to_string(),
-            node_state_ids: vec![Uuid::new_v4().to_string()],
-            node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-        });
-        nodes.push(Node { 
-            id: Uuid::new_v4().to_string(),
-            node_state_ids: vec![Uuid::new_v4().to_string()],
-            node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-        });
+        nodes.push(Node::new(
+            Uuid::new_v4().to_string(),
+            NodeStateProbability::get_equal_probability(vec![Uuid::new_v4().to_string()]),
+            HashMap::new()
+        ));
+        nodes.push(Node::new(
+            Uuid::new_v4().to_string(),
+            NodeStateProbability::get_equal_probability(vec![Uuid::new_v4().to_string()]),
+            HashMap::new()
+        ));
 
         let wave_function = WaveFunction::new(nodes, node_state_collections);
         let validation_result = wave_function.validate();
@@ -1064,17 +1052,17 @@ mod unit_tests {
         let from_restrictive_node_state_id: String = String::from("from_restrictive");
         let to_restrictive_node_state_id: String = String::from("to_restrictive");
 
-        nodes.push(Node { 
-            id: Uuid::new_v4().to_string(),
-            node_state_ids: vec![from_restrictive_node_state_id.clone(), unrestricted_node_state_id.clone()],
-            node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-        });
+        nodes.push(Node::new(
+            Uuid::new_v4().to_string(),
+            NodeStateProbability::get_equal_probability(vec![from_restrictive_node_state_id.clone(), unrestricted_node_state_id.clone()]),
+            HashMap::new()
+        ));
 
-        nodes.push(Node { 
-            id: Uuid::new_v4().to_string(),
-            node_state_ids: vec![unrestricted_node_state_id.clone()],
-            node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-        });
+        nodes.push(Node::new(
+            Uuid::new_v4().to_string(),
+            NodeStateProbability::get_equal_probability(vec![unrestricted_node_state_id.clone()]),
+            HashMap::new()
+        ));
 
         let first_node_id: String = nodes[0].id.clone();
         let second_node_id: String = nodes[1].id.clone();
@@ -1083,7 +1071,7 @@ mod unit_tests {
         let restrictive_node_state_collection = NodeStateCollection::new(
             restrictive_node_state_collection_id.clone(),
             from_restrictive_node_state_id.clone(),
-            NodeStateProbability::new_equal_probabilities(vec![to_restrictive_node_state_id.clone()])
+            vec![to_restrictive_node_state_id.clone()]
         );
         node_state_collections.push(restrictive_node_state_collection);
 
@@ -1109,11 +1097,11 @@ mod unit_tests {
 
         let node_state_id: String = Uuid::new_v4().to_string();
 
-        nodes.push(Node { 
-            id: Uuid::new_v4().to_string(),
-            node_state_ids: vec![node_state_id.clone()],
-            node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-        });
+        nodes.push(Node::new(
+            Uuid::new_v4().to_string(),
+            NodeStateProbability::get_equal_probability(vec![node_state_id.clone()]),
+            HashMap::new()
+        ));
 
         let mut neighbor_node_state_ids: Vec<String> = Vec::new();
         for _ in 0..1000 {
@@ -1121,11 +1109,11 @@ mod unit_tests {
         }
         neighbor_node_state_ids.push(node_state_id.clone());
 
-        nodes.push(Node { 
-            id: Uuid::new_v4().to_string(),
-            node_state_ids: neighbor_node_state_ids,
-            node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-        });
+        nodes.push(Node::new(
+            Uuid::new_v4().to_string(),
+            NodeStateProbability::get_equal_probability(neighbor_node_state_ids),
+            HashMap::new()
+        ));
 
         let first_node_id: String = nodes[0].id.clone();
         let second_node_id: String = nodes[1].id.clone();
@@ -1134,7 +1122,7 @@ mod unit_tests {
         let same_node_state_collection = NodeStateCollection::new(
             same_node_state_collection_id.clone(),
             node_state_id.clone(),
-            NodeStateProbability::new_equal_probabilities(vec![node_state_id.clone()])
+            vec![node_state_id.clone()]
         );
         node_state_collections.push(same_node_state_collection);
 
@@ -1166,17 +1154,17 @@ mod unit_tests {
         }
         neighbor_node_state_ids.push(node_state_id.clone());
 
-        nodes.push(Node { 
-            id: Uuid::new_v4().to_string(),
-            node_state_ids: neighbor_node_state_ids,
-            node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-        });
+        nodes.push(Node::new(
+            Uuid::new_v4().to_string(),
+            NodeStateProbability::get_equal_probability(neighbor_node_state_ids),
+            HashMap::new()
+        ));
 
-        nodes.push(Node { 
-            id: Uuid::new_v4().to_string(),
-            node_state_ids: vec![node_state_id.clone()],
-            node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-        });
+        nodes.push(Node::new(
+            Uuid::new_v4().to_string(),
+            NodeStateProbability::get_equal_probability(vec![node_state_id.clone()]),
+            HashMap::new()
+        ));
 
         let first_node_id: String = nodes[1].id.clone();
         let second_node_id: String = nodes[0].id.clone();
@@ -1185,7 +1173,7 @@ mod unit_tests {
         let same_node_state_collection = NodeStateCollection::new(
             same_node_state_collection_id.clone(),
             node_state_id.clone(),
-            NodeStateProbability::new_equal_probabilities(vec![node_state_id.clone()])
+            vec![node_state_id.clone()]
         );
         node_state_collections.push(same_node_state_collection);
 
@@ -1211,11 +1199,11 @@ mod unit_tests {
 
         let node_state_id: String = String::from("state_A");
 
-        nodes.push(Node { 
-            id: String::from("node_1"),
-            node_state_ids: vec![node_state_id.clone()],
-            node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-        });
+        nodes.push(Node::new(
+            String::from("node_1"),
+            NodeStateProbability::get_equal_probability(vec![node_state_id.clone()]),
+            HashMap::new()
+        ));
 
         let mut neighbor_node_state_ids: Vec<String> = Vec::new();
         for _ in 0..1000 {
@@ -1223,11 +1211,11 @@ mod unit_tests {
         }
         neighbor_node_state_ids.push(node_state_id.clone());
 
-        nodes.push(Node { 
-            id: String::from("node_2"),
-            node_state_ids: neighbor_node_state_ids,
-            node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-        });
+        nodes.push(Node::new(
+            String::from("node_2"),
+            NodeStateProbability::get_equal_probability(neighbor_node_state_ids),
+            HashMap::new()
+        ));
 
         let first_node_id: String = nodes[0].id.clone();
         let second_node_id: String = nodes[1].id.clone();
@@ -1236,7 +1224,7 @@ mod unit_tests {
         let same_node_state_collection = NodeStateCollection::new(
             same_node_state_collection_id.clone(),
             node_state_id.clone(),
-            NodeStateProbability::new_equal_probabilities(vec![node_state_id.clone()])
+            vec![node_state_id.clone()]
         );
         node_state_collections.push(same_node_state_collection);
 
@@ -1276,17 +1264,17 @@ mod unit_tests {
         }
         neighbor_node_state_ids.push(node_state_id.clone());
 
-        nodes.push(Node { 
-            id: String::from("node_2"),
-            node_state_ids: neighbor_node_state_ids,
-            node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-        });
+        nodes.push(Node::new(
+            String::from("node_2"),
+            NodeStateProbability::get_equal_probability(neighbor_node_state_ids),
+            HashMap::new()
+        ));
 
-        nodes.push(Node { 
-            id: String::from("node_1"),
-            node_state_ids: vec![node_state_id.clone()],
-            node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-        });
+        nodes.push(Node::new(
+            String::from("node_1"),
+            NodeStateProbability::get_equal_probability(vec![node_state_id.clone()]),
+            HashMap::new()
+        ));
 
         let first_node_id: String = nodes[0].id.clone();
         let second_node_id: String = nodes[1].id.clone();
@@ -1295,7 +1283,7 @@ mod unit_tests {
         let same_node_state_collection = NodeStateCollection::new(
             same_node_state_collection_id.clone(),
             node_state_id.clone(),
-            NodeStateProbability::new_equal_probabilities(vec![node_state_id.clone()])
+            vec![node_state_id.clone()]
         );
         node_state_collections.push(same_node_state_collection);
 
@@ -1330,17 +1318,17 @@ mod unit_tests {
         let one_node_state_id: String = Uuid::new_v4().to_string();
         let two_node_state_id: String = Uuid::new_v4().to_string();
 
-        nodes.push(Node { 
-            id: Uuid::new_v4().to_string(),
-            node_state_ids: vec![one_node_state_id.clone(), two_node_state_id.clone()],
-            node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-        });
+        nodes.push(Node::new(
+            Uuid::new_v4().to_string(),
+            NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+            HashMap::new()
+        ));
 
-        nodes.push(Node { 
-            id: Uuid::new_v4().to_string(),
-            node_state_ids: vec![one_node_state_id.clone(), two_node_state_id.clone()],
-            node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-        });
+        nodes.push(Node::new(
+            Uuid::new_v4().to_string(),
+            NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+            HashMap::new()
+        ));
 
         let first_node_id: String = nodes[0].id.clone();
         let second_node_id: String = nodes[1].id.clone();
@@ -1349,7 +1337,7 @@ mod unit_tests {
         let if_one_not_two_node_state_collection = NodeStateCollection::new(
             if_one_not_two_node_state_collection_id.clone(),
             one_node_state_id.clone(),
-            NodeStateProbability::new_equal_probabilities(vec![two_node_state_id.clone()])
+            vec![two_node_state_id.clone()]
         );
         node_state_collections.push(if_one_not_two_node_state_collection);
 
@@ -1357,7 +1345,7 @@ mod unit_tests {
         let if_two_not_one_node_state_collection = NodeStateCollection::new(
             if_two_not_one_node_state_collection_id.clone(),
             two_node_state_id.clone(),
-            NodeStateProbability::new_equal_probabilities(vec![one_node_state_id.clone()])
+            vec![one_node_state_id.clone()]
         );
         node_state_collections.push(if_two_not_one_node_state_collection);
 
@@ -1396,16 +1384,16 @@ mod unit_tests {
             let one_node_state_id: String = Uuid::new_v4().to_string();
             let two_node_state_id: String = Uuid::new_v4().to_string();
 
-            nodes.push(Node { 
-                id: Uuid::new_v4().to_string(),
-                node_state_ids: vec![one_node_state_id.clone(), two_node_state_id.clone()],
-                node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-            });
-            nodes.push(Node { 
-                id: Uuid::new_v4().to_string(),
-                node_state_ids: vec![one_node_state_id.clone(), two_node_state_id.clone()],
-                node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-            });
+            nodes.push(Node::new(
+                Uuid::new_v4().to_string(),
+                NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+                HashMap::new()
+            ));
+            nodes.push(Node::new(
+                Uuid::new_v4().to_string(),
+                NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+                HashMap::new()
+            ));
 
             let first_node_id: String = nodes[0].id.clone();
             let second_node_id: String = nodes[1].id.clone();
@@ -1414,7 +1402,7 @@ mod unit_tests {
             let if_one_not_two_node_state_collection = NodeStateCollection::new(
                 if_one_not_two_node_state_collection_id.clone(),
                 one_node_state_id.clone(),
-                NodeStateProbability::new_equal_probabilities(vec![two_node_state_id.clone()])
+                vec![two_node_state_id.clone()]
             );
             node_state_collections.push(if_one_not_two_node_state_collection);
 
@@ -1422,7 +1410,7 @@ mod unit_tests {
             let if_two_not_one_node_state_collection = NodeStateCollection::new(
                 if_two_not_one_node_state_collection_id.clone(),
                 two_node_state_id.clone(),
-                NodeStateProbability::new_equal_probabilities(vec![one_node_state_id.clone()])
+                vec![one_node_state_id.clone()]
             );
             node_state_collections.push(if_two_not_one_node_state_collection);
 
@@ -1465,16 +1453,16 @@ mod unit_tests {
             let three_node_state_id: String = String::from("state_C");
             let four_node_state_id: String = String::from("state_D");
 
-            nodes.push(Node { 
-                id: String::from("node_1"),
-                node_state_ids: vec![one_node_state_id.clone(), two_node_state_id.clone(), three_node_state_id.clone(), four_node_state_id.clone()],
-                node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-            });
-            nodes.push(Node { 
-                id: String::from("node_2"),
-                node_state_ids: vec![one_node_state_id.clone(), two_node_state_id.clone(), three_node_state_id.clone(), four_node_state_id.clone()],
-                node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-            });
+            nodes.push(Node::new(
+                String::from("node_1"),
+                NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone(), three_node_state_id.clone(), four_node_state_id.clone()]),
+                HashMap::new()
+            ));
+            nodes.push(Node::new(
+                String::from("node_2"),
+                NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone(), three_node_state_id.clone(), four_node_state_id.clone()]),
+                HashMap::new()
+            ));
 
             let first_node_id: String = nodes[0].id.clone();
             let second_node_id: String = nodes[1].id.clone();
@@ -1483,7 +1471,7 @@ mod unit_tests {
             let if_one_then_three_node_state_collection = NodeStateCollection::new(
                 if_one_then_three_node_state_collection_id.clone(),
                 one_node_state_id.clone(),
-                NodeStateProbability::new_equal_probabilities(vec![three_node_state_id.clone()])
+                vec![three_node_state_id.clone()]
             );
             node_state_collections.push(if_one_then_three_node_state_collection);
 
@@ -1491,7 +1479,7 @@ mod unit_tests {
             let if_two_then_four_node_state_collection = NodeStateCollection::new(
                 if_two_then_four_node_state_collection_id.clone(),
                 two_node_state_id.clone(),
-                NodeStateProbability::new_equal_probabilities(vec![four_node_state_id.clone()])
+                vec![four_node_state_id.clone()]
             );
             node_state_collections.push(if_two_then_four_node_state_collection);
 
@@ -1499,7 +1487,7 @@ mod unit_tests {
             let if_three_then_no_node_state_collection = NodeStateCollection::new(
                 if_three_then_no_node_state_collection_id.clone(),
                 three_node_state_id.clone(),
-                NodeStateProbability::new_equal_probabilities(Vec::new())
+                Vec::new()
             );
             node_state_collections.push(if_three_then_no_node_state_collection);
 
@@ -1507,7 +1495,7 @@ mod unit_tests {
             let if_four_then_no_node_state_collection = NodeStateCollection::new(
                 if_four_then_no_node_state_collection_id.clone(),
                 four_node_state_id.clone(),
-                NodeStateProbability::new_equal_probabilities(Vec::new())
+                Vec::new()
             );
             node_state_collections.push(if_four_then_no_node_state_collection);
 
@@ -1515,7 +1503,7 @@ mod unit_tests {
             let if_three_then_two_node_state_collection = NodeStateCollection::new(
                 if_three_then_two_node_state_collection_id.clone(),
                 three_node_state_id.clone(),
-                NodeStateProbability::new_equal_probabilities(vec![two_node_state_id.clone()])
+                vec![two_node_state_id.clone()]
             );
             node_state_collections.push(if_three_then_two_node_state_collection);
 
@@ -1523,7 +1511,7 @@ mod unit_tests {
             let if_four_then_one_node_state_collection = NodeStateCollection::new(
                 if_four_then_one_node_state_collection_id.clone(),
                 four_node_state_id.clone(),
-                NodeStateProbability::new_equal_probabilities(vec![one_node_state_id.clone()])
+                vec![one_node_state_id.clone()]
             );
             node_state_collections.push(if_four_then_one_node_state_collection);
 
@@ -1531,7 +1519,7 @@ mod unit_tests {
             let if_one_then_no_node_state_collection = NodeStateCollection::new(
                 if_one_then_no_node_state_collection_id.clone(),
                 one_node_state_id.clone(),
-                NodeStateProbability::new_equal_probabilities(Vec::new())
+                Vec::new()
             );
             node_state_collections.push(if_one_then_no_node_state_collection);
 
@@ -1539,7 +1527,7 @@ mod unit_tests {
             let if_two_then_no_node_state_collection = NodeStateCollection::new(
                 if_two_then_no_node_state_collection_id.clone(),
                 two_node_state_id.clone(),
-                NodeStateProbability::new_equal_probabilities(Vec::new())
+                Vec::new()
             );
             node_state_collections.push(if_two_then_no_node_state_collection);
 
@@ -1574,21 +1562,21 @@ mod unit_tests {
 
         let node_state_id: String = String::from("state_A");
 
-        nodes.push(Node { 
-            id: String::from("node_1"),
-            node_state_ids: vec![node_state_id.clone()],
-            node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-        });
-        nodes.push(Node { 
-            id: String::from("node_2"),
-            node_state_ids: vec![node_state_id.clone()],
-            node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-        });
-        nodes.push(Node { 
-            id: String::from("node_3"),
-            node_state_ids: vec![node_state_id.clone()],
-            node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-        });
+        nodes.push(Node::new(
+            String::from("node_1"),
+            NodeStateProbability::get_equal_probability(vec![node_state_id.clone()]),
+            HashMap::new()
+        ));
+        nodes.push(Node::new(
+            String::from("node_2"),
+            NodeStateProbability::get_equal_probability(vec![node_state_id.clone()]),
+            HashMap::new()
+        ));
+        nodes.push(Node::new(
+            String::from("node_3"),
+            NodeStateProbability::get_equal_probability(vec![node_state_id.clone()]),
+            HashMap::new()
+        ));
 
         let first_node_id: String = nodes[0].id.clone();
         let second_node_id: String = nodes[1].id.clone();
@@ -1598,7 +1586,7 @@ mod unit_tests {
         let same_node_state_collection = NodeStateCollection::new(
             same_node_state_collection_id.clone(),
             node_state_id.clone(),
-            NodeStateProbability::new_equal_probabilities(vec![node_state_id.clone()])
+            vec![node_state_id.clone()]
         );
         node_state_collections.push(same_node_state_collection);
 
@@ -1638,21 +1626,21 @@ mod unit_tests {
         let second_node_state_id: String = String::from("state_B");
         let third_node_state_id: String = String::from("state_C");
 
-        nodes.push(Node { 
-            id: String::from("node_1"),
-            node_state_ids: vec![first_node_state_id.clone(), second_node_state_id.clone(), third_node_state_id.clone()],
-            node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-        });
-        nodes.push(Node { 
-            id: String::from("node_2"),
-            node_state_ids: vec![first_node_state_id.clone(), second_node_state_id.clone(), third_node_state_id.clone()],
-            node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-        });
-        nodes.push(Node { 
-            id: String::from("node_3"),
-            node_state_ids: vec![first_node_state_id.clone(), second_node_state_id.clone(), third_node_state_id.clone()],
-            node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-        });
+        nodes.push(Node::new(
+            String::from("node_1"),
+            NodeStateProbability::get_equal_probability(vec![first_node_state_id.clone(), second_node_state_id.clone(), third_node_state_id.clone()]),
+            HashMap::new()
+        ));
+        nodes.push(Node::new(
+            String::from("node_2"),
+            NodeStateProbability::get_equal_probability(vec![first_node_state_id.clone(), second_node_state_id.clone(), third_node_state_id.clone()]),
+            HashMap::new()
+        ));
+        nodes.push(Node::new(
+            String::from("node_3"),
+            NodeStateProbability::get_equal_probability(vec![first_node_state_id.clone(), second_node_state_id.clone(), third_node_state_id.clone()]),
+            HashMap::new()
+        ));
 
         let first_node_id: String = nodes[0].id.clone();
         let second_node_id: String = nodes[1].id.clone();
@@ -1662,7 +1650,7 @@ mod unit_tests {
         let all_but_first_node_state_collection = NodeStateCollection::new(
             all_but_first_node_state_collection_id.clone(),
             first_node_state_id.clone(),
-            NodeStateProbability::new_equal_probabilities(vec![second_node_state_id.clone(), third_node_state_id.clone()])
+            vec![second_node_state_id.clone(), third_node_state_id.clone()]
         );
         node_state_collections.push(all_but_first_node_state_collection);
 
@@ -1670,7 +1658,7 @@ mod unit_tests {
         let all_but_second_node_state_collection = NodeStateCollection::new(
             all_but_second_node_state_collection_id.clone(),
             second_node_state_id.clone(),
-            NodeStateProbability::new_equal_probabilities(vec![first_node_state_id.clone(), third_node_state_id.clone()])
+            vec![first_node_state_id.clone(), third_node_state_id.clone()]
         );
         node_state_collections.push(all_but_second_node_state_collection);
 
@@ -1678,7 +1666,7 @@ mod unit_tests {
         let all_but_third_node_state_collection = NodeStateCollection::new(
             all_but_third_node_state_collection_id.clone(),
             third_node_state_id.clone(),
-            NodeStateProbability::new_equal_probabilities(vec![first_node_state_id.clone(), second_node_state_id.clone()])
+            vec![first_node_state_id.clone(), second_node_state_id.clone()]
         );
         node_state_collections.push(all_but_third_node_state_collection);
 
@@ -1722,9 +1710,12 @@ mod unit_tests {
 
         debug!("collapsed_wave_function.node_state_per_node: {:?}", collapsed_wave_function.node_state_per_node);
 
-        assert_eq!(&first_node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
-        assert_eq!(&second_node_state_id, collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap());
-        assert_eq!(&third_node_state_id, collapsed_wave_function.node_state_per_node.get(&third_node_id).unwrap());
+        assert_ne!(collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap(), collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
+        assert_ne!(collapsed_wave_function.node_state_per_node.get(&third_node_id).unwrap(), collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
+        assert_ne!(collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap(), collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap());
+        assert_ne!(collapsed_wave_function.node_state_per_node.get(&third_node_id).unwrap(), collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap());
+        assert_ne!(collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap(), collapsed_wave_function.node_state_per_node.get(&third_node_id).unwrap());
+        assert_ne!(collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap(), collapsed_wave_function.node_state_per_node.get(&third_node_id).unwrap());
     }
 
     #[test]
@@ -1744,21 +1735,21 @@ mod unit_tests {
             let second_node_state_id: String = String::from("state_B");
             let third_node_state_id: String = String::from("state_C");
 
-            nodes.push(Node { 
-                id: String::from("node_1"),
-                node_state_ids: vec![first_node_state_id.clone(), second_node_state_id.clone(), third_node_state_id.clone()],
-                node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-            });
-            nodes.push(Node { 
-                id: String::from("node_2"),
-                node_state_ids: vec![first_node_state_id.clone(), second_node_state_id.clone(), third_node_state_id.clone()],
-                node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-            });
-            nodes.push(Node { 
-                id: String::from("node_3"),
-                node_state_ids: vec![first_node_state_id.clone(), second_node_state_id.clone(), third_node_state_id.clone()],
-                node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-            });
+            nodes.push(Node::new(
+                String::from("node_1"),
+                NodeStateProbability::get_equal_probability(vec![first_node_state_id.clone(), second_node_state_id.clone(), third_node_state_id.clone()]),
+                HashMap::new()
+            ));
+            nodes.push(Node::new(
+                String::from("node_2"),
+                NodeStateProbability::get_equal_probability(vec![first_node_state_id.clone(), second_node_state_id.clone(), third_node_state_id.clone()]),
+                HashMap::new()
+            ));
+            nodes.push(Node::new(
+                String::from("node_3"),
+                NodeStateProbability::get_equal_probability(vec![first_node_state_id.clone(), second_node_state_id.clone(), third_node_state_id.clone()]),
+                HashMap::new()
+            ));
 
             let first_node_id: String = nodes[0].id.clone();
             let second_node_id: String = nodes[1].id.clone();
@@ -1768,7 +1759,7 @@ mod unit_tests {
             let all_but_first_node_state_collection = NodeStateCollection::new(
                 all_but_first_node_state_collection_id.clone(),
                 first_node_state_id.clone(),
-                NodeStateProbability::new_equal_probabilities(vec![second_node_state_id.clone(), third_node_state_id.clone()])
+                vec![second_node_state_id.clone(), third_node_state_id.clone()]
             );
             node_state_collections.push(all_but_first_node_state_collection);
 
@@ -1776,7 +1767,7 @@ mod unit_tests {
             let all_but_second_node_state_collection = NodeStateCollection::new(
                 all_but_second_node_state_collection_id.clone(),
                 second_node_state_id.clone(),
-                NodeStateProbability::new_equal_probabilities(vec![first_node_state_id.clone(), third_node_state_id.clone()])
+                vec![first_node_state_id.clone(), third_node_state_id.clone()]
             );
             node_state_collections.push(all_but_second_node_state_collection);
 
@@ -1784,7 +1775,7 @@ mod unit_tests {
             let all_but_third_node_state_collection = NodeStateCollection::new(
                 all_but_third_node_state_collection_id.clone(),
                 third_node_state_id.clone(),
-                NodeStateProbability::new_equal_probabilities(vec![first_node_state_id.clone(), second_node_state_id.clone()])
+                vec![first_node_state_id.clone(), second_node_state_id.clone()]
             );
             node_state_collections.push(all_but_third_node_state_collection);
 
@@ -1861,11 +1852,12 @@ mod unit_tests {
             for index in 0..nodes_total {
                 let node_id: String = Uuid::new_v4().to_string();
                 node_ids.push(node_id.clone());
-                nodes.push(Node { 
-                    id: node_id,
-                    node_state_ids: node_state_ids.clone(),
-                    node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-                });
+                let node = Node::new(
+                    node_id,
+                    NodeStateProbability::get_equal_probability(node_state_ids.clone()),
+                    HashMap::new()
+                );
+                nodes.push(node);
             }
 
             for node_state_id in node_state_ids.iter() {
@@ -1881,7 +1873,7 @@ mod unit_tests {
                 node_state_collections.push(NodeStateCollection::new(
                     node_state_collection_id,
                     node_state_id.clone(),
-                    NodeStateProbability::new_equal_probabilities(other_node_state_ids)
+                    other_node_state_ids
                 ));
             }
 
@@ -1963,11 +1955,12 @@ mod unit_tests {
                 for index in 0..nodes_total {
                     let node_id: String = Uuid::new_v4().to_string();
                     node_ids.push(node_id.clone());
-                    nodes.push(Node { 
-                        id: node_id,
-                        node_state_ids: node_state_ids.clone(),
-                        node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-                    });
+                    let node = Node::new(
+                        node_id,
+                        NodeStateProbability::get_equal_probability(node_state_ids.clone()),
+                        HashMap::new()
+                    );
+                    nodes.push(node);
                 }
 
                 for node_state_id in node_state_ids.iter() {
@@ -1983,7 +1976,7 @@ mod unit_tests {
                     node_state_collections.push(NodeStateCollection::new(
                         node_state_collection_id,
                         node_state_id.clone(),
-                        NodeStateProbability::new_equal_probabilities(other_node_state_ids)
+                        other_node_state_ids
                     ));
                 }
 
@@ -2062,11 +2055,11 @@ mod unit_tests {
             for _ in 0..nodes_total {
                 let node_id: String = Uuid::new_v4().to_string();
                 node_ids.push(node_id.clone());
-                nodes.push(Node { 
-                    id: node_id,
-                    node_state_ids: node_state_ids.clone(),
-                    node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-                });
+                nodes.push(Node::new(
+                    node_id,
+                    NodeStateProbability::get_equal_probability(node_state_ids.clone()),
+                    HashMap::new()
+                ));
             }
 
             for node_state_id in node_state_ids.iter() {
@@ -2082,7 +2075,7 @@ mod unit_tests {
                 node_state_collections.push(NodeStateCollection::new(
                     node_state_collection_id,
                     node_state_id.clone(),
-                    NodeStateProbability::new_equal_probabilities(other_node_state_ids)
+                    other_node_state_ids
                 ));
             }
 
@@ -2187,11 +2180,11 @@ mod unit_tests {
                 for _ in 0..nodes_total {
                     let node_id: String = Uuid::new_v4().to_string();
                     node_ids.push(node_id.clone());
-                    nodes.push(Node { 
-                        id: node_id,
-                        node_state_ids: node_state_ids.clone(),
-                        node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-                    });
+                    nodes.push(Node::new(
+                        node_id,
+                        NodeStateProbability::get_equal_probability(node_state_ids.clone()),
+                        HashMap::new()
+                    ));
                 }
 
                 for node_state_id in node_state_ids.iter() {
@@ -2207,7 +2200,7 @@ mod unit_tests {
                     node_state_collections.push(NodeStateCollection::new(
                         node_state_collection_id,
                         node_state_id.clone(),
-                        NodeStateProbability::new_equal_probabilities(other_node_state_ids)
+                        other_node_state_ids
                     ));
                 }
 
@@ -2318,11 +2311,11 @@ mod unit_tests {
                 for index in 0..nodes_total {
                     let node_id: String = format!("{}{}", index, Uuid::new_v4());
                     node_ids.push(node_id.clone());
-                    nodes.push(Node { 
-                        id: node_id,
-                        node_state_ids: node_state_ids.clone(),
-                        node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-                    });
+                    nodes.push(Node::new(
+                        node_id,
+                        NodeStateProbability::get_equal_probability(node_state_ids.clone()),
+                        HashMap::new()
+                    ));
                 }
 
                 for node_state_id in node_state_ids.iter() {
@@ -2338,7 +2331,7 @@ mod unit_tests {
                     node_state_collections.push(NodeStateCollection::new(
                         node_state_collection_id,
                         node_state_id.clone(),
-                        NodeStateProbability::new_equal_probabilities(other_node_state_ids)
+                        other_node_state_ids
                     ));
                 }
 
@@ -2410,16 +2403,16 @@ mod unit_tests {
 
         let node_state_id: String = Uuid::new_v4().to_string();
 
-        nodes.push(Node { 
-            id: Uuid::new_v4().to_string(),
-            node_state_ids: vec![node_state_id.clone()],
-            node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-        });
-        nodes.push(Node { 
-            id: Uuid::new_v4().to_string(),
-            node_state_ids: vec![node_state_id.clone()],
-            node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-        });
+        nodes.push(Node::new(
+            Uuid::new_v4().to_string(),
+            NodeStateProbability::get_equal_probability(vec![node_state_id.clone()]),
+            HashMap::new()
+        ));
+        nodes.push(Node::new(
+            Uuid::new_v4().to_string(),
+            NodeStateProbability::get_equal_probability(vec![node_state_id.clone()]),
+            HashMap::new()
+        ));
 
         let first_node_id: String = nodes[0].id.clone();
         let second_node_id: String = nodes[1].id.clone();
@@ -2428,7 +2421,7 @@ mod unit_tests {
         let same_node_state_collection = NodeStateCollection::new(
             same_node_state_collection_id.clone(),
             node_state_id.clone(),
-            NodeStateProbability::new_equal_probabilities(vec![node_state_id.clone()])
+            vec![node_state_id.clone()]
         );
         node_state_collections.push(same_node_state_collection);
 
@@ -2473,32 +2466,32 @@ mod unit_tests {
             let one_node_state_id: String = String::from("state_A");
             let two_node_state_id: String = String::from("state_B");
 
-            nodes.push(Node { 
-                id: String::from("node_1"),
-                node_state_ids: vec![one_node_state_id.clone(), two_node_state_id.clone()],
-                node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-            });
-            nodes.push(Node { 
-                id: String::from("node_2"),
-                node_state_ids: vec![one_node_state_id.clone(), two_node_state_id.clone()],
-                node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-            });
-            nodes.push(Node { 
-                id: String::from("node_3"),
-                node_state_ids: vec![one_node_state_id.clone(), two_node_state_id.clone()],
-                node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-            });
-            nodes.push(Node { 
-                id: String::from("node_4"),
-                node_state_ids: vec![one_node_state_id.clone(), two_node_state_id.clone()],
-                node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-            });
+            nodes.push(Node::new(
+                String::from("node_1"),
+                NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+                HashMap::new()
+            ));
+            nodes.push(Node::new(
+                String::from("node_2"),
+                NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+                HashMap::new()
+            ));
+            nodes.push(Node::new(
+                String::from("node_3"),
+                NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+                HashMap::new()
+            ));
+            nodes.push(Node::new(
+                String::from("node_4"),
+                NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+                HashMap::new()
+            ));
 
             let one_forces_two_node_state_collection_id: String = Uuid::new_v4().to_string();
             let one_forces_two_node_state_collection = NodeStateCollection::new(
                 one_forces_two_node_state_collection_id.clone(),
                 one_node_state_id.clone(),
-                NodeStateProbability::new_equal_probabilities(vec![two_node_state_id.clone()])
+                vec![two_node_state_id.clone()]
             );
             node_state_collections.push(one_forces_two_node_state_collection);
 
@@ -2506,7 +2499,7 @@ mod unit_tests {
             let two_forces_one_node_state_collection = NodeStateCollection::new(
                 two_forces_one_node_state_collection_id.clone(),
                 two_node_state_id.clone(),
-                NodeStateProbability::new_equal_probabilities(vec![one_node_state_id.clone()])
+                vec![one_node_state_id.clone()]
             );
             node_state_collections.push(two_forces_one_node_state_collection);
 
@@ -2561,32 +2554,32 @@ mod unit_tests {
             let one_node_state_id: String = String::from("state_A");
             let two_node_state_id: String = String::from("state_B");
 
-            nodes.push(Node { 
-                id: String::from("node_1"),
-                node_state_ids: vec![one_node_state_id.clone(), two_node_state_id.clone()],
-                node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-            });
-            nodes.push(Node { 
-                id: String::from("node_2"),
-                node_state_ids: vec![one_node_state_id.clone(), two_node_state_id.clone()],
-                node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-            });
-            nodes.push(Node { 
-                id: String::from("node_3"),
-                node_state_ids: vec![one_node_state_id.clone(), two_node_state_id.clone()],
-                node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-            });
-            nodes.push(Node { 
-                id: String::from("node_4"),
-                node_state_ids: vec![one_node_state_id.clone(), two_node_state_id.clone()],
-                node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-            });
+            nodes.push(Node::new(
+                String::from("node_1"),
+                NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+                HashMap::new()
+            ));
+            nodes.push(Node::new(
+                String::from("node_2"),
+                NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+                HashMap::new()
+            ));
+            nodes.push(Node::new(
+                String::from("node_3"),
+                NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+                HashMap::new()
+            ));
+            nodes.push(Node::new(
+                String::from("node_4"),
+                NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+                HashMap::new()
+            ));
 
             let one_forces_two_node_state_collection_id: String = Uuid::new_v4().to_string();
             let one_forces_two_node_state_collection = NodeStateCollection::new(
                 one_forces_two_node_state_collection_id.clone(),
                 one_node_state_id.clone(),
-                NodeStateProbability::new_equal_probabilities(vec![two_node_state_id.clone()])
+                vec![two_node_state_id.clone()]
             );
             node_state_collections.push(one_forces_two_node_state_collection);
 
@@ -2594,7 +2587,7 @@ mod unit_tests {
             let two_forces_one_node_state_collection = NodeStateCollection::new(
                 two_forces_one_node_state_collection_id.clone(),
                 two_node_state_id.clone(),
-                NodeStateProbability::new_equal_probabilities(vec![one_node_state_id.clone()])
+                vec![one_node_state_id.clone()]
             );
             node_state_collections.push(two_forces_one_node_state_collection);
 
@@ -2653,7 +2646,7 @@ mod unit_tests {
             let one_forces_two_node_state_collection = NodeStateCollection::new(
                 one_forces_two_node_state_collection_id.clone(),
                 one_node_state_id.clone(),
-                NodeStateProbability::new_equal_probabilities(vec![two_node_state_id.clone()])
+                vec![two_node_state_id.clone()]
             );
             node_state_collections.push(one_forces_two_node_state_collection);
 
@@ -2661,30 +2654,30 @@ mod unit_tests {
             let two_forces_one_node_state_collection = NodeStateCollection::new(
                 two_forces_one_node_state_collection_id.clone(),
                 two_node_state_id.clone(),
-                NodeStateProbability::new_equal_probabilities(vec![one_node_state_id.clone()])
+                vec![one_node_state_id.clone()]
             );
             node_state_collections.push(two_forces_one_node_state_collection);
 
-            nodes.push(Node { 
-                id: String::from("node_1a"),
-                node_state_ids: vec![two_node_state_id.clone()],
-                node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-            });
-            nodes.push(Node { 
-                id: String::from("node_2a"),
-                node_state_ids: vec![one_node_state_id.clone(), two_node_state_id.clone()],
-                node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-            });
-            nodes.push(Node { 
-                id: String::from("node_3a"),
-                node_state_ids: vec![one_node_state_id.clone(), two_node_state_id.clone()],
-                node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-            });
-            nodes.push(Node { 
-                id: String::from("node_4a"),
-                node_state_ids: vec![one_node_state_id.clone(), two_node_state_id.clone()],
-                node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-            });
+            nodes.push(Node::new(
+                String::from("node_1a"),
+                NodeStateProbability::get_equal_probability(vec![two_node_state_id.clone()]),
+                HashMap::new()
+            ));
+            nodes.push(Node::new(
+                String::from("node_2a"),
+                NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+                HashMap::new()
+            ));
+            nodes.push(Node::new(
+                String::from("node_3a"),
+                NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+                HashMap::new()
+            ));
+            nodes.push(Node::new(
+                String::from("node_4a"),
+                NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+                HashMap::new()
+            ));
 
             let possible_node_ids: Vec<&str> = vec!["node_1a", "node_2a", "node_3a", "node_4a"];
             for (node_index, node) in nodes.iter_mut().enumerate() {
@@ -2695,26 +2688,26 @@ mod unit_tests {
                 }
             }
 
-            nodes.push(Node { 
-                id: String::from("node_1b"),
-                node_state_ids: vec![two_node_state_id.clone()],
-                node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-            });
-            nodes.push(Node { 
-                id: String::from("node_2b"),
-                node_state_ids: vec![one_node_state_id.clone(), two_node_state_id.clone()],
-                node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-            });
-            nodes.push(Node { 
-                id: String::from("node_3b"),
-                node_state_ids: vec![one_node_state_id.clone(), two_node_state_id.clone()],
-                node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-            });
-            nodes.push(Node { 
-                id: String::from("node_4b"),
-                node_state_ids: vec![one_node_state_id.clone(), two_node_state_id.clone()],
-                node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-            });
+            nodes.push(Node::new(
+                String::from("node_1b"),
+                NodeStateProbability::get_equal_probability(vec![two_node_state_id.clone()]),
+                HashMap::new()
+            ));
+            nodes.push(Node::new(
+                String::from("node_2b"),
+                NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+                HashMap::new()
+            ));
+            nodes.push(Node::new(
+                String::from("node_3b"),
+                NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+                HashMap::new()
+            ));
+            nodes.push(Node::new(
+                String::from("node_4b"),
+                NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+                HashMap::new()
+            ));
 
             let possible_node_ids: Vec<&str> = vec!["node_1b", "node_2b", "node_3b", "node_4b"];
             for (node_index, node) in nodes.iter_mut().enumerate() {
@@ -2785,26 +2778,26 @@ mod unit_tests {
         let one_node_state_id: String = String::from("state_A");
         let two_node_state_id: String = String::from("state_B");
 
-        nodes.push(Node { 
-            id: one_node_id.clone(),
-            node_state_ids: vec![one_node_state_id.clone(), two_node_state_id.clone()],
-            node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-        });
-        nodes.push(Node { 
-            id: two_node_id.clone(),
-            node_state_ids: vec![one_node_state_id.clone(), two_node_state_id.clone()],
-            node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-        });
-        nodes.push(Node { 
-            id: three_node_id.clone(),
-            node_state_ids: vec![one_node_state_id.clone(), two_node_state_id.clone()],
-            node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-        });
-        nodes.push(Node { 
-            id: four_node_id.clone(),
-            node_state_ids: vec![one_node_state_id.clone(), two_node_state_id.clone()],
-            node_state_collection_ids_per_neighbor_node_id: HashMap::new()
-        });
+        nodes.push(Node::new(
+            one_node_id.clone(),
+            NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+            HashMap::new()
+        ));
+        nodes.push(Node::new(
+            two_node_id.clone(),
+            NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+            HashMap::new()
+        ));
+        nodes.push(Node::new(
+            three_node_id.clone(),
+            NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+            HashMap::new()
+        ));
+        nodes.push(Node::new(
+            four_node_id.clone(),
+            NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+            HashMap::new()
+        ));
 
         let one_node_state_id: String = String::from("state_A");
         let two_node_state_id: String = String::from("state_B");
@@ -2813,7 +2806,7 @@ mod unit_tests {
         let one_permits_one_and_two_node_state_collection = NodeStateCollection::new(
             one_permits_one_and_two_node_state_collection_id.clone(),
             one_node_state_id.clone(),
-            NodeStateProbability::new_equal_probabilities(vec![one_node_state_id.clone(), two_node_state_id.clone()])
+            vec![one_node_state_id.clone(), two_node_state_id.clone()]
         );
         node_state_collections.push(one_permits_one_and_two_node_state_collection);
 
@@ -2821,7 +2814,7 @@ mod unit_tests {
         let two_permits_none_node_state_collection = NodeStateCollection::new(
             two_permits_none_node_state_collection_id.clone(),
             two_node_state_id.clone(),
-            NodeStateProbability::new_equal_probabilities(vec![])
+            vec![]
         );
         node_state_collections.push(two_permits_none_node_state_collection);
 
@@ -2829,7 +2822,7 @@ mod unit_tests {
         let two_permits_one_node_state_collection = NodeStateCollection::new(
             two_permits_one_node_state_collection_id.clone(),
             two_node_state_id.clone(),
-            NodeStateProbability::new_equal_probabilities(vec![one_node_state_id.clone()])
+            vec![one_node_state_id.clone()]
         );
         node_state_collections.push(two_permits_one_node_state_collection);
 
@@ -2837,7 +2830,7 @@ mod unit_tests {
         let one_permits_two_node_state_collection = NodeStateCollection::new(
             one_permits_two_node_state_collection_id.clone(),
             one_node_state_id.clone(),
-            NodeStateProbability::new_equal_probabilities(vec![two_node_state_id.clone()])
+            vec![two_node_state_id.clone()]
         );
         node_state_collections.push(one_permits_two_node_state_collection);
 
@@ -2845,7 +2838,7 @@ mod unit_tests {
         let one_permits_one_node_state_collection = NodeStateCollection::new(
             one_permits_one_node_state_collection_id.clone(),
             one_node_state_id.clone(),
-            NodeStateProbability::new_equal_probabilities(vec![one_node_state_id.clone()])
+            vec![one_node_state_id.clone()]
         );
         node_state_collections.push(one_permits_one_node_state_collection);
 
