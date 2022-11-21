@@ -13,6 +13,8 @@ mod probability_collection;
 use self::probability_collection::ProbabilityCollection;
 mod probability_tree;
 use self::probability_tree::ProbabilityTree;
+mod probability_container;
+use self::probability_container::ProbabilityContainer;
 mod tests;
 
 pub struct NodeStateProbability;
