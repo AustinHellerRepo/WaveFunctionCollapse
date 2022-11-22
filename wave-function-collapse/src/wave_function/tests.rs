@@ -335,7 +335,7 @@ mod probability_container_unit_tests {
         for index in 0..number_of_items {
             let instances_count = instances_per_index[index];
             let difference = instances_count.abs_diff(trials as u32 / number_of_items as u32);
-            println!("difference: {difference}");
+            //println!("difference: {difference}");
             assert!(difference < 2000);
         }
 
@@ -425,17 +425,16 @@ mod probability_container_unit_tests {
     }
 
     #[test]
-    #[time_graph::instrument]
     fn probability_container_get_while_removing_equal_probability() {
         init();
-
-        time_graph::enable_data_collection(true);
 
         // First trial:
         //  15.37
         //  15.73
         //  16.10
         //  15.63
+        // Conclusion:
+        //  getting the random item takes the most time in this test, by far, usually only needing to increment less than 50 times
 
         let mut rng = rand::thread_rng();
         let random_seed = rng.gen::<u64>();
@@ -459,40 +458,32 @@ mod probability_container_unit_tests {
 
             let trials = 10000000;
 
-            time_graph::spanned!("get_random", {
-                for _ in 0..trials {
-                    let item_result = probability_container.get_random(&mut random_instance);
-                    assert!(item_result.is_some());
-                    let item_index = item_result.unwrap().id.parse::<usize>().unwrap();
-                    instances_per_index[item_index] += 1;
-                }
-            });
+            for _ in 0..trials {
+                let item_result = probability_container.get_random(&mut random_instance);
+                assert!(item_result.is_some());
+                let item_index = item_result.unwrap().id.parse::<usize>().unwrap();
+                instances_per_index[item_index] += 1;
+            }
 
-            time_graph::spanned!("check results", {
-                let mut zero_instances_count_total = 0;
-                //println!("searching with node total: {current_number_of_items}");
-                for index in 0..number_of_items {
-                    let instances_count = instances_per_index[index];
-                    if instances_count == 0 {
-                        zero_instances_count_total += 1;
-                    }
-                    else {
-                        let difference = instances_count.abs_diff(trials as u32 / current_number_of_items as u32);
-                        //println!("difference: {difference}");
-                        assert!(difference < 4000);
-                    }
+            let mut zero_instances_count_total = 0;
+            //println!("searching with node total: {current_number_of_items}");
+            for index in 0..number_of_items {
+                let instances_count = instances_per_index[index];
+                if instances_count == 0 {
+                    zero_instances_count_total += 1;
                 }
-                assert_eq!(number_of_items - current_number_of_items, zero_instances_count_total);
-            });
+                else {
+                    let difference = instances_count.abs_diff(trials as u32 / current_number_of_items as u32);
+                    //println!("difference: {difference}");
+                    assert!(difference < 4000);
+                }
+            }
+            assert_eq!(number_of_items - current_number_of_items, zero_instances_count_total);
 
-            time_graph::spanned!("prepare for next loop", {
-                probability_container.pop_random(&mut random_instance);
-                current_number_of_items -= 1;
-                instances_per_index.clear();
-            });
+            probability_container.pop_random(&mut random_instance);
+            current_number_of_items -= 1;
+            instances_per_index.clear();
         }
-
-        println!("{}", time_graph::get_full_graph().as_dot());
 
         // TODO calculate standard deviation and compare each value
     }
