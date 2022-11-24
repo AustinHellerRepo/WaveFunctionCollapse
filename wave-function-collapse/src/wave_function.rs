@@ -1,4 +1,4 @@
-use std::{collections::{HashMap, HashSet, VecDeque}, cell::{RefCell}, rc::Rc, fmt::Display, hash::Hash};
+use std::{collections::{HashMap, HashSet, VecDeque}, cell::{RefCell}, rc::Rc, fmt::Display, hash::Hash, marker::PhantomData};
 use serde::{Deserialize, Serialize};
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
@@ -32,24 +32,28 @@ impl NodeStateProbability {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct Node {
+pub struct Node<TNodeState: Eq + Hash + Clone + std::fmt::Debug> {
     pub id: String,
-    pub node_state_probability_per_node_state_id: HashMap<String, f32>,
+    pub node_state_probability_per_node_state_id: HashMap<TNodeState, f32>,
     pub node_state_collection_ids_per_neighbor_node_id: HashMap<String, Vec<String>>,
-    pub node_state_ids: Vec<String>
+    pub node_state_ids: Vec<TNodeState>,
+    pub node_state_probabilities: Vec<f32>
 }
 
-impl Node {
-    pub fn new(id: String, node_state_probability_per_node_state_id: HashMap<String, f32>, node_state_collection_ids_per_neighbor_node_id: HashMap<String, Vec<String>>) -> Self {
-        let mut node_state_ids: Vec<String> = Vec::new();
-        for node_state_id in node_state_probability_per_node_state_id.keys() {
+impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug> Node<TNodeState> {
+    pub fn new(id: String, node_state_probability_per_node_state_id: HashMap<TNodeState, f32>, node_state_collection_ids_per_neighbor_node_id: HashMap<String, Vec<String>>) -> Self {
+        let mut node_state_ids: Vec<TNodeState> = Vec::new();
+        let mut node_state_probabilities: Vec<f32> = Vec::new();
+        for (node_state_id, node_state_probability) in node_state_probability_per_node_state_id.iter() {
             node_state_ids.push(node_state_id.clone());
+            node_state_probabilities.push(*node_state_probability);
         }
         Node {
             id: id,
             node_state_probability_per_node_state_id: node_state_probability_per_node_state_id,
             node_state_collection_ids_per_neighbor_node_id: node_state_collection_ids_per_neighbor_node_id,
-            node_state_ids: node_state_ids
+            node_state_ids: node_state_ids,
+            node_state_probabilities: node_state_probabilities
         }
     }
     pub fn get_id(&self) -> String {
@@ -65,14 +69,14 @@ impl Node {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct NodeStateCollection {
+pub struct NodeStateCollection<TNodeState: Eq + Hash + Clone + std::fmt::Debug> {
     pub id: String,
-    pub node_state_id: String,
-    pub node_state_ids: Vec<String>
+    pub node_state_id: TNodeState,
+    pub node_state_ids: Vec<TNodeState>
 }
 
-impl NodeStateCollection {
-    pub fn new(id: String, node_state_id: String, node_state_ids: Vec<String>) -> Self {
+impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug> NodeStateCollection<TNodeState> {
+    pub fn new(id: String, node_state_id: TNodeState, node_state_ids: Vec<TNodeState>) -> Self {
         NodeStateCollection {
             id: id,
             node_state_id: node_state_id,
@@ -82,28 +86,30 @@ impl NodeStateCollection {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, Hash)]
-pub struct CollapsedNodeState {
+pub struct CollapsedNodeState<TNodeState: Eq + Hash + Clone + std::fmt::Debug> {
     pub node_id: String,
-    pub node_state_id: Option<String>
+    pub node_state_id: Option<TNodeState>
 }
 
 #[derive(Debug)]
-struct CollapsableNode<'a> {
+struct CollapsableNode<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug> {
     // the node id that this collapsable node refers to
     id: &'a str,
     // this nodes list of neighbor node ids
     neighbor_node_ids: Vec<&'a str>,
     // the full list of possible node states, masked by internal references to neighbor masks
-    node_state_indexed_view: IndexedView<&'a str>,
+    node_state_indexed_view: IndexedView<&'a TNodeState>,
     // the mapped view that this node's neighbors will have a reference to and pull their masks from
-    mask_per_neighbor_per_state: HashMap<&'a str, HashMap<&'a str, BitVec>>,
+    mask_per_neighbor_per_state: HashMap<&'a TNodeState, HashMap<&'a str, BitVec>>,
     // the index of traversed nodes based on the sorted vector of nodes as they are chosen for state determination
-    current_chosen_from_sort_index: Option<usize>
+    current_chosen_from_sort_index: Option<usize>,
+    // allowing for Node<TNodeState> to be an argument of CollapsableNode functions
+    node_state_type: PhantomData<TNodeState>
 }
 
-impl<'a> CollapsableNode<'a> {
+impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug> CollapsableNode<'a, TNodeState> {
     #[time_graph::instrument]
-    fn new(node: &'a Node, mask_per_neighbor_per_state: HashMap<&'a str, HashMap<&'a str, BitVec>>, node_state_indexed_view: IndexedView<&'a str>) -> CollapsableNode<'a> {
+    fn new(node: &'a Node<TNodeState>, mask_per_neighbor_per_state: HashMap<&'a TNodeState, HashMap<&'a str, BitVec>>, node_state_indexed_view: IndexedView<&'a TNodeState>) -> Self {
         // get the neighbors for this node
         let mut neighbor_node_ids: Vec<&str> = Vec::new();
 
@@ -118,7 +124,8 @@ impl<'a> CollapsableNode<'a> {
             neighbor_node_ids: neighbor_node_ids,
             node_state_indexed_view: node_state_indexed_view,
             mask_per_neighbor_per_state: mask_per_neighbor_per_state,
-            current_chosen_from_sort_index: None
+            current_chosen_from_sort_index: None,
+            node_state_type: PhantomData
         }
     }
     #[time_graph::instrument]
@@ -151,23 +158,23 @@ impl<'a> CollapsableNode<'a> {
     }
 }
 
-impl<'a> Display for CollapsableNode<'a> {
+impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug> Display for CollapsableNode<'a, TNodeState> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.id)
     }
 }
 
 #[derive(Serialize)]
-pub struct CollapsedWaveFunction {
-    pub node_state_per_node: HashMap<String, String>
+pub struct CollapsedWaveFunction<TNodeState: Eq + Hash + Clone + std::fmt::Debug> {
+    pub node_state_per_node: HashMap<String, TNodeState>
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
-pub struct UncollapsedWaveFunction {
-    pub node_state_per_node: HashMap<String, Option<String>>
+pub struct UncollapsedWaveFunction<TNodeState: Eq + Hash + Clone + std::fmt::Debug> {
+    pub node_state_per_node: HashMap<String, Option<TNodeState>>
 }
 
-impl Hash for UncollapsedWaveFunction {
+impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug> Hash for UncollapsedWaveFunction<TNodeState> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         for property in self.node_state_per_node.iter() {
             property.hash(state);
@@ -175,17 +182,17 @@ impl Hash for UncollapsedWaveFunction {
     }
 }
 
-pub struct CollapsableWaveFunction<'a> {
+pub struct CollapsableWaveFunction<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug> {
     // represents a wave function with all of the necessary steps to collapse
-    collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a>>>>,
-    collapsable_node_per_id: HashMap<&'a str, Rc<RefCell<CollapsableNode<'a>>>>,
+    collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a, TNodeState>>>>,
+    collapsable_node_per_id: HashMap<&'a str, Rc<RefCell<CollapsableNode<'a, TNodeState>>>>,
     collapsable_nodes_length: usize,
     current_collapsable_node_index: usize
 }
 
-impl<'a> CollapsableWaveFunction<'a> {
+impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug> CollapsableWaveFunction<'a, TNodeState> {
     #[time_graph::instrument]
-    fn new(collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a>>>>, collapsable_node_per_id: HashMap<&'a str, Rc<RefCell<CollapsableNode<'a>>>>) -> Self {
+    fn new(collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a, TNodeState>>>>, collapsable_node_per_id: HashMap<&'a str, Rc<RefCell<CollapsableNode<'a, TNodeState>>>>) -> Self {
         let collapsable_nodes_length: usize = collapsable_nodes.len();
 
         let mut collapsable_wave_function = CollapsableWaveFunction {
@@ -216,17 +223,17 @@ impl<'a> CollapsableWaveFunction<'a> {
         }
     }
     #[time_graph::instrument]
-    fn try_increment_current_collapsable_node_state(&mut self) -> CollapsedNodeState {
+    fn try_increment_current_collapsable_node_state(&mut self) -> CollapsedNodeState<TNodeState> {
         let wrapped_current_collapsable_node = self.collapsable_nodes.get(self.current_collapsable_node_index).unwrap();
         let mut current_collapsable_node = wrapped_current_collapsable_node.borrow_mut();
 
         let is_successful = current_collapsable_node.node_state_indexed_view.try_move_next();
-        let collapsed_node_state: CollapsedNodeState;
+        let collapsed_node_state: CollapsedNodeState<TNodeState>;
         if is_successful {
             current_collapsable_node.current_chosen_from_sort_index = Some(self.current_collapsable_node_index);
             collapsed_node_state = CollapsedNodeState {
                 node_id: String::from(current_collapsable_node.id),
-                node_state_id: Some(String::from(*current_collapsable_node.node_state_indexed_view.get().unwrap()))
+                node_state_id: Some((*current_collapsable_node.node_state_indexed_view.get().unwrap()).clone())
             };
         }
         else {
@@ -242,7 +249,7 @@ impl<'a> CollapsableWaveFunction<'a> {
     #[time_graph::instrument]
     fn alter_reference_to_current_collapsable_node_mask(&mut self) {
         let neighbor_node_ids: &Vec<&str>;
-        let mask_per_neighbor_per_state: &HashMap<&str, HashMap<&str, BitVec>>;
+        let mask_per_neighbor_per_state: &HashMap<&TNodeState, HashMap<&str, BitVec>>;
         let wrapped_current_collapsable_node = self.collapsable_nodes.get_mut(self.current_collapsable_node_index).expect("The collapsable node should exist at this index.");
         let current_collapsable_node = wrapped_current_collapsable_node.borrow();
         if let Some(current_possible_state) = current_collapsable_node.node_state_indexed_view.get() {
@@ -306,7 +313,7 @@ impl<'a> CollapsableWaveFunction<'a> {
     fn try_move_to_previous_collapsable_node_neighbor(&mut self) {
 
         let neighbor_node_ids: &Vec<&str>;
-        let mask_per_neighbor_per_state: &HashMap<&str, HashMap<&str, BitVec>>;
+        let mask_per_neighbor_per_state: &HashMap<&TNodeState, HashMap<&str, BitVec>>;
         let wrapped_current_collapsable_node = self.collapsable_nodes.get_mut(self.current_collapsable_node_index).expect("The collapsable node should exist at this index.");
         let mut current_collapsable_node = wrapped_current_collapsable_node.borrow_mut();
         if let Some(current_possible_state) = current_collapsable_node.node_state_indexed_view.get() {
@@ -338,13 +345,13 @@ impl<'a> CollapsableWaveFunction<'a> {
         let current_collapsable_node = wrapped_current_collapsable_node.borrow();
         self.current_collapsable_node_index == 0 && current_collapsable_node.current_chosen_from_sort_index.is_none()
     }
-    fn get_uncollapsed_wave_function(&self) -> UncollapsedWaveFunction {
-        let mut node_state_per_node: HashMap<String, Option<String>> = HashMap::new();
+    fn get_uncollapsed_wave_function(&self) -> UncollapsedWaveFunction<TNodeState> {
+        let mut node_state_per_node: HashMap<String, Option<TNodeState>> = HashMap::new();
         for wrapped_collapsable_node in self.collapsable_nodes.iter() {
             let collapsable_node = wrapped_collapsable_node.borrow();
-            let node_state_id_option: Option<String>;
+            let node_state_id_option: Option<TNodeState>;
             if let Some(node_state_id) = collapsable_node.node_state_indexed_view.get() {
-                node_state_id_option = Some(String::from(*node_state_id));
+                node_state_id_option = Some((*node_state_id).clone());
             }
             else {
                 node_state_id_option = None;
@@ -358,13 +365,13 @@ impl<'a> CollapsableWaveFunction<'a> {
         }
     }
     #[time_graph::instrument]
-    fn get_collapsed_wave_function(&self) -> CollapsedWaveFunction {
-        let mut node_state_per_node: HashMap<String, String> = HashMap::new();
+    fn get_collapsed_wave_function(&self) -> CollapsedWaveFunction<TNodeState> {
+        let mut node_state_per_node: HashMap<String, TNodeState> = HashMap::new();
         for wrapped_collapsable_node in self.collapsable_nodes.iter() {
             let collapsable_node = wrapped_collapsable_node.borrow();
-            let node_state: String = String::from(*collapsable_node.node_state_indexed_view.get().unwrap());
+            let node_state: TNodeState = (*collapsable_node.node_state_indexed_view.get().unwrap()).clone();
             let node: String = String::from(collapsable_node.id);
-            debug!("established node {node} in state {node_state}.");
+            debug!("established node {node} in state {:?}.", node_state);
             node_state_per_node.insert(node, node_state);
         }
         CollapsedWaveFunction {
@@ -373,38 +380,38 @@ impl<'a> CollapsableWaveFunction<'a> {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
-pub struct WaveFunction {
-    nodes: Vec<Node>,
-    node_state_collections: Vec<NodeStateCollection>
+#[derive(Serialize, Clone)]
+pub struct WaveFunction<TNodeState: Eq + Hash + Clone + std::fmt::Debug> {
+    nodes: Vec<Node<TNodeState>>,
+    node_state_collections: Vec<NodeStateCollection<TNodeState>>
 }
 
-impl WaveFunction {
-    pub fn new(nodes: Vec<Node>, node_state_collections: Vec<NodeStateCollection>) -> Self {
+impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug> WaveFunction<TNodeState> {
+    pub fn new(nodes: Vec<Node<TNodeState>>, node_state_collections: Vec<NodeStateCollection<TNodeState>>) -> Self {
         WaveFunction {
             nodes: nodes,
             node_state_collections: node_state_collections
         }
     }
 
-    pub fn get_nodes(&self) -> Vec<Node> {
+    pub fn get_nodes(&self) -> Vec<Node<TNodeState>> {
         self.nodes.clone()
     }
 
-    pub fn get_node_state_collections(&self) -> Vec<NodeStateCollection> {
+    pub fn get_node_state_collections(&self) -> Vec<NodeStateCollection<TNodeState>> {
         self.node_state_collections.clone()
     }
 
     pub fn validate(&self) -> Result<(), String> {
         let nodes_length: usize = self.nodes.len();
 
-        let mut node_per_id: HashMap<&str, &Node> = HashMap::new();
+        let mut node_per_id: HashMap<&str, &Node<TNodeState>> = HashMap::new();
         let mut node_ids: HashSet<&str> = HashSet::new();
-        self.nodes.iter().for_each(|node: &Node| {
+        self.nodes.iter().for_each(|node: &Node<TNodeState>| {
             node_per_id.insert(&node.id, node);
             node_ids.insert(&node.id);
         });
-        let mut node_state_collection_per_id: HashMap<&str, &NodeStateCollection> = HashMap::new();
+        let mut node_state_collection_per_id: HashMap<&str, &NodeStateCollection<TNodeState>> = HashMap::new();
         self.node_state_collections.iter().for_each(|node_state_collection| {
             node_state_collection_per_id.insert(&node_state_collection.id, node_state_collection);
         });
@@ -474,8 +481,14 @@ impl WaveFunction {
         //let current_collapsable_nodes_display = CollapsableNode::get_ids(&self.collapsable_nodes);
         //debug!("current sort order: {current_collapsable_nodes_display}.");
 
+        let mut rng = rand::thread_rng();
+        let random_seed = rng.gen::<u64>();
+        let mut random_instance = ChaCha8Rng::seed_from_u64(random_seed);
+
+        self.nodes.shuffle(&mut random_instance);
+
         // sort by most neighbors
-        {
+        if false {
             self.nodes.sort_by(|a, b| {
 
                 let a_neighbors_length = a.get_neighbor_node_ids().len();
@@ -491,7 +504,7 @@ impl WaveFunction {
                 let mut searching_neighbor_node_ids: VecDeque<String> = VecDeque::new();
                 searching_neighbor_node_ids.push_back(self.nodes.first().unwrap().id.clone());
 
-                let mut node_per_id: HashMap<String, &Node> = HashMap::new();
+                let mut node_per_id: HashMap<String, &Node<TNodeState>> = HashMap::new();
                 for node in self.nodes.iter() {
                     node_per_id.insert(node.id.clone(), node);
                 }
@@ -535,12 +548,12 @@ impl WaveFunction {
     }
 
     #[time_graph::instrument]
-    fn get_collapsable_wave_function(&self, random_seed: Option<u64>) -> CollapsableWaveFunction {
-        let mut node_per_id: HashMap<&str, &Node> = HashMap::new();
-        self.nodes.iter().for_each(|node: &Node| {
+    fn get_collapsable_wave_function(&self, random_seed: Option<u64>) -> CollapsableWaveFunction<TNodeState> {
+        let mut node_per_id: HashMap<&str, &Node<TNodeState>> = HashMap::new();
+        self.nodes.iter().for_each(|node: &Node<TNodeState>| {
             node_per_id.insert(&node.id, node);
         });
-        let mut node_state_collection_per_id: HashMap<&str, &NodeStateCollection> = HashMap::new();
+        let mut node_state_collection_per_id: HashMap<&str, &NodeStateCollection<TNodeState>> = HashMap::new();
         self.node_state_collections.iter().for_each(|node_state_collection| {
             node_state_collection_per_id.insert(&node_state_collection.id, node_state_collection);
         });
@@ -554,16 +567,16 @@ impl WaveFunction {
         //          push bit vector into hashmap of mask per node state per neighbor node
 
         // neighbor_mask_mapped_view_per_node_id is equivalent to mask_per_child_neighbor_per_state_per_node
-        let mut neighbor_mask_mapped_view_per_node_id: HashMap<&str, HashMap<&str, HashMap<&str, BitVec>>> = HashMap::new();
+        let mut neighbor_mask_mapped_view_per_node_id: HashMap<&str, HashMap<&TNodeState, HashMap<&str, BitVec>>> = HashMap::new();
 
         time_graph::spanned!("creating masks for nodes", {
 
             // create, per parent neighbor, a mask for each node (as child of parent neighbor)
-            let mut mask_per_parent_state_per_parent_neighbor_per_node: HashMap<&str, HashMap<&str, HashMap<&str, BitVec>>> = HashMap::new();
+            let mut mask_per_parent_state_per_parent_neighbor_per_node: HashMap<&str, HashMap<&str, HashMap<&TNodeState, BitVec>>> = HashMap::new();
             // for each node
             for child_node in self.nodes.iter() {
 
-                let mut mask_per_parent_state_per_parent_neighbor: HashMap<&str, HashMap<&str, BitVec>> = HashMap::new();
+                let mut mask_per_parent_state_per_parent_neighbor: HashMap<&str, HashMap<&TNodeState, BitVec>> = HashMap::new();
 
                 // look for each parent neighbor node
                 for parent_neighbor_node in self.nodes.iter() {
@@ -572,7 +585,7 @@ impl WaveFunction {
 
                         debug!("constructing mask for {:?}'s child node {:?}.", parent_neighbor_node.id, child_node.id);
 
-                        let mut mask_per_parent_state: HashMap<&str, BitVec> = HashMap::new();
+                        let mut mask_per_parent_state: HashMap<&TNodeState, BitVec> = HashMap::new();
 
                         // get the node state collections that this parent neighbor node forces upon this node
                         let node_state_collection_ids: &Vec<String> = parent_neighbor_node.node_state_collection_ids_per_neighbor_node_id.get(&child_node.id).unwrap();
@@ -608,7 +621,7 @@ impl WaveFunction {
                 // for this node, find all child neighbors
                 let node_id: &str = &node.id;
 
-                let mut mask_per_neighbor_per_state: HashMap<&str, HashMap<&str, BitVec>> = HashMap::new();
+                let mut mask_per_neighbor_per_state: HashMap<&TNodeState, HashMap<&str, BitVec>> = HashMap::new();
 
                 for (neighbor_node_id, _) in node.node_state_collection_ids_per_neighbor_node_id.iter() {
                     let neighbor_node_id: &str = neighbor_node_id;
@@ -629,7 +642,7 @@ impl WaveFunction {
             }
         });
 
-        let mut node_state_indexed_view_per_node_id: HashMap<&str, IndexedView<&str>> = HashMap::new();
+        let mut node_state_indexed_view_per_node_id: HashMap<&str, IndexedView<&TNodeState>> = HashMap::new();
 
         time_graph::spanned!("storing masks into neighbors", {
 
@@ -639,37 +652,30 @@ impl WaveFunction {
 
                 //debug!("storing for node {node_id} restrictive masks into node state indexed view.");
 
-                let mut node_state_ids: Vec<&str> = Vec::new();
-                for node_state_id_string in node.node_state_ids.iter() {
-                    let node_state_id: &str = node_state_id_string;
-                    node_state_ids.push(node_state_id);
-                }
+                let referenced_node_state_ids: Vec<&TNodeState> = node.node_state_ids.iter().collect();
+                let cloned_node_state_probabilities: Vec<f32> = node.node_state_probabilities.clone();
 
-                let node_state_indexed_view = IndexedView::new(node_state_ids);
+                let node_state_indexed_view = IndexedView::new(referenced_node_state_ids, cloned_node_state_probabilities);
                 //debug!("stored for node {node_id} node state indexed view {:?}", node_state_indexed_view);
                 node_state_indexed_view_per_node_id.insert(node_id, node_state_indexed_view);
             }
         });
 
-        let mut random_instance: Option<ChaCha8Rng> = None;
-
-        let mut collapsable_nodes: Vec<Rc<RefCell<CollapsableNode>>> = Vec::new();
-        let mut collapsable_node_per_id: HashMap<&str, Rc<RefCell<CollapsableNode>>> = HashMap::new();
+        let mut collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<TNodeState>>>> = Vec::new();
+        let mut collapsable_node_per_id: HashMap<&str, Rc<RefCell<CollapsableNode<TNodeState>>>> = HashMap::new();
         // contains the mask to apply to the neighbor when this node is in a specific state
         for (node_index, node) in self.nodes.iter().enumerate() {
             let node_id: &str = &node.id;
 
-            let node_state_indexed_view: IndexedView<&str> = node_state_indexed_view_per_node_id.remove(node_id).unwrap();
+            let node_state_indexed_view: IndexedView<&TNodeState> = node_state_indexed_view_per_node_id.remove(node_id).unwrap();
             let mask_per_neighbor_per_state = neighbor_mask_mapped_view_per_node_id.remove(node_id).unwrap();
 
             let mut collapsable_node = CollapsableNode::new(node, mask_per_neighbor_per_state, node_state_indexed_view);
 
             if let Some(seed) = random_seed {
-                if random_instance.is_none() {
-                    let seed_offset: u64 = node_index as u64;
-                    random_instance = Some(ChaCha8Rng::seed_from_u64(seed + seed_offset));
-                }
-                collapsable_node.randomize(random_instance.as_mut().unwrap());
+                let seed_offset: u64 = node_index as u64;
+                let mut random_instance = ChaCha8Rng::seed_from_u64(seed + seed_offset);
+                collapsable_node.randomize(&mut random_instance);
             }
 
             collapsable_nodes.push(Rc::new(RefCell::new(collapsable_node)));
@@ -684,8 +690,8 @@ impl WaveFunction {
     }
 
     #[time_graph::instrument]
-    pub fn collapse_into_steps(&self, random_seed: Option<u64>) -> Result<Vec<CollapsedNodeState>, String> {
-        let mut collapsed_node_states: Vec<CollapsedNodeState> = Vec::new();
+    pub fn collapse_into_steps(&self, random_seed: Option<u64>) -> Result<Vec<CollapsedNodeState<TNodeState>>, String> {
+        let mut collapsed_node_states: Vec<CollapsedNodeState<TNodeState>> = Vec::new();
 
         let mut collapsable_wave_function = self.get_collapsable_wave_function(random_seed);
 
@@ -740,7 +746,7 @@ impl WaveFunction {
     }
 
     #[time_graph::instrument]
-    pub fn collapse(&self, random_seed: Option<u64>) -> Result<CollapsedWaveFunction, String> {
+    pub fn collapse(&self, random_seed: Option<u64>) -> Result<CollapsedWaveFunction<TNodeState>, String> {
 
         // TODO use the provided cells in cell_per_neighbor_node_id_per_node_id during construction of CollapsableNode
 
@@ -854,14 +860,16 @@ impl WaveFunction {
 
     #[time_graph::instrument]
     pub fn save_to_file(&self, file_path: &str) {
-        let serialized_self = serde_json::to_string(self).unwrap();
-        std::fs::write(file_path, serialized_self).unwrap();
+        todo!("The node order is the important part to save, not the entire WaveFunction instance.");
+        /*let serialized_self = serde_json::to_string(self).unwrap();
+        std::fs::write(file_path, serialized_self).unwrap();*/
     }
 
     #[time_graph::instrument]
     pub fn load_from_file(file_path: &str) -> Self {
-        let serialized_self = std::fs::read_to_string(file_path).unwrap();
-        let deserialized_self: WaveFunction = serde_json::from_str(&serialized_self).unwrap();
-        deserialized_self
+        todo!("The node order should be retrieved from the file.");
+        /*let serialized_self = std::fs::read_to_string(file_path).unwrap();
+        let deserialized_self: WaveFunction<TNodeState> = serde_json::from_str(&serialized_self).unwrap();
+        deserialized_self*/
     }
 }

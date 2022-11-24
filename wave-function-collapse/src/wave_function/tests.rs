@@ -705,8 +705,8 @@ mod wave_function_unit_tests {
     fn initialize() {
         init();
 
-        let nodes: Vec<Node> = Vec::new();
-        let node_state_collections: Vec<NodeStateCollection> = Vec::new();
+        let nodes: Vec<Node<String>> = Vec::new();
+        let node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
         let wave_function = WaveFunction::new(nodes, node_state_collections);
         debug!("Succeeded to initialize WaveFunction instance.");
     }
@@ -715,8 +715,8 @@ mod wave_function_unit_tests {
     fn no_nodes() {
         init();
 
-        let nodes: Vec<Node> = Vec::new();
-        let node_state_collections: Vec<NodeStateCollection> = Vec::new();
+        let nodes: Vec<Node<String>> = Vec::new();
+        let node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
         let wave_function = WaveFunction::new(nodes, node_state_collections);
         let validation_result = wave_function.validate();
 
@@ -727,8 +727,8 @@ mod wave_function_unit_tests {
     fn one_node_no_states() {
         init();
 
-        let mut nodes: Vec<Node> = Vec::new();
-        let node_state_collections: Vec<NodeStateCollection> = Vec::new();
+        let mut nodes: Vec<Node<String>> = Vec::new();
+        let node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
 
         nodes.push(Node::new(
             Uuid::new_v4().to_string(),
@@ -747,8 +747,8 @@ mod wave_function_unit_tests {
     fn one_node_one_state() {
         init();
 
-        let mut nodes: Vec<Node> = Vec::new();
-        let node_state_collections: Vec<NodeStateCollection> = Vec::new();
+        let mut nodes: Vec<Node<String>> = Vec::new();
+        let node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
 
         let node_id: String = Uuid::new_v4().to_string();
         let node_state_id: String = Uuid::new_v4().to_string();
@@ -771,8 +771,8 @@ mod wave_function_unit_tests {
     fn one_node_randomly_two_states() {
         init();
 
-        let mut nodes: Vec<Node> = Vec::new();
-        let node_state_collections: Vec<NodeStateCollection> = Vec::new();
+        let mut nodes: Vec<Node<String>> = Vec::new();
+        let node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
 
         let one_node_state_id: String = Uuid::new_v4().to_string();
         let two_node_state_id: String = Uuid::new_v4().to_string();
@@ -810,8 +810,8 @@ mod wave_function_unit_tests {
     fn two_nodes_without_neighbors() {
         init();
 
-        let mut nodes: Vec<Node> = Vec::new();
-        let node_state_collections: Vec<NodeStateCollection> = Vec::new();
+        let mut nodes: Vec<Node<String>> = Vec::new();
+        let node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
 
         nodes.push(Node::new(
             Uuid::new_v4().to_string(),
@@ -833,8 +833,8 @@ mod wave_function_unit_tests {
     fn two_nodes_with_only_one_is_a_neighbor_restriction_ignored() {
         init();
 
-        let mut nodes: Vec<Node> = Vec::new();
-        let mut node_state_collections: Vec<NodeStateCollection> = Vec::new();
+        let mut nodes: Vec<Node<String>> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
 
         let unrestricted_node_state_id: String = String::from("unrestricted");
         let from_restrictive_node_state_id: String = String::from("from_restrictive");
@@ -880,8 +880,8 @@ mod wave_function_unit_tests {
     fn two_nodes_with_only_one_is_a_neighbor_ordered() {
         init();
 
-        let mut nodes: Vec<Node> = Vec::new();
-        let mut node_state_collections: Vec<NodeStateCollection> = Vec::new();
+        let mut nodes: Vec<Node<String>> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
 
         let node_state_id: String = Uuid::new_v4().to_string();
 
@@ -931,8 +931,8 @@ mod wave_function_unit_tests {
     fn two_nodes_with_only_one_is_a_neighbor_disordered() {
         init();
 
-        let mut nodes: Vec<Node> = Vec::new();
-        let mut node_state_collections: Vec<NodeStateCollection> = Vec::new();
+        let mut nodes: Vec<Node<String>> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
 
         let node_state_id: String = Uuid::new_v4().to_string();
 
@@ -982,8 +982,8 @@ mod wave_function_unit_tests {
     fn two_nodes_both_as_neighbors_only_ordered() {
         init();
 
-        let mut nodes: Vec<Node> = Vec::new();
-        let mut node_state_collections: Vec<NodeStateCollection> = Vec::new();
+        let mut nodes: Vec<Node<String>> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
 
         let node_state_id: String = String::from("state_A");
 
@@ -1041,8 +1041,8 @@ mod wave_function_unit_tests {
     fn two_nodes_both_as_neighbors_only_disordered() {
         init();
 
-        let mut nodes: Vec<Node> = Vec::new();
-        let mut node_state_collections: Vec<NodeStateCollection> = Vec::new();
+        let mut nodes: Vec<Node<String>> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
 
         let node_state_id: String = String::from("state_A");
 
@@ -1100,8 +1100,8 @@ mod wave_function_unit_tests {
     fn two_nodes_both_as_neighbors_and_different_states() {
         init();
 
-        let mut nodes: Vec<Node> = Vec::new();
-        let mut node_state_collections: Vec<NodeStateCollection> = Vec::new();
+        let mut nodes: Vec<Node<String>> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
 
         let one_node_state_id: String = Uuid::new_v4().to_string();
         let two_node_state_id: String = Uuid::new_v4().to_string();
@@ -1166,8 +1166,8 @@ mod wave_function_unit_tests {
         let mut rng = rand::thread_rng();
 
         for _ in 0..10 {
-            let mut nodes: Vec<Node> = Vec::new();
-            let mut node_state_collections: Vec<NodeStateCollection> = Vec::new();
+            let mut nodes: Vec<Node<String>> = Vec::new();
+            let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
 
             let one_node_state_id: String = Uuid::new_v4().to_string();
             let two_node_state_id: String = Uuid::new_v4().to_string();
@@ -1233,8 +1233,8 @@ mod wave_function_unit_tests {
         let mut rng = rand::thread_rng();
 
         for _ in 0..10 {
-            let mut nodes: Vec<Node> = Vec::new();
-            let mut node_state_collections: Vec<NodeStateCollection> = Vec::new();
+            let mut nodes: Vec<Node<String>> = Vec::new();
+            let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
 
             let one_node_state_id: String = String::from("state_A");
             let two_node_state_id: String = String::from("state_B");
@@ -1345,8 +1345,8 @@ mod wave_function_unit_tests {
     fn three_nodes_as_neighbors_all_same_state() {
         init();
 
-        let mut nodes: Vec<Node> = Vec::new();
-        let mut node_state_collections: Vec<NodeStateCollection> = Vec::new();
+        let mut nodes: Vec<Node<String>> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
 
         let node_state_id: String = String::from("state_A");
 
@@ -1407,8 +1407,8 @@ mod wave_function_unit_tests {
     fn three_nodes_as_dense_neighbors_all_different_states() {
         init();
 
-        let mut nodes: Vec<Node> = Vec::new();
-        let mut node_state_collections: Vec<NodeStateCollection> = Vec::new();
+        let mut nodes: Vec<Node<String>> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
 
         let first_node_state_id: String = String::from("state_A");
         let second_node_state_id: String = String::from("state_B");
@@ -1516,8 +1516,8 @@ mod wave_function_unit_tests {
 
         for _ in 0..10 {
             
-            let mut nodes: Vec<Node> = Vec::new();
-            let mut node_state_collections: Vec<NodeStateCollection> = Vec::new();
+            let mut nodes: Vec<Node<String>> = Vec::new();
+            let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
 
             let first_node_state_id: String = String::from("state_A");
             let second_node_state_id: String = String::from("state_B");
@@ -1625,9 +1625,9 @@ mod wave_function_unit_tests {
 
         let nodes_total = 50;
 
-        let mut nodes: Vec<Node> = Vec::new();
+        let mut nodes: Vec<Node<String>> = Vec::new();
         let mut node_ids: Vec<String> = Vec::new();
-        let mut node_state_collections: Vec<NodeStateCollection> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
         let mut node_state_ids: Vec<String> = Vec::new();
         let mut node_state_collection_ids: Vec<String> = Vec::new();
 
@@ -1675,7 +1675,7 @@ mod wave_function_unit_tests {
             }
         });
 
-        let mut wave_function: WaveFunction;
+        let mut wave_function: WaveFunction<String>;
 
         time_graph::spanned!("creating wave function", {
             wave_function = WaveFunction::new(nodes, node_state_collections);
@@ -1685,7 +1685,7 @@ mod wave_function_unit_tests {
             wave_function.validate().unwrap();
         });
 
-        let collapsed_wave_function_result: Result<CollapsedWaveFunction, String>;
+        let collapsed_wave_function_result: Result<CollapsedWaveFunction<String>, String>;
 
         time_graph::spanned!("collapsing wave function", {
             collapsed_wave_function_result = wave_function.collapse(None);
@@ -1728,9 +1728,9 @@ mod wave_function_unit_tests {
 
             let nodes_total = 20;
 
-            let mut nodes: Vec<Node> = Vec::new();
+            let mut nodes: Vec<Node<String>> = Vec::new();
             let mut node_ids: Vec<String> = Vec::new();
-            let mut node_state_collections: Vec<NodeStateCollection> = Vec::new();
+            let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
             let mut node_state_ids: Vec<String> = Vec::new();
             let mut node_state_collection_ids: Vec<String> = Vec::new();
 
@@ -1778,7 +1778,7 @@ mod wave_function_unit_tests {
                 }
             });
 
-            let mut wave_function: WaveFunction;
+            let mut wave_function: WaveFunction<String>;
 
             time_graph::spanned!("creating wave function", {
                 wave_function = WaveFunction::new(nodes, node_state_collections);
@@ -1788,7 +1788,7 @@ mod wave_function_unit_tests {
                 wave_function.validate().unwrap();
             });
 
-            let collapsed_wave_function_result: Result<CollapsedWaveFunction, String>;
+            let collapsed_wave_function_result: Result<CollapsedWaveFunction<String>, String>;
             
             time_graph::spanned!("collapsing wave function", {
                 let random_seed = rng.next_u64();
@@ -1828,9 +1828,9 @@ mod wave_function_unit_tests {
         let nodes_total = nodes_height * nodes_width * nodes_depth;
         let node_states_total = 12;
 
-        let mut nodes: Vec<Node> = Vec::new();
+        let mut nodes: Vec<Node<String>> = Vec::new();
         let mut node_ids: Vec<String> = Vec::new();
-        let mut node_state_collections: Vec<NodeStateCollection> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
         let mut node_state_ids: Vec<String> = Vec::new();
         let mut node_state_collection_ids: Vec<String> = Vec::new();
 
@@ -1888,7 +1888,7 @@ mod wave_function_unit_tests {
             }
         });
 
-        let mut wave_function: WaveFunction;
+        let mut wave_function: WaveFunction<String>;
 
         time_graph::spanned!("creating wave function", {
             wave_function = WaveFunction::new(nodes, node_state_collections);
@@ -1898,7 +1898,7 @@ mod wave_function_unit_tests {
             wave_function.validate().unwrap();
         });
     
-        let collapsed_wave_function_result: Result<CollapsedWaveFunction, String>;
+        let collapsed_wave_function_result: Result<CollapsedWaveFunction<String>, String>;
         
         time_graph::spanned!("collapsing wave function", {
             collapsed_wave_function_result = wave_function.collapse(None);
@@ -1953,9 +1953,9 @@ mod wave_function_unit_tests {
             let nodes_total = nodes_height * nodes_width * nodes_depth;
             let node_states_total = 8;
 
-            let mut nodes: Vec<Node> = Vec::new();
+            let mut nodes: Vec<Node<String>> = Vec::new();
             let mut node_ids: Vec<String> = Vec::new();
-            let mut node_state_collections: Vec<NodeStateCollection> = Vec::new();
+            let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
             let mut node_state_ids: Vec<String> = Vec::new();
             let mut node_state_collection_ids: Vec<String> = Vec::new();
 
@@ -2013,7 +2013,7 @@ mod wave_function_unit_tests {
                 }
             });
 
-            let mut wave_function: WaveFunction;
+            let mut wave_function: WaveFunction<String>;
 
             time_graph::spanned!("creating wave function", {
                 wave_function = WaveFunction::new(nodes, node_state_collections);
@@ -2027,7 +2027,7 @@ mod wave_function_unit_tests {
                 wave_function.optimize();
             });
 
-            let collapsed_wave_function_result: Result<CollapsedWaveFunction, String>;
+            let collapsed_wave_function_result: Result<CollapsedWaveFunction<String>, String>;
             
             time_graph::spanned!("collapsing wave function", {
                 //let random_seed = Some(rng.gen::<u64>());  // TODO uncomment after fixing
@@ -2083,9 +2083,9 @@ mod wave_function_unit_tests {
             let nodes_total = nodes_height * nodes_width * nodes_depth;
             let node_states_total = 8;
 
-            let mut nodes: Vec<Node> = Vec::new();
+            let mut nodes: Vec<Node<String>> = Vec::new();
             let mut node_ids: Vec<String> = Vec::new();
-            let mut node_state_collections: Vec<NodeStateCollection> = Vec::new();
+            let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
             let mut node_state_ids: Vec<String> = Vec::new();
             let mut node_state_collection_ids: Vec<String> = Vec::new();
 
@@ -2144,7 +2144,7 @@ mod wave_function_unit_tests {
                 }
             });
 
-            let mut wave_function: WaveFunction;
+            let mut wave_function: WaveFunction<String>;
 
             time_graph::spanned!("creating wave function", {
                 wave_function = WaveFunction::new(nodes, node_state_collections);
@@ -2158,7 +2158,7 @@ mod wave_function_unit_tests {
                 wave_function.optimize();
             });
 
-            let collapsed_node_states_result: Result<Vec<CollapsedNodeState>, String>;
+            let collapsed_node_states_result: Result<Vec<CollapsedNodeState<String>>, String>;
             
             time_graph::spanned!("collapsing wave function", {
                 //let random_seed = Some(rng.gen::<u64>());  // TODO uncomment after fixing
@@ -2186,8 +2186,8 @@ mod wave_function_unit_tests {
     fn write_and_read_wave_function_from_tempfile() {
         init();
 
-        let mut nodes: Vec<Node> = Vec::new();
-        let mut node_state_collections: Vec<NodeStateCollection> = Vec::new();
+        let mut nodes: Vec<Node<String>> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
 
         let node_state_id: String = Uuid::new_v4().to_string();
 
@@ -2248,8 +2248,8 @@ mod wave_function_unit_tests {
 
             let random_seed = Some(rng.next_u64());
 
-            let mut nodes: Vec<Node> = Vec::new();
-            let mut node_state_collections: Vec<NodeStateCollection> = Vec::new();
+            let mut nodes: Vec<Node<String>> = Vec::new();
+            let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
 
             let one_node_state_id: String = String::from("state_A");
             let two_node_state_id: String = String::from("state_B");
@@ -2336,8 +2336,8 @@ mod wave_function_unit_tests {
 
             let random_seed = Some(rng.next_u64());
 
-            let mut nodes: Vec<Node> = Vec::new();
-            let mut node_state_collections: Vec<NodeStateCollection> = Vec::new();
+            let mut nodes: Vec<Node<String>> = Vec::new();
+            let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
 
             let one_node_state_id: String = String::from("state_A");
             let two_node_state_id: String = String::from("state_B");
@@ -2424,8 +2424,8 @@ mod wave_function_unit_tests {
 
             let random_seed = Some(rng.next_u64());
 
-            let mut nodes: Vec<Node> = Vec::new();
-            let mut node_state_collections: Vec<NodeStateCollection> = Vec::new();
+            let mut nodes: Vec<Node<String>> = Vec::new();
+            let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
 
             let one_node_state_id: String = String::from("state_A");
             let two_node_state_id: String = String::from("state_B");
@@ -2555,8 +2555,8 @@ mod wave_function_unit_tests {
 
         // TODO add randomization
 
-        let mut nodes: Vec<Node> = Vec::new();
-        let mut node_state_collections: Vec<NodeStateCollection> = Vec::new();
+        let mut nodes: Vec<Node<String>> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
 
         let one_node_id: String = String::from("node_1");
         let two_node_id: String = String::from("node_2");
@@ -2654,5 +2654,250 @@ mod wave_function_unit_tests {
         assert_eq!(&two_node_state_id, collapsed_wave_function.node_state_per_node.get(&two_node_id).unwrap());
         assert_eq!(&two_node_state_id, collapsed_wave_function.node_state_per_node.get(&three_node_id).unwrap());
         assert_eq!(&one_node_state_id, collapsed_wave_function.node_state_per_node.get(&four_node_id).unwrap());
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#[cfg(test)]
+mod indexed_view_unit_tests {
+
+    use std::collections::HashMap;
+
+    use rand::{Rng, SeedableRng, seq::SliceRandom};
+    use rand_chacha::ChaCha8Rng;
+    use uuid::Uuid;
+
+    use crate::wave_function::indexed_view::IndexedView;
+
+    fn init() {
+        std::env::set_var("RUST_LOG", "trace");
+        //pretty_env_logger::try_init();
+    }
+
+    #[test]
+    fn initialize() {
+        init();
+
+        let node_state_ids: Vec<u32> = Vec::new();
+        let node_state_probabilities: Vec<f32> = Vec::new();
+        let indexed_view = IndexedView::new(node_state_ids, node_state_probabilities);
+        
+        debug!("Succeeded to initialize IndexedView instance.");
+    }
+
+    #[test]
+    fn one_item() {
+        init();
+
+        let mut node_state_ids: Vec<u32> = Vec::new();
+        let mut node_state_probabilities: Vec<f32> = Vec::new();
+        let original_node_state_id: u32 = 1;
+        node_state_ids.push(original_node_state_id);
+        node_state_probabilities.push(1.0);
+
+        let mut indexed_view = IndexedView::new(node_state_ids, node_state_probabilities);
+
+        assert!(indexed_view.try_move_next());
+        let found_node_state_id = indexed_view.get().unwrap();
+
+        assert_eq!(&original_node_state_id, found_node_state_id);
+        assert!(!indexed_view.try_move_next());
+    }
+
+    #[test]
+    fn two_items() {
+        init();
+
+        let mut node_state_ids: Vec<u32> = Vec::new();
+        let mut node_state_probabilities: Vec<f32> = Vec::new();
+        let one_original_node_state_id: u32 = 1;
+        let two_original_node_state_id: u32 = 2;
+        node_state_ids.push(one_original_node_state_id);
+        node_state_ids.push(two_original_node_state_id);
+        node_state_probabilities.push(1.0);
+        node_state_probabilities.push(1.0);
+
+        let mut indexed_view = IndexedView::new(node_state_ids, node_state_probabilities);
+        assert!(indexed_view.try_move_next());
+        let first_found_node_state_id = *indexed_view.get().unwrap();
+        assert!(indexed_view.try_move_next());
+        let second_found_node_state_id = *indexed_view.get().unwrap();
+
+        assert_ne!(first_found_node_state_id, second_found_node_state_id);
+        assert!(!indexed_view.try_move_next());
+    }
+
+    #[test]
+    fn many_items_sequential_order() {
+        init();
+
+        let mut node_state_ids: Vec<u32> = Vec::new();
+        let mut node_state_probabilities: Vec<f32> = Vec::new();
+        let number_of_items: u32 = 10000;
+        for node_state_id in 0..number_of_items {
+            node_state_ids.push(node_state_id);
+            node_state_probabilities.push(1.0);
+        }
+
+        let mut indexed_view = IndexedView::new(node_state_ids, node_state_probabilities);
+        let mut popped_node_state_ids: Vec<u32> = Vec::new();
+        for _ in 0..number_of_items {
+            assert!(indexed_view.try_move_next());
+            let node_state_id = *indexed_view.get().unwrap();
+            assert!(!popped_node_state_ids.contains(&node_state_id));
+            popped_node_state_ids.push(node_state_id);
+        }
+        assert!(!indexed_view.try_move_next());
+    }
+
+    #[test]
+    fn many_items_reverse_order() {
+        init();
+
+        let mut node_state_ids: Vec<u32> = Vec::new();
+        let mut node_state_probabilities: Vec<f32> = Vec::new();
+        let number_of_items: u32 = 10000;
+        for node_state_id in (0..number_of_items).rev() {
+            node_state_ids.push(node_state_id);
+            node_state_probabilities.push(1.0);
+        }
+
+        let mut indexed_view = IndexedView::new(node_state_ids, node_state_probabilities);
+        let mut popped_node_state_ids: Vec<u32> = Vec::new();
+        for _ in 0..number_of_items {
+            assert!(indexed_view.try_move_next());
+            let node_state_id = *indexed_view.get().unwrap();
+            assert!(!popped_node_state_ids.contains(&node_state_id));
+            popped_node_state_ids.push(node_state_id);
+        }
+        assert!(!indexed_view.try_move_next());
+    }
+
+    #[test]
+    fn many_items_random_order_of_u32() {
+        init();
+
+        let number_of_items: u32 = 10000;
+        let mut rng = rand::thread_rng();
+        let random_seed = rng.gen::<u64>();
+        let mut random_instance = ChaCha8Rng::seed_from_u64(random_seed);
+
+        let mut node_state_ids: Vec<u32> = Vec::new();
+        let mut node_state_probabilities: Vec<f32> = Vec::new();
+        for node_state_id in 0..number_of_items {
+            node_state_ids.push(node_state_id);
+            node_state_probabilities.push(1.0);
+        }
+        node_state_ids.shuffle(&mut random_instance);
+
+        let mut indexed_view = IndexedView::new(node_state_ids, node_state_probabilities);
+        let mut popped_node_state_ids: Vec<u32> = Vec::new();
+        for _ in 0..number_of_items {
+            assert!(indexed_view.try_move_next());
+            let node_state_id = *indexed_view.get().unwrap();
+            assert!(!popped_node_state_ids.contains(&node_state_id));
+            popped_node_state_ids.push(node_state_id);
+        }
+        assert!(!indexed_view.try_move_next());
+    }
+
+    #[test]
+    fn many_items_random_order_of_uuid_unshuffled() {
+        init();
+
+        let number_of_items: u32 = 10000;
+        let mut rng = rand::thread_rng();
+        let random_seed = rng.gen::<u64>();
+        let mut random_instance = ChaCha8Rng::seed_from_u64(random_seed);
+
+        let mut node_state_ids: Vec<String> = Vec::new();
+        let mut node_state_probabilities: Vec<f32> = Vec::new();
+        for _ in 0..number_of_items {
+            node_state_ids.push(Uuid::new_v4().to_string());
+            node_state_probabilities.push(1.0);
+        }
+        node_state_ids.shuffle(&mut random_instance);
+
+        let mut indexed_view = IndexedView::new(node_state_ids, node_state_probabilities);
+        let mut popped_node_state_ids: Vec<String> = Vec::new();
+        for _ in 0..number_of_items {
+            assert!(indexed_view.try_move_next());
+            let node_state_id = indexed_view.get().unwrap();
+            assert!(!popped_node_state_ids.contains(node_state_id));
+            popped_node_state_ids.push(node_state_id.clone());
+        }
+        assert!(!indexed_view.try_move_next());
+    }
+
+    #[test]
+    fn many_items_random_order_of_uuid_shuffled() {
+        init();
+
+        let number_of_items: u32 = 10000;
+        let mut rng = rand::thread_rng();
+        let random_seed = rng.gen::<u64>();
+        let mut random_instance = ChaCha8Rng::seed_from_u64(random_seed);
+
+        let mut node_state_ids: Vec<String> = Vec::new();
+        let mut node_state_probabilities: Vec<f32> = Vec::new();
+        for _ in 0..number_of_items {
+            node_state_ids.push(Uuid::new_v4().to_string());
+            node_state_probabilities.push(1.0);
+        }
+        node_state_ids.shuffle(&mut random_instance);
+
+        let mut indexed_view = IndexedView::new(node_state_ids, node_state_probabilities);
+        
+        indexed_view.shuffle(&mut random_instance);
+
+        let mut popped_node_state_ids: Vec<String> = Vec::new();
+        for _ in 0..number_of_items {
+            assert!(indexed_view.try_move_next());
+            let node_state_id = indexed_view.get().unwrap();
+            assert!(!popped_node_state_ids.contains(node_state_id));
+            popped_node_state_ids.push(node_state_id.clone());
+        }
+        assert!(!indexed_view.try_move_next());
     }
 }

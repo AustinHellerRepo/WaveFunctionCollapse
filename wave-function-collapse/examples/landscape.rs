@@ -1,4 +1,4 @@
-use std::{slice::Iter, collections::HashMap};
+use std::{slice::Iter, collections::HashMap, time::Instant};
 use colored::{Colorize, ColoredString};
 use log::debug;
 extern crate pretty_env_logger;
@@ -12,7 +12,7 @@ use wave_function_collapse::wave_function::{
     CollapsedWaveFunction, NodeStateProbability
 };
 
-#[derive(Debug)]
+#[derive(Debug, Eq, Hash, PartialEq, Clone)]
 enum LandscapeElement {
     Water,
     Sand,
@@ -37,27 +37,27 @@ impl LandscapeElement {
         }
         node_state_ids
     }
-    fn get_colored_text_by_node_state_id(node_state_id: &str) -> ColoredString {
+    fn get_colored_text_by_node_state_id(node_state_id: &LandscapeElement) -> ColoredString {
         let character = "\u{2588}";
-        if String::from(node_state_id) == LandscapeElement::Water.to_string() {
+        if node_state_id == &LandscapeElement::Water {
             character.blue()
         }
-        else if String::from(node_state_id) == LandscapeElement::Sand.to_string() {
+        else if node_state_id == &LandscapeElement::Sand {
             character.yellow()
         }
-        else if String::from(node_state_id) == LandscapeElement::Grass.to_string() {
+        else if node_state_id == &LandscapeElement::Grass {
             character.bright_green()
         }
-        else if String::from(node_state_id) == LandscapeElement::Tree.to_string() {
+        else if node_state_id == &LandscapeElement::Tree {
             character.green()
         }
-        else if String::from(node_state_id) == LandscapeElement::Forest.to_string() {
+        else if node_state_id == &LandscapeElement::Forest {
             character.bright_purple()
         }
-        else if String::from(node_state_id) == LandscapeElement::Hill.to_string() {
+        else if node_state_id == &LandscapeElement::Hill {
             character.bright_black()
         }
-        else if String::from(node_state_id) == LandscapeElement::Mountain.to_string() {
+        else if node_state_id == &LandscapeElement::Mountain {
             character.white()
         }
         else {
@@ -84,50 +84,50 @@ impl Landscape {
             height: height
         }
     }
-    fn get_wave_function(&self) -> WaveFunction {
+    fn get_wave_function(&self) -> WaveFunction<LandscapeElement> {
 
-        let mut node_state_collections: Vec<NodeStateCollection> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection<LandscapeElement>> = Vec::new();
         // water
         node_state_collections.push(NodeStateCollection::new(
             Uuid::new_v4().to_string(),
-            LandscapeElement::Water.to_string(),
-            vec![LandscapeElement::Water.to_string(), LandscapeElement::Sand.to_string()]
+            LandscapeElement::Water,
+            vec![LandscapeElement::Water, LandscapeElement::Sand]
         ));
         // sand
         node_state_collections.push(NodeStateCollection::new(
             Uuid::new_v4().to_string(),
-            LandscapeElement::Sand.to_string(),
-            vec![LandscapeElement::Water.to_string(), LandscapeElement::Sand.to_string(), LandscapeElement::Grass.to_string()]
+            LandscapeElement::Sand,
+            vec![LandscapeElement::Water, LandscapeElement::Sand, LandscapeElement::Grass]
         ));
         // grass
         node_state_collections.push(NodeStateCollection::new(
             Uuid::new_v4().to_string(),
-            LandscapeElement::Grass.to_string(),
-            vec![LandscapeElement::Sand.to_string(), LandscapeElement::Grass.to_string(), LandscapeElement::Tree.to_string(), LandscapeElement::Hill.to_string()]
+            LandscapeElement::Grass,
+            vec![LandscapeElement::Sand, LandscapeElement::Grass, LandscapeElement::Tree, LandscapeElement::Hill]
         ));
         // tree
         node_state_collections.push(NodeStateCollection::new(
             Uuid::new_v4().to_string(),
-            LandscapeElement::Tree.to_string(),
-            vec![LandscapeElement::Grass.to_string(), LandscapeElement::Tree.to_string(), LandscapeElement::Forest.to_string()]
+            LandscapeElement::Tree,
+            vec![LandscapeElement::Grass, LandscapeElement::Tree, LandscapeElement::Forest]
         ));
         // forest
         node_state_collections.push(NodeStateCollection::new(
             Uuid::new_v4().to_string(),
-            LandscapeElement::Forest.to_string(),
-            vec![LandscapeElement::Tree.to_string(), LandscapeElement::Forest.to_string()]
+            LandscapeElement::Forest,
+            vec![LandscapeElement::Tree, LandscapeElement::Forest]
         ));
         // hill
         node_state_collections.push(NodeStateCollection::new(
             Uuid::new_v4().to_string(),
-            LandscapeElement::Hill.to_string(),
-            vec![LandscapeElement::Grass.to_string(), LandscapeElement::Hill.to_string(), LandscapeElement::Mountain.to_string()]
+            LandscapeElement::Hill,
+            vec![LandscapeElement::Grass, LandscapeElement::Hill, LandscapeElement::Mountain]
         ));
         // mountain
         node_state_collections.push(NodeStateCollection::new(
             Uuid::new_v4().to_string(),
-            LandscapeElement::Mountain.to_string(),
-            vec![LandscapeElement::Hill.to_string(), LandscapeElement::Mountain.to_string()]
+            LandscapeElement::Mountain,
+            vec![LandscapeElement::Hill, LandscapeElement::Mountain]
         ));
 
         let mut node_state_collection_ids: Vec<String> = Vec::new();
@@ -147,7 +147,7 @@ impl Landscape {
         }
 
         debug!("connecting nodes");
-        let mut nodes: Vec<Node> = Vec::new();
+        let mut nodes: Vec<Node<LandscapeElement>> = Vec::new();
         for from_height_index in 0..self.height {
             for from_width_index in (0..self.width) {
                 debug!("setup ({from_width_index}, {from_height_index})");
@@ -190,9 +190,18 @@ impl Landscape {
                         }
                     }
                 }
+                let mut node_state_probability_per_node_state_id: HashMap<LandscapeElement, f32> = HashMap::new();
+                node_state_probability_per_node_state_id.insert(LandscapeElement::Water, 1.0);
+                node_state_probability_per_node_state_id.insert(LandscapeElement::Sand, 0.01);
+                node_state_probability_per_node_state_id.insert(LandscapeElement::Grass, 0.5);
+                node_state_probability_per_node_state_id.insert(LandscapeElement::Hill, 0.01);
+                node_state_probability_per_node_state_id.insert(LandscapeElement::Mountain, 1.0);
+                node_state_probability_per_node_state_id.insert(LandscapeElement::Tree, 0.01);
+                node_state_probability_per_node_state_id.insert(LandscapeElement::Forest, 1.0);
+
                 let node = Node::new(
                     from_node_id,
-                    NodeStateProbability::get_equal_probability(LandscapeElement::get_node_state_ids()),
+                    node_state_probability_per_node_state_id,
                     node_state_collection_ids_per_neighbor_node_id
                 );
                 nodes.push(node);
@@ -207,6 +216,8 @@ fn main() {
     std::env::set_var("RUST_LOG", "trace");
     //pretty_env_logger::init();
 
+    let start = Instant::now();
+
     let width: u32 = 60;
     let height: u32 = 60;
     let landscape = Landscape::new(width, height);
@@ -215,15 +226,16 @@ fn main() {
 
     wave_function.validate().unwrap();
     //wave_function.sort();
+    wave_function.optimize();
 
     let mut rng = rand::thread_rng();
     let random_seed = Some(rng.gen::<u64>());
 
     let collapsed_wave_function = wave_function.collapse(random_seed).unwrap();
 
-    let mut node_state_per_y_per_x: Vec<Vec<Option<String>>> = Vec::new();
+    let mut node_state_per_y_per_x: Vec<Vec<Option<LandscapeElement>>> = Vec::new();
     for _ in 0..width {
-        let mut node_state_per_y: Vec<Option<String>> = Vec::new();
+        let mut node_state_per_y: Vec<Option<LandscapeElement>> = Vec::new();
         for _ in 0..height {
             node_state_per_y.push(None);
         }
@@ -256,4 +268,7 @@ fn main() {
         print!("--");
     }
     println!("-");
+
+    let duration = start.elapsed();
+    println!("Duration: {:?}", duration);
 }

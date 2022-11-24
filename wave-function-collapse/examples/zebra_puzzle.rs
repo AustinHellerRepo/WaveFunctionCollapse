@@ -469,10 +469,10 @@ impl ZebraPuzzle {
     fn insert_dependency(&mut self, dependency: Dependency) {
         self.dependencies.push(dependency);
     }
-    fn get_wave_function(&self) -> WaveFunction {
+    fn get_wave_function(&self) -> WaveFunction<String> {
         
-        let mut nodes: Vec<Node> = Vec::new();
-        let mut node_state_collections: Vec<NodeStateCollection> = Vec::new();
+        let mut nodes: Vec<Node<String>> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
 
         let mut all_node_ids: Vec<String> = Vec::new();
         let mut node_id_per_information_type_per_house_index: Vec<HashMap<InformationType, &str>> = Vec::new();
@@ -866,7 +866,7 @@ impl ZebraPuzzle {
 }
 
 struct ZebraSolution {
-    collapsed_wave_function: CollapsedWaveFunction
+    collapsed_wave_function: CollapsedWaveFunction<String>
 }
 
 impl ZebraSolution {
@@ -996,7 +996,7 @@ fn main() {
         Some(Information::new_house_color(HouseColor::Blue))
     ));
 
-    let wave_function: WaveFunction = puzzle.get_wave_function();
+    let wave_function: WaveFunction<String> = puzzle.get_wave_function();
     wave_function.validate().unwrap();
 
     let solution_result = wave_function.collapse(None);

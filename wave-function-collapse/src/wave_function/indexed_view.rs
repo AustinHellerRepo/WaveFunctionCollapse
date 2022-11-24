@@ -1,12 +1,17 @@
 use std::f32::consts::E;
 use std::fmt::{Debug};
+use std::hash::Hash;
 use std::{collections::HashMap};
 use bitvec::prelude::*;
 use rand::{seq::SliceRandom, Rng};
 
-pub struct IndexedView<TNodeState> {
+use crate::wave_function::probability_container::ProbabilityContainer;
+
+pub struct IndexedView<TNodeState: Clone + Eq + Hash + Debug> {
     // items are states of the node
     node_state_ids: Vec<TNodeState>,
+    node_state_probabilities: Vec<f32>,
+    index_per_node_state_id: HashMap<TNodeState, usize>,
     node_state_ids_length: usize,
     index: Option<usize>,
     index_mapping: HashMap<usize, usize>,
@@ -16,20 +21,24 @@ pub struct IndexedView<TNodeState> {
     is_fully_restricted: bool
 }
 
-impl<TNodeState> IndexedView<TNodeState> {
+impl<TNodeState: Clone + Eq + Hash + Debug> IndexedView<TNodeState> {
     #[time_graph::instrument]
-    pub fn new(node_state_ids: Vec<TNodeState>) -> Self {
+    pub fn new(node_state_ids: Vec<TNodeState>, node_state_probabilities: Vec<f32>) -> Self {
         let node_state_ids_length: usize = node_state_ids.len();
+        let mut index_per_node_state_id: HashMap<TNodeState, usize> = HashMap::new();
         let mut index_mapping = HashMap::new();
         let mut mask_counter: Vec<u32> = Vec::new();
         let mut is_restricted_at_index: BitVec = BitVec::new();
-        for index in 0..node_state_ids_length {
+        for (index, node_state_id) in node_state_ids.iter().enumerate() {
+            index_per_node_state_id.insert(node_state_id.clone(), index);
             index_mapping.insert(index, index);
             mask_counter.push(0);
             is_restricted_at_index.push(false);
         }
         IndexedView {
             node_state_ids: node_state_ids,
+            node_state_probabilities: node_state_probabilities,
+            index_per_node_state_id: index_per_node_state_id,
             node_state_ids_length: node_state_ids_length,
             index: Option::None,
             index_mapping: index_mapping,
@@ -44,12 +53,22 @@ impl<TNodeState> IndexedView<TNodeState> {
         if self.index.is_some() {
             panic!("Can only be shuffled prior to use.");
         }
-        let mut shuffled_indexes: Vec<usize> = (0..self.node_state_ids_length).collect();
+        self.index_mapping.clear();
+        let mut probability_container = ProbabilityContainer::default();
+        for (node_state_id, probability) in std::iter::zip(self.node_state_ids.iter(), self.node_state_probabilities.iter()) {
+            probability_container.push(node_state_id, *probability);
+        }
+
+        for index in 0..self.node_state_ids_length {
+            let node_state_id = probability_container.pop_random(random_instance).unwrap();
+            self.index_mapping.insert(index, *self.index_per_node_state_id.get(&node_state_id).unwrap());
+        }
+        /*let mut shuffled_indexes: Vec<usize> = (0..self.node_state_ids_length).collect();
         shuffled_indexes.shuffle(random_instance);
         self.index_mapping.clear();
         for index in 0..self.node_state_ids_length {
             self.index_mapping.insert(index, shuffled_indexes[index]);
-        }
+        }*/
         debug!("randomized index mapping to {:?}.", self.index_mapping);
     }
     #[time_graph::instrument]
@@ -167,7 +186,7 @@ impl<TNodeState> IndexedView<TNodeState> {
     }
 }
 
-impl<TNodeState> Debug for IndexedView<TNodeState> {
+impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug> Debug for IndexedView<TNodeState> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "IndexedView with mask counter {:?}.", self.mask_counter)
     }
