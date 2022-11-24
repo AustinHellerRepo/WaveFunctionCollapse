@@ -487,4 +487,125 @@ mod probability_container_unit_tests {
 
         // TODO calculate standard deviation and compare each value
     }
+
+    #[test]
+    fn probability_container_verify_ratio_between_equal_opportunity() {
+        init();
+
+        let mut rng = rand::thread_rng();
+        let random_seed = rng.gen::<u64>();
+        let mut random_instance = ChaCha8Rng::seed_from_u64(random_seed);
+        let mut probability_per_item: HashMap<TestStruct, f32> = HashMap::new();
+        let number_of_nodes = 10000000;
+        let number_of_items = 5;
+
+        let mut count_per_id: HashMap<String, u32> = HashMap::new();
+ 
+        struct TestNode {
+            probability_container: ProbabilityContainer<TestStruct>
+        }
+        let mut nodes: Vec<TestNode> = Vec::new();
+        for _ in 0..number_of_nodes {
+            let mut probability_container: ProbabilityContainer<TestStruct> = ProbabilityContainer::default();
+            let mut previous_probability: f32 = (2.0_f32).powf(0.0);
+            for index in 0..number_of_items {
+                let id = index.to_string();
+                count_per_id.insert(id.clone(), 0);
+                probability_container.push(TestStruct { id: id.clone() }, previous_probability);
+                previous_probability *= 1.618033988749894;
+            }
+            let node = TestNode {
+                probability_container: probability_container
+            };
+            nodes.push(node);
+        }
+        
+        for node_index in 0..number_of_nodes as usize {
+            //println!("node_index: {node_index}");
+            for item_index in 0..number_of_items {
+                //println!("item_index: {item_index}");
+                let popped_item = nodes.get_mut(node_index).unwrap().probability_container.pop_random(&mut random_instance).unwrap();
+                if popped_item.id == (number_of_items - item_index - 1).to_string() {
+                    let current_count = count_per_id.get(&popped_item.id).unwrap();
+                    count_per_id.insert(popped_item.id, current_count + 1);
+                }
+            }
+        }
+
+        for item_index in 0..(number_of_items - 1) as usize {
+            println!("item count: {:?}", count_per_id.get(&item_index.to_string()).unwrap());
+            let current_count = count_per_id.get(&item_index.to_string()).unwrap();
+            let next_count = count_per_id.get(&(item_index + 1).to_string()).unwrap();
+            let scale = (*next_count as f32) / (*current_count as f32);
+            println!("scale: {scale}");
+        }
+        println!("item count: {:?}", count_per_id.get(&((number_of_items - 1) as usize).to_string()).unwrap());
+    
+        // TODO calculate standard deviation and compare each value
+    }
+
+    #[test]
+    fn probability_container_create_many_instances_and_pop_random_all() {
+        init();
+
+        let mut rng = rand::thread_rng();
+        let random_seed = rng.gen::<u64>();
+        let mut random_instance = ChaCha8Rng::seed_from_u64(random_seed);
+        let mut probability_per_item: HashMap<TestStruct, f32> = HashMap::new();
+        let number_of_nodes = 10000000;
+        let number_of_items = 3;
+
+        let mut count_per_id: HashMap<String, u32> = HashMap::new();
+ 
+        struct TestNode {
+            probability_container: ProbabilityContainer<TestStruct>
+        }
+        let mut nodes: Vec<TestNode> = Vec::new();
+        for _ in 0..number_of_nodes {
+            let mut probability_container: ProbabilityContainer<TestStruct> = ProbabilityContainer::default();
+            let mut previous_probability: f32 = (2.0_f32).powf(0.0);
+            for index in 0..number_of_items {
+                let id = index.to_string();
+                count_per_id.insert(id.clone(), 0);
+                if index == 0 {
+                    probability_container.push(TestStruct { id: id.clone() }, 0.00001);
+                }
+                else {
+                    probability_container.push(TestStruct { id: id.clone() }, previous_probability);
+                    previous_probability *= 2.0;
+                }
+            }
+            let node = TestNode {
+                probability_container: probability_container
+            };
+            nodes.push(node);
+        }
+        
+        for node_index in 0..number_of_nodes as usize {
+            //println!("node_index: {node_index}");
+            for item_index in 0..number_of_items {
+                //println!("item_index: {item_index}");
+                let popped_item = nodes.get_mut(node_index).unwrap().probability_container.pop_random(&mut random_instance).unwrap();
+                if popped_item.id == (number_of_items - item_index - 1).to_string() {
+                    let current_count = count_per_id.get(&popped_item.id).unwrap();
+                    count_per_id.insert(popped_item.id, current_count + 1);
+                }
+            }
+        }
+
+        for item_index in 0..(number_of_items - 1) as usize {
+            println!("item count: {:?}", count_per_id.get(&item_index.to_string()).unwrap());
+            let current_count = count_per_id.get(&item_index.to_string()).unwrap();
+            let next_count = count_per_id.get(&(item_index + 1).to_string()).unwrap();
+            let scale = (*next_count as f32) / (*current_count as f32);
+            println!("scale: {scale}");
+        }
+        println!("item count: {:?}", count_per_id.get(&((number_of_items - 1) as usize).to_string()).unwrap());
+
+        assert!(count_per_id.get("0").unwrap() > &9999000);
+        assert!(count_per_id.get("1").unwrap() > &6660000);
+        assert!(count_per_id.get("2").unwrap() > &6660000);
+    
+        // TODO calculate standard deviation and compare each value
+    }
 }
