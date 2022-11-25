@@ -528,7 +528,7 @@ mod probability_container_unit_tests {
         let random_seed = rng.gen::<u64>();
         let mut random_instance = ChaCha8Rng::seed_from_u64(random_seed);
         let mut probability_per_item: HashMap<TestStruct, f32> = HashMap::new();
-        let number_of_nodes = 10000000;
+        let number_of_nodes = 100000;
         let number_of_items = 5;
 
         let mut count_per_id: HashMap<String, u32> = HashMap::new();
@@ -584,7 +584,7 @@ mod probability_container_unit_tests {
         let random_seed = rng.gen::<u64>();
         let mut random_instance = ChaCha8Rng::seed_from_u64(random_seed);
         let mut probability_per_item: HashMap<TestStruct, f32> = HashMap::new();
-        let number_of_nodes = 10000000;
+        let number_of_nodes = 100000;
         let number_of_items = 3;
 
         let mut count_per_id: HashMap<String, u32> = HashMap::new();
@@ -634,9 +634,9 @@ mod probability_container_unit_tests {
         }
         println!("item count: {:?}", count_per_id.get(&((number_of_items - 1) as usize).to_string()).unwrap());
 
-        assert!(count_per_id.get("0").unwrap() > &9999000);
-        assert!(count_per_id.get("1").unwrap() > &6660000);
-        assert!(count_per_id.get("2").unwrap() > &6660000);
+        assert!(count_per_id.get("0").unwrap() > &99000);
+        assert!(count_per_id.get("1").unwrap() > &60000);
+        assert!(count_per_id.get("2").unwrap() > &60000);
     
         // TODO calculate standard deviation and compare each value
     }
@@ -1097,7 +1097,7 @@ mod wave_function_unit_tests {
     }
 
     #[test]
-    fn two_nodes_both_as_neighbors_and_different_states() {
+    fn two_nodes_both_as_neighbors_and_different_states_with_one_run() {
         init();
 
         let mut nodes: Vec<Node<String>> = Vec::new();
@@ -1155,6 +1155,10 @@ mod wave_function_unit_tests {
         }
 
         let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
+
+        // NOTE: this cannot be used because the uuids sort into random orders
+        //assert_eq!(&one_node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
+        //assert_eq!(&two_node_state_id, collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap());
 
         assert_ne!(collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap(), collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
     }
@@ -1938,7 +1942,7 @@ mod wave_function_unit_tests {
         time_graph::enable_data_collection(true);
 
         let mut rng = rand::thread_rng();
-        let random_seed = Some(15177947778026677005);
+        let random_seed = Some(15177947778026677010);
         //let random_seed = None;
 
         let max_runs = 1;
@@ -1961,8 +1965,9 @@ mod wave_function_unit_tests {
 
             time_graph::spanned!("creating test data", {
 
-                for _ in 0..node_states_total {
-                    node_state_ids.push(Uuid::new_v4().to_string());
+                for index in 0..node_states_total {
+                    let node_state_id: String = format!("{}_{}", index, Uuid::new_v4());
+                    node_state_ids.push(node_state_id);
                 }
 
                 for _ in 0..nodes_total {
@@ -2023,9 +2028,9 @@ mod wave_function_unit_tests {
                 wave_function.validate().unwrap();
             });
 
-            time_graph::spanned!("optimizing wave function", {
+            /*time_graph::spanned!("optimizing wave function", {
                 wave_function.optimize();
-            });
+            });*/
 
             let collapsed_wave_function_result: Result<CollapsedWaveFunction<String>, String>;
             
@@ -2071,11 +2076,12 @@ mod wave_function_unit_tests {
         for _ in 0..1 {
 
             //let random_seed = Some(rng.next_u64());
-            let random_seed = Some(3137775564618414013);
+            //let random_seed = Some(3137775564618414013);
+            let random_seed = Some(15177947778026677010);
 
             //let random_seed = None;
 
-            let size = 9;
+            let size = 4;
 
             let nodes_height = size;
             let nodes_width = size;
@@ -2155,7 +2161,7 @@ mod wave_function_unit_tests {
             });
 
             time_graph::spanned!("optimizing wave function", {
-                wave_function.optimize();
+                //wave_function.optimize();
             });
 
             let collapsed_node_states_result: Result<Vec<CollapsedNodeState<String>>, String>;

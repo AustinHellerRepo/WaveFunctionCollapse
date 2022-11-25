@@ -12,7 +12,7 @@ use wave_function_collapse::wave_function::{
     CollapsedWaveFunction, NodeStateProbability
 };
 
-#[derive(Debug, Eq, Hash, PartialEq, Clone)]
+#[derive(Debug, Eq, Hash, PartialEq, Clone, PartialOrd, Ord)]
 enum LandscapeElement {
     Water,
     Sand,
@@ -226,10 +226,11 @@ fn main() {
 
     wave_function.validate().unwrap();
     //wave_function.sort();
-    wave_function.optimize();
+    //wave_function.optimize();
 
     let mut rng = rand::thread_rng();
     let random_seed = Some(rng.gen::<u64>());
+    let random_seed = Some(0);
 
     let collapsed_wave_function = wave_function.collapse(random_seed).unwrap();
 

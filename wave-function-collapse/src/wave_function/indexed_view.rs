@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::f32::consts::E;
 use std::fmt::{Debug};
 use std::hash::Hash;
@@ -14,11 +15,13 @@ pub struct IndexedView<TNodeState: Clone + Eq + Hash + Debug> {
     index_per_node_state_id: HashMap<TNodeState, usize>,
     node_state_ids_length: usize,
     index: Option<usize>,
-    index_mapping: HashMap<usize, usize>,
+    index_mapping: Vec<usize>,
     mask_counter: Vec<u32>,
     is_restricted_at_index: BitVec,
     is_mask_dirty: bool,
-    is_fully_restricted: bool
+    is_fully_restricted: bool,
+    previous_mask_counters: VecDeque<Vec<u32>>,
+    previous_is_restricted_at_index: VecDeque<BitVec>
 }
 
 impl<TNodeState: Clone + Eq + Hash + Debug> IndexedView<TNodeState> {
@@ -26,12 +29,12 @@ impl<TNodeState: Clone + Eq + Hash + Debug> IndexedView<TNodeState> {
     pub fn new(node_state_ids: Vec<TNodeState>, node_state_probabilities: Vec<f32>) -> Self {
         let node_state_ids_length: usize = node_state_ids.len();
         let mut index_per_node_state_id: HashMap<TNodeState, usize> = HashMap::new();
-        let mut index_mapping = HashMap::new();
+        let mut index_mapping = Vec::new();
         let mut mask_counter: Vec<u32> = Vec::new();
         let mut is_restricted_at_index: BitVec = BitVec::new();
         for (index, node_state_id) in node_state_ids.iter().enumerate() {
             index_per_node_state_id.insert(node_state_id.clone(), index);
-            index_mapping.insert(index, index);
+            index_mapping.push(index);
             mask_counter.push(0);
             is_restricted_at_index.push(false);
         }
@@ -45,7 +48,9 @@ impl<TNodeState: Clone + Eq + Hash + Debug> IndexedView<TNodeState> {
             mask_counter: mask_counter,
             is_restricted_at_index: is_restricted_at_index,
             is_mask_dirty: true,
-            is_fully_restricted: false
+            is_fully_restricted: false,
+            previous_mask_counters: VecDeque::new(),
+            previous_is_restricted_at_index: VecDeque::new()
         }
     }
     #[time_graph::instrument]
@@ -53,22 +58,22 @@ impl<TNodeState: Clone + Eq + Hash + Debug> IndexedView<TNodeState> {
         if self.index.is_some() {
             panic!("Can only be shuffled prior to use.");
         }
-        self.index_mapping.clear();
-        let mut probability_container = ProbabilityContainer::default();
-        for (node_state_id, probability) in std::iter::zip(self.node_state_ids.iter(), self.node_state_probabilities.iter()) {
-            probability_container.push(node_state_id, *probability);
+
+        if false {
+            self.index_mapping.clear();
+            let mut probability_container = ProbabilityContainer::default();
+            for (node_state_id, probability) in std::iter::zip(self.node_state_ids.iter(), self.node_state_probabilities.iter()) {
+                probability_container.push(node_state_id, *probability);
+            }
+
+            for _ in 0..self.node_state_ids_length {
+                let node_state_id = probability_container.pop_random(random_instance).unwrap();
+                self.index_mapping.push(*self.index_per_node_state_id.get(&node_state_id).unwrap());
+            }
         }
 
-        for index in 0..self.node_state_ids_length {
-            let node_state_id = probability_container.pop_random(random_instance).unwrap();
-            self.index_mapping.insert(index, *self.index_per_node_state_id.get(&node_state_id).unwrap());
-        }
-        /*let mut shuffled_indexes: Vec<usize> = (0..self.node_state_ids_length).collect();
-        shuffled_indexes.shuffle(random_instance);
-        self.index_mapping.clear();
-        for index in 0..self.node_state_ids_length {
-            self.index_mapping.insert(index, shuffled_indexes[index]);
-        }*/
+        self.index_mapping.shuffle(random_instance);
+
         debug!("randomized index mapping to {:?}.", self.index_mapping);
     }
     #[time_graph::instrument]
@@ -105,9 +110,9 @@ impl<TNodeState: Clone + Eq + Hash + Debug> IndexedView<TNodeState> {
     #[time_graph::instrument]
     fn is_unmasked_at_index(&self, index: usize) -> bool {
         //debug!("checking if unmasked at index {index} for node {mask_key}.");
-        let mapped_index = self.index_mapping.get(&index).unwrap();
+        let mapped_index = self.index_mapping[index];
         //self.mask_counter[*mapped_index] == 0
-        !self.is_restricted_at_index[*mapped_index]
+        !self.is_restricted_at_index[mapped_index]
     }
     #[time_graph::instrument]
     pub fn get(&self) -> Option<&TNodeState> {
@@ -117,8 +122,8 @@ impl<TNodeState: Clone + Eq + Hash + Debug> IndexedView<TNodeState> {
                 value = None;
             }
             else {
-                let mapped_index = self.index_mapping.get(&index).unwrap();
-                value = self.node_state_ids.get(*mapped_index);
+                let mapped_index = self.index_mapping[index];
+                value = self.node_state_ids.get(mapped_index);
             }
         }
         else {
@@ -153,6 +158,8 @@ impl<TNodeState: Clone + Eq + Hash + Debug> IndexedView<TNodeState> {
     #[time_graph::instrument]
     pub fn add_mask(&mut self, mask: &BitVec) {
         //debug!("adding mask {:?} at current state {:?}.", mask, self.mask_counter);
+        self.previous_mask_counters.push_back(self.mask_counter.clone());
+        self.previous_is_restricted_at_index.push_back(self.is_restricted_at_index.clone());
         for index in 0..self.node_state_ids_length {
             if !mask[index] {
                 //debug!("adding mask at {index}");
@@ -168,20 +175,11 @@ impl<TNodeState: Clone + Eq + Hash + Debug> IndexedView<TNodeState> {
         //debug!("added mask {:?} at current state {:?}.", mask, self.mask_counter);
     }
     #[time_graph::instrument]
-    pub fn subtract_mask(&mut self, mask: &BitVec) {
+    pub fn reverse_mask(&mut self) {
         //debug!("removing mask {:?} at current state {:?}.", mask, self.mask_counter);
-        for index in 0..self.node_state_ids_length {
-            if !mask[index] {
-                //debug!("removing mask at {index}");
-                let next_mask_counter = self.mask_counter[index] - 1;
-                self.mask_counter[index] = next_mask_counter;
-                if next_mask_counter == 0 {
-                    self.is_restricted_at_index.set(index, false);
-                    self.is_mask_dirty = true;
-                }
-                //self.mask_counter[index] = self.mask_counter[index].checked_sub(1).unwrap();  // TODO replace with unchecked version above
-            }
-        }
+        self.mask_counter = self.previous_mask_counters.pop_back().unwrap();
+        self.is_restricted_at_index = self.previous_is_restricted_at_index.pop_back().unwrap();
+        self.is_fully_restricted = false;  // any movement backwards is to a non-restricted state
         //debug!("removed mask {:?} at current state {:?}.", mask, self.mask_counter);
     }
 }
