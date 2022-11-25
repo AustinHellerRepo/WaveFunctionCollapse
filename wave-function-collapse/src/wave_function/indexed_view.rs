@@ -59,20 +59,16 @@ impl<TNodeState: Clone + Eq + Hash + Debug> IndexedView<TNodeState> {
             panic!("Can only be shuffled prior to use.");
         }
 
-        if false {
-            self.index_mapping.clear();
-            let mut probability_container = ProbabilityContainer::default();
-            for (node_state_id, probability) in std::iter::zip(self.node_state_ids.iter(), self.node_state_probabilities.iter()) {
-                probability_container.push(node_state_id, *probability);
-            }
-
-            for _ in 0..self.node_state_ids_length {
-                let node_state_id = probability_container.pop_random(random_instance).unwrap();
-                self.index_mapping.push(*self.index_per_node_state_id.get(&node_state_id).unwrap());
-            }
+        self.index_mapping.clear();
+        let mut probability_container = ProbabilityContainer::default();
+        for (node_state_id, probability) in std::iter::zip(self.node_state_ids.iter(), self.node_state_probabilities.iter()) {
+            probability_container.push(node_state_id, *probability);
         }
 
-        self.index_mapping.shuffle(random_instance);
+        for _ in 0..self.node_state_ids_length {
+            let node_state_id = probability_container.pop_random(random_instance).unwrap();
+            self.index_mapping.push(*self.index_per_node_state_id.get(&node_state_id).unwrap());
+        }
 
         debug!("randomized index mapping to {:?}.", self.index_mapping);
     }

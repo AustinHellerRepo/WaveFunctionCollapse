@@ -181,22 +181,45 @@ impl Landscape {
                     max_to_width_index = from_width_index + 1;
                 }
                 let mut node_state_collection_ids_per_neighbor_node_id: HashMap<String, Vec<String>> = HashMap::new();
-                for to_height_index in min_to_height_index..=max_to_height_index {
+
+                if false {
+                    // fully connected set of 8-to-1
+                    for to_height_index in min_to_height_index..=max_to_height_index {
+                        for to_width_index in min_to_width_index..=max_to_width_index {
+                            if !(from_height_index == to_height_index && from_width_index == to_width_index) {
+                                debug!("connecting ({from_width_index}, {from_height_index}) to ({to_width_index}, {to_height_index})");
+                                let to_node_id: String = node_id_per_x_per_y.get(&to_height_index).unwrap().get(&to_width_index).unwrap().clone();
+                                node_state_collection_ids_per_neighbor_node_id.insert(to_node_id, node_state_collection_ids.clone());
+                            }
+                        }
+                    }
+                }
+                else {
+                    for to_height_index in min_to_height_index..=max_to_height_index {
+                        let to_width_index = from_width_index;
+                        if !(from_height_index == to_height_index) {
+                            debug!("connecting ({from_width_index}, {from_height_index}) to ({to_width_index}, {to_height_index})");
+                            let to_node_id: String = node_id_per_x_per_y.get(&to_height_index).unwrap().get(&to_width_index).unwrap().clone();
+                            node_state_collection_ids_per_neighbor_node_id.insert(to_node_id, node_state_collection_ids.clone());
+                        }
+                    }
                     for to_width_index in min_to_width_index..=max_to_width_index {
-                        if !(from_height_index == to_height_index && from_width_index == to_width_index) {
+                        let to_height_index = from_height_index;
+                        if !(from_width_index == to_width_index) {
                             debug!("connecting ({from_width_index}, {from_height_index}) to ({to_width_index}, {to_height_index})");
                             let to_node_id: String = node_id_per_x_per_y.get(&to_height_index).unwrap().get(&to_width_index).unwrap().clone();
                             node_state_collection_ids_per_neighbor_node_id.insert(to_node_id, node_state_collection_ids.clone());
                         }
                     }
                 }
+
                 let mut node_state_probability_per_node_state_id: HashMap<LandscapeElement, f32> = HashMap::new();
                 node_state_probability_per_node_state_id.insert(LandscapeElement::Water, 1.0);
-                node_state_probability_per_node_state_id.insert(LandscapeElement::Sand, 0.01);
+                node_state_probability_per_node_state_id.insert(LandscapeElement::Sand, 0.1);
                 node_state_probability_per_node_state_id.insert(LandscapeElement::Grass, 0.5);
-                node_state_probability_per_node_state_id.insert(LandscapeElement::Hill, 0.01);
+                node_state_probability_per_node_state_id.insert(LandscapeElement::Hill, 0.1);
                 node_state_probability_per_node_state_id.insert(LandscapeElement::Mountain, 1.0);
-                node_state_probability_per_node_state_id.insert(LandscapeElement::Tree, 0.01);
+                node_state_probability_per_node_state_id.insert(LandscapeElement::Tree, 0.1);
                 node_state_probability_per_node_state_id.insert(LandscapeElement::Forest, 1.0);
 
                 let node = Node::new(
@@ -230,7 +253,7 @@ fn main() {
 
     let mut rng = rand::thread_rng();
     let random_seed = Some(rng.gen::<u64>());
-    let random_seed = Some(0);
+    //let random_seed = Some(0);
 
     let collapsed_wave_function = wave_function.collapse(random_seed).unwrap();
 
