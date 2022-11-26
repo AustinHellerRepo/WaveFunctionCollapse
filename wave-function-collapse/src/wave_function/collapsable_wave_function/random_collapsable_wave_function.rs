@@ -34,6 +34,13 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveF
     }
     fn collapse(&'a mut self) -> Result<CollapsedWaveFunction<TNodeState>, String> {
         todo!()
+
+        // initialize each collapsable node to its first (random) state
+        // while at least one collapsable node is fully restricted
+        //      while not every collapsable node has been considered for accommodation
+        //          accommodate the next collapsable node that (1) has its current state restricted and (2) is not a neighbor of a previously accommodated node
+        //      
+        // NOTE: this could cause an infinite loop for the AB<-->CD unit test
     }
     fn collapse_into_steps(&'a mut self) -> Result<Vec<CollapsedNodeState<TNodeState>>, String> {
         todo!()
