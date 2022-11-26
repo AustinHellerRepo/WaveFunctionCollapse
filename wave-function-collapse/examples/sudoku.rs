@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use wave_function_collapse::wave_function::{
     Node,
     NodeStateCollection,
-    WaveFunction, NodeStateProbability, collapsable_wave_function::deterministic_collapsable_wave_function::DeterministicCollapsableWaveFunction
+    WaveFunction, NodeStateProbability, collapsable_wave_function::{deterministic_collapsable_wave_function::DeterministicCollapsableWaveFunction, collapsable_wave_function::CollapsableWaveFunction}
 };
 
 struct SudokuPuzzle {
@@ -217,7 +217,7 @@ impl SudokuPuzzle {
         let wave_function = WaveFunction::new(nodes, node_state_collection_per_id.values().cloned().collect());
         wave_function.validate().unwrap();
 
-        let collapsed_wave_function_result = wave_function.collapse::<DeterministicCollapsableWaveFunction<String>>(None);
+        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<DeterministicCollapsableWaveFunction<String>>(None).collapse();
 
         if let Ok(collapsed_wave_function) = collapsed_wave_function_result {
             let mut state_per_row_per_column: Vec<Vec<Option<u8>>> = Vec::new();

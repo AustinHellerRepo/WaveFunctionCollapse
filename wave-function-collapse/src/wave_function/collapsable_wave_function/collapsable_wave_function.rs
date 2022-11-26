@@ -11,15 +11,8 @@ use crate::wave_function::indexed_view::IndexedView;
 
 pub trait CollapsableWaveFunction<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> {
     fn new(collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a, TNodeState>>>>, collapsable_node_per_id: HashMap<&'a str, Rc<RefCell<CollapsableNode<'a, TNodeState>>>>) -> Self where Self: Sized;
-    fn revert_existing_neighbor_masks(&mut self);
-    fn try_increment_current_collapsable_node_state(&mut self) -> CollapsedNodeState<TNodeState>;
-    fn try_alter_reference_to_current_collapsable_node_mask(&mut self) -> bool;
-    fn move_to_next_collapsable_node(&mut self);
-    fn is_fully_collapsed(&self) -> bool;
-    fn try_move_to_previous_collapsable_node_neighbor(&mut self);
-    fn is_fully_reset(&self) -> bool;
-    fn get_uncollapsed_wave_function(&self) -> UncollapsedWaveFunction<TNodeState>;
-    fn get_collapsed_wave_function(&self) -> CollapsedWaveFunction<TNodeState>;
+    fn collapse_into_steps(&'a mut self) -> Result<Vec<CollapsedNodeState<TNodeState>>, String>;
+    fn collapse(&'a mut self) -> Result<CollapsedWaveFunction<TNodeState>, String>;
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, Hash)]

@@ -13,39 +13,7 @@ pub struct DeterministicCollapsableWaveFunction<'a, TNodeState: Eq + Hash + Clon
     node_state_type: PhantomData<TNodeState>
 }
 
-impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveFunction<'a, TNodeState> for DeterministicCollapsableWaveFunction<'a, TNodeState> {
-    #[time_graph::instrument]
-    fn new(collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a, TNodeState>>>>, collapsable_node_per_id: HashMap<&'a str, Rc<RefCell<CollapsableNode<'a, TNodeState>>>>) -> Self {
-        let collapsable_nodes_length: usize = collapsable_nodes.len();
-
-        let mut collapsable_wave_function = DeterministicCollapsableWaveFunction {
-            collapsable_nodes: collapsable_nodes,
-            collapsable_node_per_id: collapsable_node_per_id,
-            collapsable_nodes_length: collapsable_nodes_length,
-            current_collapsable_node_index: 0,
-            node_state_type: PhantomData
-        };
-
-        collapsable_wave_function
-    }
-    #[time_graph::instrument]
-    fn revert_existing_neighbor_masks(&mut self) {
-        let wrapped_current_collapsable_node = self.collapsable_nodes.get_mut(self.current_collapsable_node_index).expect("The collapsable node should exist at this index.");
-        let current_collapsable_node = wrapped_current_collapsable_node.borrow();
-        if let Some(current_possible_state) = current_collapsable_node.node_state_indexed_view.get() {
-            // if there is a mask_per_neighbor for this node's current state
-            if let Some(mask_per_neighbor) = current_collapsable_node.mask_per_neighbor_per_state.get(current_possible_state) {
-                for neighbor_node_id in current_collapsable_node.neighbor_node_ids.iter() {
-                    if mask_per_neighbor.contains_key(neighbor_node_id) {
-                        let wrapped_neighbor_collapsable_node = self.collapsable_node_per_id.get(neighbor_node_id).unwrap();
-                        let mut neighbor_collapsable_node = wrapped_neighbor_collapsable_node.borrow_mut();
-                        debug!("reversing mask for {:?} when in revert_existing_neighbor_masks", neighbor_node_id);
-                        neighbor_collapsable_node.reverse_mask();  // each node contain a memo structure such that the masks are not needed to revert to the previous state since subtractions happen in reverse order anyway
-                    }
-                }
-            }
-        }
-    }
+impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> DeterministicCollapsableWaveFunction<'a, TNodeState> {
     #[time_graph::instrument]
     fn try_increment_current_collapsable_node_state(&mut self) -> CollapsedNodeState<TNodeState> {
         let wrapped_current_collapsable_node = self.collapsable_nodes.get(self.current_collapsable_node_index).unwrap();
@@ -212,5 +180,159 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveF
         CollapsedWaveFunction {
             node_state_per_node: node_state_per_node
         }
-    }   
+    }
+}
+
+impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveFunction<'a, TNodeState> for DeterministicCollapsableWaveFunction<'a, TNodeState> {
+    #[time_graph::instrument]
+    fn new(collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a, TNodeState>>>>, collapsable_node_per_id: HashMap<&'a str, Rc<RefCell<CollapsableNode<'a, TNodeState>>>>) -> Self {
+        let collapsable_nodes_length: usize = collapsable_nodes.len();
+
+        let mut collapsable_wave_function = DeterministicCollapsableWaveFunction {
+            collapsable_nodes: collapsable_nodes,
+            collapsable_node_per_id: collapsable_node_per_id,
+            collapsable_nodes_length: collapsable_nodes_length,
+            current_collapsable_node_index: 0,
+            node_state_type: PhantomData
+        };
+
+        collapsable_wave_function
+    }
+    #[time_graph::instrument]
+    fn collapse_into_steps(&'a mut self) -> Result<Vec<CollapsedNodeState<TNodeState>>, String> {
+
+        let mut collapsed_node_states: Vec<CollapsedNodeState<TNodeState>> = Vec::new();
+
+        let mut is_unable_to_collapse = false;
+        debug!("starting while loop");
+        while !is_unable_to_collapse && !self.is_fully_collapsed() {
+            debug!("incrementing node state");
+            // the current collapsable node is either in a None state or is in a successful Some state but my neighbors are not aware
+            let collapsed_node_state = self.try_increment_current_collapsable_node_state();
+            // this will be None if the current collapsable node did not have another unmasked state that it could increment to
+            let is_successful: bool = collapsed_node_state.node_state_id.is_some();
+            collapsed_node_states.push(collapsed_node_state);
+
+            debug!("stored node state");
+            if is_successful {
+                debug!("incremented node state: {:?}", collapsed_node_states.last());
+                if self.try_alter_reference_to_current_collapsable_node_mask() {
+                    debug!("altered reference and all neighbors have at least one valid state");
+                    self.move_to_next_collapsable_node(); // this has the potential to move outside of the bounds and put the collapsable wave function in a state of being fully collapsed
+                    debug!("moved to next collapsable node");
+                    if !self.is_fully_collapsed() {
+                        debug!("not yet fully collapsed");
+                        //collapsable_wave_function.sort_collapsable_nodes();
+                        //debug!("sorted nodes");
+                    }
+                }
+                else {
+                    debug!("at least one neighbor is fully restricted");
+                }
+            }
+            else {
+                debug!("failed to incremented node");
+                self.try_move_to_previous_collapsable_node_neighbor();
+
+                if self.is_fully_reset() {
+                    debug!("moved back to first node and reset it");
+                    is_unable_to_collapse = true;
+                }
+                else {
+                    debug!("moved back to previous neighbor");
+                    //collapsable_wave_function.alter_reference_to_current_collapsable_node_mask();
+                    //debug!("stored uncollapsed_wave_function state");
+                }
+            }
+        }
+        debug!("finished while loop");
+
+        Ok(collapsed_node_states)
+    }
+
+    #[time_graph::instrument]
+    fn collapse(&'a mut self) -> Result<CollapsedWaveFunction<TNodeState>, String> {
+
+        // TODO use the provided cells in cell_per_neighbor_node_id_per_node_id during construction of CollapsableNode
+
+        // set sort necessary
+        // set error message as None
+        // while
+        //          no error message
+        //          and
+        //          the collapsable node index is less than the total number of collapsable nodes
+        //
+        // REMOVE      if current collapsable node has Some state id index
+        // REMOVE          inform neighbors that this state id is now available again (if applicable)
+        //
+        //      try to increment the current collapsable node state id index (maybe just going from None to Some(0))
+        //
+        //      if succeeded to increment
+        //          alter reference to mask (via orient function)
+        //          if not at least one neighbor no longer having any valid states (or better said if all neighbors have at least one valid state)
+        //              increment current collapsable node index
+        //              if node index is not outside of the bounds
+        //                  sort by (1) chosen from sorted collapsable nodes vector index (in order to maintain the chosen order) and then (2) least possible states being first (in order to adjust the next possible nodes to pick the most restricted nodes first)
+        //      else (then we need to try a different state for the most recent parent that has the current node as a neighbor)
+        //          set is neighbor found to false
+        //          cache the current collapsable node id
+        //          while
+        //                  not yet errored
+        //                  and
+        //                  not found neighbor
+        //
+        //              if current collapsable node index is the first node (then the nodes have been exhausted)
+        //                  set error message
+        //              else
+        //                  set current collapsable node's state id index to None (via reset function)
+        //                  decrement current collapsale node index
+        //                  if one of the newly current collapsable node's neighbors is the original collapsable node
+        //                      set found neighbor to true
+
+        let mut is_unable_to_collapse = false;
+        debug!("starting while loop");
+        while !is_unable_to_collapse && !self.is_fully_collapsed() {
+            debug!("incrementing node state");
+            let is_increment_successful: bool;
+            is_increment_successful = self.try_increment_current_collapsable_node_state().node_state_id.is_some();
+            if is_increment_successful {
+                debug!("incremented node state");
+                if self.try_alter_reference_to_current_collapsable_node_mask() {
+                    debug!("altered reference and all neighbors have at least one valid state");
+                    self.move_to_next_collapsable_node();
+                    debug!("moved to next collapsable node");
+                    if !self.is_fully_collapsed() {
+                        debug!("not yet fully collapsed");
+                        /*time_graph::spanned!("sort_collapsable_nodes (during)", {
+                            collapsable_wave_function.sort_collapsable_nodes();
+                        });
+                        debug!("sorted nodes");*/
+                    }
+                }
+                else {
+                    debug!("at least one neighbor is fully restricted");
+                }
+            }
+            else {
+                debug!("failed to incremented node");
+                self.try_move_to_previous_collapsable_node_neighbor();
+                if self.is_fully_reset() {
+                    debug!("moved back to first node");
+                    is_unable_to_collapse = true;
+                }
+                else {
+                    debug!("moved back to previous neighbor");
+                }
+            }
+        }
+        debug!("finished while loop");
+
+        if is_unable_to_collapse {
+            Err(String::from("Cannot collapse wave function."))
+        }
+        else {
+            let collapsed_wave_function = self.get_collapsed_wave_function();
+            Ok(collapsed_wave_function)
+        }
+    }
 }

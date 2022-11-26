@@ -9,7 +9,7 @@ use wave_function_collapse::wave_function::{
     Node,
     NodeStateCollection,
     WaveFunction,
-    NodeStateProbability, collapsable_wave_function::deterministic_collapsable_wave_function::DeterministicCollapsableWaveFunction
+    NodeStateProbability, collapsable_wave_function::{deterministic_collapsable_wave_function::DeterministicCollapsableWaveFunction, collapsable_wave_function::CollapsableWaveFunction}
 };
 
 #[derive(Debug, Eq, Hash, PartialEq, Clone, PartialOrd, Ord)]
@@ -255,7 +255,7 @@ fn main() {
     let random_seed = Some(rng.gen::<u64>());
     //let random_seed = Some(0);
 
-    let collapsed_wave_function = wave_function.collapse::<DeterministicCollapsableWaveFunction<LandscapeElement>>(random_seed).unwrap();
+    let collapsed_wave_function = wave_function.get_collapsable_wave_function::<DeterministicCollapsableWaveFunction<LandscapeElement>>(random_seed).collapse().unwrap();
 
     let mut node_state_per_y_per_x: Vec<Vec<Option<LandscapeElement>>> = Vec::new();
     for _ in 0..width {
