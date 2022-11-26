@@ -7,8 +7,10 @@ use wave_function_collapse::wave_function::{
     Node,
     NodeStateCollection,
     WaveFunction,
-    CollapsedWaveFunction, NodeStateProbability
+    NodeStateProbability,
+    collapsable_wave_function::{deterministic_collapsable_wave_function::DeterministicCollapsableWaveFunction, collapsable_wave_function::CollapsedWaveFunction}
 };
+
 
 #[derive(Eq, Hash, PartialEq, Debug)]
 enum InformationType {
@@ -999,7 +1001,7 @@ fn main() {
     let wave_function: WaveFunction<String> = puzzle.get_wave_function();
     wave_function.validate().unwrap();
 
-    let solution_result = wave_function.collapse(None);
+    let solution_result = wave_function.collapse::<DeterministicCollapsableWaveFunction<String>>(None);
 
     if let Ok(solution) = solution_result {
         // print the result
