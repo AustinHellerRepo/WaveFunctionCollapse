@@ -692,13 +692,13 @@ mod wave_function_unit_tests {
 
     use rand::{RngCore, Rng};
 
-    use crate::wave_function::{Node, WaveFunction, NodeStateCollection, NodeStateProbability, collapsable_wave_function::{deterministic_collapsable_wave_function::DeterministicCollapsableWaveFunction, collapsable_wave_function::{CollapsedWaveFunction, CollapsedNodeState, CollapsableWaveFunction}}};
+    use crate::wave_function::{Node, WaveFunction, NodeStateCollection, NodeStateProbability, collapsable_wave_function::{deterministic_collapsable_wave_function::DeterministicCollapsableWaveFunction, collapsable_wave_function::{CollapsedWaveFunction, CollapsedNodeState, CollapsableWaveFunction}, accommodating_collapsable_wave_function::AccommodatingCollapsableWaveFunction}};
 
     use super::*;
 
     fn init() {
         std::env::set_var("RUST_LOG", "trace");
-        //pretty_env_logger::try_init();
+        pretty_env_logger::try_init();
     }
 
     #[test]
@@ -724,7 +724,7 @@ mod wave_function_unit_tests {
     }
 
     #[test]
-    fn one_node_no_states() {
+    fn one_node_no_states_deterministic() {
         init();
 
         let mut nodes: Vec<Node<String>> = Vec::new();
@@ -744,7 +744,27 @@ mod wave_function_unit_tests {
     }
 
     #[test]
-    fn one_node_one_state() {
+    fn one_node_no_states_accommodating() {
+        init();
+
+        let mut nodes: Vec<Node<String>> = Vec::new();
+        let node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+
+        nodes.push(Node::new(
+            Uuid::new_v4().to_string(),
+            HashMap::new(),
+            HashMap::new()
+        ));
+
+        let wave_function = WaveFunction::new(nodes, node_state_collections);
+        wave_function.validate().unwrap();
+        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<AccommodatingCollapsableWaveFunction<String>>(None).collapse();
+
+        assert_eq!("Cannot collapse wave function.", collapsed_wave_function_result.err().unwrap());
+    }
+
+    #[test]
+    fn one_node_one_state_deterministic() {
         init();
 
         let mut nodes: Vec<Node<String>> = Vec::new();
@@ -768,7 +788,31 @@ mod wave_function_unit_tests {
     }
 
     #[test]
-    fn one_node_randomly_two_states() {
+    fn one_node_one_state_accommodating() {
+        init();
+
+        let mut nodes: Vec<Node<String>> = Vec::new();
+        let node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+
+        let node_id: String = Uuid::new_v4().to_string();
+        let node_state_id: String = Uuid::new_v4().to_string();
+        
+        nodes.push(Node::new(
+            node_id.clone(),
+            NodeStateProbability::get_equal_probability(vec![node_state_id.clone()]),
+            HashMap::new()
+        ));
+
+        let wave_function = WaveFunction::new(nodes, node_state_collections);
+        wave_function.validate().unwrap();
+        let collapsed_wave_function = wave_function.get_collapsable_wave_function::<AccommodatingCollapsableWaveFunction<String>>(None).collapse().unwrap();
+        
+        assert_eq!(1, collapsed_wave_function.node_state_per_node.keys().len());
+        assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&node_id).unwrap());
+    }
+
+    #[test]
+    fn one_node_randomly_two_states_deterministic() {
         init();
 
         let mut nodes: Vec<Node<String>> = Vec::new();
@@ -807,6 +851,45 @@ mod wave_function_unit_tests {
     }
 
     #[test]
+    fn one_node_randomly_two_states_accommodating() {
+        init();
+
+        let mut nodes: Vec<Node<String>> = Vec::new();
+        let node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+
+        let one_node_state_id: String = Uuid::new_v4().to_string();
+        let two_node_state_id: String = Uuid::new_v4().to_string();
+        let mut count_per_node_state_id: HashMap<&str, u32> = HashMap::new();
+        count_per_node_state_id.insert(&one_node_state_id, 0);
+        count_per_node_state_id.insert(&two_node_state_id, 0);
+
+        let node_id: String = Uuid::new_v4().to_string();
+
+        nodes.push(Node::new(
+            node_id.clone(),
+            NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+            HashMap::new()
+        ));
+
+        let wave_function = WaveFunction::new(nodes, node_state_collections);
+        wave_function.validate().unwrap();
+        
+        let mut rng = rand::thread_rng();
+
+        for _ in 0..100000 {
+            let random_seed = Some(rng.next_u64());
+            let collapsed_wave_function = wave_function.get_collapsable_wave_function::<AccommodatingCollapsableWaveFunction<String>>(random_seed).collapse().unwrap();
+
+            let node_state_id: &str = collapsed_wave_function.node_state_per_node.get(&node_id).unwrap();
+            *count_per_node_state_id.get_mut(node_state_id).unwrap() += 1;
+        }
+
+        println!("count_per_node_state_id: {:?}", count_per_node_state_id);
+        assert!(count_per_node_state_id.get(one_node_state_id.as_str()).unwrap() > &49000, "The first node state was less than expected.");
+        assert!(count_per_node_state_id.get(two_node_state_id.as_str()).unwrap() > &49000, "The first node state was less than expected.");
+    }
+
+    #[test]
     fn two_nodes_without_neighbors() {
         init();
 
@@ -830,7 +913,7 @@ mod wave_function_unit_tests {
     }
 
     #[test]
-    fn two_nodes_with_only_one_is_a_neighbor_restriction_ignored() {
+    fn two_nodes_with_only_one_is_a_neighbor_restriction_ignored_deterministic() {
         init();
 
         let mut nodes: Vec<Node<String>> = Vec::new();
@@ -870,6 +953,53 @@ mod wave_function_unit_tests {
         wave_function.validate().unwrap();
 
         let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<DeterministicCollapsableWaveFunction<String>>(None).collapse();
+        let collapsed_wave_function = collapsed_wave_function_result.unwrap();
+
+        assert_eq!(&unrestricted_node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
+        assert_eq!(&unrestricted_node_state_id, collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap());
+    }
+
+    #[test]
+    fn two_nodes_with_only_one_is_a_neighbor_restriction_ignored_accommodating() {
+        init();
+
+        let mut nodes: Vec<Node<String>> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+
+        let unrestricted_node_state_id: String = String::from("unrestricted");
+        let from_restrictive_node_state_id: String = String::from("from_restrictive");
+        let to_restrictive_node_state_id: String = String::from("to_restrictive");
+
+        nodes.push(Node::new(
+            Uuid::new_v4().to_string(),
+            NodeStateProbability::get_equal_probability(vec![from_restrictive_node_state_id.clone(), unrestricted_node_state_id.clone()]),
+            HashMap::new()
+        ));
+
+        nodes.push(Node::new(
+            Uuid::new_v4().to_string(),
+            NodeStateProbability::get_equal_probability(vec![unrestricted_node_state_id.clone()]),
+            HashMap::new()
+        ));
+
+        let first_node_id: String = nodes[0].id.clone();
+        let second_node_id: String = nodes[1].id.clone();
+
+        let restrictive_node_state_collection_id: String = Uuid::new_v4().to_string();
+        let restrictive_node_state_collection = NodeStateCollection::new(
+            restrictive_node_state_collection_id.clone(),
+            from_restrictive_node_state_id.clone(),
+            vec![to_restrictive_node_state_id.clone()]
+        );
+        node_state_collections.push(restrictive_node_state_collection);
+
+        nodes[0].node_state_collection_ids_per_neighbor_node_id.insert(second_node_id.clone(), Vec::new());
+        nodes[0].node_state_collection_ids_per_neighbor_node_id.get_mut(&second_node_id).unwrap().push(restrictive_node_state_collection_id.clone());
+
+        let mut wave_function = WaveFunction::new(nodes, node_state_collections);
+        wave_function.validate().unwrap();
+
+        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<AccommodatingCollapsableWaveFunction<String>>(None).collapse();
         let collapsed_wave_function = collapsed_wave_function_result.unwrap();
 
         assert_eq!(&unrestricted_node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());

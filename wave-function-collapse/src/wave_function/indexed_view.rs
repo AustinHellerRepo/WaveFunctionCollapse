@@ -104,11 +104,35 @@ impl<TNodeState: Clone + Eq + Hash + Debug> IndexedView<TNodeState> {
         self.index.unwrap() != self.node_state_ids_length
     }
     #[time_graph::instrument]
+    pub fn move_next(&mut self) {
+        let mut next_index: usize;
+        if let Some(index) = self.index {
+            next_index = index + 1;
+            if next_index == self.node_state_ids_length {
+                next_index = 0;
+            }
+        }
+        else {
+            next_index = 0;
+        }
+        self.index = Some(next_index);
+    }
+    #[time_graph::instrument]
     fn is_unmasked_at_index(&self, index: usize) -> bool {
         //debug!("checking if unmasked at index {index} for node {mask_key}.");
         let mapped_index = self.index_mapping[index];
         //self.mask_counter[*mapped_index] == 0
         !self.is_restricted_at_index[mapped_index]
+    }
+    #[time_graph::instrument]
+    pub fn is_mask_restrictive_to_current_state(&self, mask: &BitVec) -> bool {
+        if let Some(index) = self.index {
+            let mapped_index = self.index_mapping[index];
+            mask[mapped_index]
+        }
+        else {
+            false
+        }
     }
     #[time_graph::instrument]
     pub fn get(&self) -> Option<&TNodeState> {
@@ -154,8 +178,6 @@ impl<TNodeState: Clone + Eq + Hash + Debug> IndexedView<TNodeState> {
     #[time_graph::instrument]
     pub fn add_mask(&mut self, mask: &BitVec) {
         //debug!("adding mask {:?} at current state {:?}.", mask, self.mask_counter);
-        self.previous_mask_counters.push_back(self.mask_counter.clone());
-        self.previous_is_restricted_at_index.push_back(self.is_restricted_at_index.clone());
         for index in 0..self.node_state_ids_length {
             if !mask[index] {
                 //debug!("adding mask at {index}");
@@ -169,6 +191,29 @@ impl<TNodeState: Clone + Eq + Hash + Debug> IndexedView<TNodeState> {
             }
         }
         //debug!("added mask {:?} at current state {:?}.", mask, self.mask_counter);
+    }
+    #[time_graph::instrument]
+    pub fn subtract_mask(&mut self, mask: &BitVec) {
+        //debug!("removing mask {:?} at current state {:?}.", mask, self.mask_counter);
+        for index in 0..self.node_state_ids_length {
+            if !mask[index] {
+                //debug!("removing mask at {index}");
+                let next_mask_counter = self.mask_counter[index] - 1;
+                self.mask_counter[index] = next_mask_counter;
+                if next_mask_counter == 0 {
+                    self.is_restricted_at_index.set(index, false);
+                    self.is_mask_dirty = true;
+                }
+                //self.mask_counter[index] = self.mask_counter[index].checked_sub(1).unwrap();  // TODO replace with unchecked version above
+            }
+        }
+        //debug!("removed mask {:?} at current state {:?}.", mask, self.mask_counter);
+    }
+    #[time_graph::instrument]
+    pub fn forward_mask(&mut self, mask: &BitVec) {
+        self.previous_mask_counters.push_back(self.mask_counter.clone());
+        self.previous_is_restricted_at_index.push_back(self.is_restricted_at_index.clone());
+        self.add_mask(mask);
     }
     #[time_graph::instrument]
     pub fn reverse_mask(&mut self) {

@@ -282,10 +282,11 @@ impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> WaveFunction<TNodeSt
         // neighbor_mask_mapped_view_per_node_id is equivalent to mask_per_child_neighbor_per_state_per_node
         let mut neighbor_mask_mapped_view_per_node_id: HashMap<&str, HashMap<&TNodeState, HashMap<&str, BitVec>>> = HashMap::new();
 
+        // create, per parent neighbor, a mask for each node (as child of parent neighbor)
+        let mut mask_per_parent_state_per_parent_neighbor_per_node: HashMap<&str, HashMap<&str, HashMap<&TNodeState, BitVec>>> = HashMap::new();
+
         time_graph::spanned!("creating masks for nodes", {
 
-            // create, per parent neighbor, a mask for each node (as child of parent neighbor)
-            let mut mask_per_parent_state_per_parent_neighbor_per_node: HashMap<&str, HashMap<&str, HashMap<&TNodeState, BitVec>>> = HashMap::new();
             // for each node
             for child_node in self.nodes.iter() {
 
@@ -399,9 +400,21 @@ impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> WaveFunction<TNodeSt
             collapsable_node_per_id.insert(&collapsable_node.id, wrapped_collapsable_node.clone());
         }
 
+        for wrapped_collapsable_node in collapsable_nodes.iter() {
+            let mut collapsable_node = wrapped_collapsable_node.borrow_mut();
+            let collapsable_node_id: &str = collapsable_node.id;
+
+            if mask_per_parent_state_per_parent_neighbor_per_node.contains_key(collapsable_node_id) {
+                let mask_per_parent_state_per_parent_neighbor = mask_per_parent_state_per_parent_neighbor_per_node.get(collapsable_node_id).unwrap();
+                for parent_neighbor_node_id in mask_per_parent_state_per_parent_neighbor.keys() {
+                    collapsable_node.parent_neighbor_node_ids.push(parent_neighbor_node_id);
+                }
+            }
+        }
+
         TCollapsableWaveFunction::new(collapsable_nodes, collapsable_node_per_id)
     }
-    
+
     #[time_graph::instrument]
     pub fn save_to_file(&self, file_path: &str) {
         todo!("The node order is the important part to save, not the entire WaveFunction instance.");

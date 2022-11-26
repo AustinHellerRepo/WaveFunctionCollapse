@@ -51,6 +51,8 @@ pub struct CollapsableNode<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug +
     pub mask_per_neighbor_per_state: HashMap<&'a TNodeState, HashMap<&'a str, BitVec>>,
     // the index of traversed nodes based on the sorted vector of nodes as they are chosen for state determination
     pub current_chosen_from_sort_index: Option<usize>,
+    // the neighbors that are pointing to this collapsable node
+    pub parent_neighbor_node_ids: Vec<&'a str>,
     // allowing for Node<TNodeState> to be an argument of CollapsableNode functions
     node_state_type: PhantomData<TNodeState>
 }
@@ -73,6 +75,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableNode<
             node_state_indexed_view: node_state_indexed_view,
             mask_per_neighbor_per_state: mask_per_neighbor_per_state,
             current_chosen_from_sort_index: None,
+            parent_neighbor_node_ids: Vec::new(),
             node_state_type: PhantomData
         }
     }
@@ -101,8 +104,20 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableNode<
         self.node_state_indexed_view.add_mask(mask);
     }
     #[time_graph::instrument]
+    pub fn subtract_mask(&mut self, mask: &BitVec) {
+        self.node_state_indexed_view.subtract_mask(mask);
+    }
+    #[time_graph::instrument]
+    pub fn forward_mask(&mut self, mask: &BitVec) {
+        self.node_state_indexed_view.forward_mask(mask);
+    }
+    #[time_graph::instrument]
     pub fn reverse_mask(&mut self) {
         self.node_state_indexed_view.reverse_mask();
+    }
+    #[time_graph::instrument]
+    pub fn is_mask_restrictive_to_current_state(&self, mask: &BitVec) -> bool {
+        self.node_state_indexed_view.is_mask_restrictive_to_current_state(mask)
     }
 }
 

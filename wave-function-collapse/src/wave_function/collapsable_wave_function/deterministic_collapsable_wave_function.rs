@@ -55,7 +55,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> DeterministicCol
                         //debug!("looking for mask from parent {:?} to child {:?}.", current_collapsable_node.id, neighbor_node_id);
                         //debug!("mask_per_neighbor: {:?}", mask_per_neighbor);
                         let mask = mask_per_neighbor.get(neighbor_node_id).unwrap();
-                        neighbor_collapsable_node.add_mask(mask);
+                        neighbor_collapsable_node.forward_mask(mask);
                         debug!("adding mask to {:?} when in try_alter_reference_to_current_collapsable_node_mask", neighbor_node_id);
                         traversed_neighbor_node_ids.push(neighbor_node_id);
                         if neighbor_collapsable_node.is_fully_restricted() {
