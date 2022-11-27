@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Instant};
 
 use wave_function_collapse::wave_function::{
     Node,
@@ -249,6 +249,8 @@ impl SudokuPuzzle {
 
 fn main() {
 
+    let start = Instant::now();
+
     let mut number_per_row_per_column: Vec<Vec<Option<u8>>> = Vec::new();
     number_per_row_per_column.push(vec![None,    Some(7), Some(3), Some(2), None,    Some(4), Some(6), Some(9), Some(1)]);
     number_per_row_per_column.push(vec![None,    Some(2), Some(8), None,    None,    Some(6), None,    None,    Some(7)]);
@@ -272,4 +274,7 @@ fn main() {
     else {
         println!("Error: {}", solution_result.err().unwrap());
     }
+
+    let duration = start.elapsed();
+    println!("Duration: {:?}", duration);
 }
