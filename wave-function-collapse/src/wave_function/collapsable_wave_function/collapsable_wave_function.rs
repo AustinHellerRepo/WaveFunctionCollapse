@@ -117,7 +117,14 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableNode<
     }
     #[time_graph::instrument]
     pub fn is_mask_restrictive_to_current_state(&self, mask: &BitVec) -> bool {
-        self.node_state_indexed_view.is_mask_restrictive_to_current_state(mask)
+        let is_restrictive = self.node_state_indexed_view.is_mask_restrictive_to_current_state(mask);
+        if is_restrictive {
+            debug!("mask is restrictive");
+        }
+        else {
+            debug!("mask is not restrictive");
+        }
+        is_restrictive
     }
 }
 

@@ -9,7 +9,7 @@ use wave_function_collapse::wave_function::{
     Node,
     NodeStateCollection,
     WaveFunction,
-    NodeStateProbability, collapsable_wave_function::{deterministic_collapsable_wave_function::DeterministicCollapsableWaveFunction, collapsable_wave_function::CollapsableWaveFunction}
+    NodeStateProbability, collapsable_wave_function::{deterministic_collapsable_wave_function::DeterministicCollapsableWaveFunction, collapsable_wave_function::CollapsableWaveFunction, accommodating_collapsable_wave_function::AccommodatingCollapsableWaveFunction}
 };
 
 #[derive(Debug, Eq, Hash, PartialEq, Clone, PartialOrd, Ord)]
@@ -182,7 +182,7 @@ impl Landscape {
                 }
                 let mut node_state_collection_ids_per_neighbor_node_id: HashMap<String, Vec<String>> = HashMap::new();
 
-                if false {
+                if true {
                     // fully connected set of 8-to-1
                     for to_height_index in min_to_height_index..=max_to_height_index {
                         for to_width_index in min_to_width_index..=max_to_width_index {
@@ -255,7 +255,7 @@ fn main() {
     let random_seed = Some(rng.gen::<u64>());
     //let random_seed = Some(0);
 
-    let collapsed_wave_function = wave_function.get_collapsable_wave_function::<DeterministicCollapsableWaveFunction<LandscapeElement>>(random_seed).collapse().unwrap();
+    let collapsed_wave_function = wave_function.get_collapsable_wave_function::<AccommodatingCollapsableWaveFunction<LandscapeElement>>(random_seed).collapse().unwrap();
 
     let mut node_state_per_y_per_x: Vec<Vec<Option<LandscapeElement>>> = Vec::new();
     for _ in 0..width {

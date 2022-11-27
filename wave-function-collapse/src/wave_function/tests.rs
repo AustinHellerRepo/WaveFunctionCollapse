@@ -698,7 +698,7 @@ mod wave_function_unit_tests {
 
     fn init() {
         std::env::set_var("RUST_LOG", "trace");
-        pretty_env_logger::try_init();
+        //pretty_env_logger::try_init();
     }
 
     #[test]
