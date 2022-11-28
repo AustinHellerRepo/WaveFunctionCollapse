@@ -149,7 +149,7 @@ impl Landscape {
         debug!("connecting nodes");
         let mut nodes: Vec<Node<LandscapeElement>> = Vec::new();
         for from_height_index in 0..self.height {
-            for from_width_index in (0..self.width) {
+            for from_width_index in 0..self.width {
                 debug!("setup ({from_width_index}, {from_height_index})");
                 let from_node_id: String = node_id_per_x_per_y.get(&from_height_index).unwrap().get(&from_width_index).unwrap().clone();
                 let min_to_height_index: u32;
