@@ -98,7 +98,7 @@ impl Sparse {
 
                 let mut node_state_probability_per_node_state_id: HashMap<SparseElement, f32> = HashMap::new();
                 node_state_probability_per_node_state_id.insert(SparseElement::Active, 1.0);
-                node_state_probability_per_node_state_id.insert(SparseElement::Empty, 0.1);
+                node_state_probability_per_node_state_id.insert(SparseElement::Empty, 100.0);
 
                 let node = Node::new(
                     from_node_id,
