@@ -4,7 +4,7 @@ use std::hash::Hash;
 use bitvec::vec::BitVec;
 use super::collapsable_wave_function::{CollapsableWaveFunction, CollapsableNode, CollapsedNodeState, UncollapsedWaveFunction, CollapsedWaveFunction};
 
-pub struct DeterministicCollapsableWaveFunction<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> {
+pub struct SequentialCollapsableWaveFunction<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> {
     // represents a wave function with all of the necessary steps to collapse
     collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a, TNodeState>>>>,
     collapsable_node_per_id: HashMap<&'a str, Rc<RefCell<CollapsableNode<'a, TNodeState>>>>,
@@ -13,7 +13,7 @@ pub struct DeterministicCollapsableWaveFunction<'a, TNodeState: Eq + Hash + Clon
     node_state_type: PhantomData<TNodeState>
 }
 
-impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> DeterministicCollapsableWaveFunction<'a, TNodeState> {
+impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> SequentialCollapsableWaveFunction<'a, TNodeState> {
     #[time_graph::instrument]
     fn try_increment_current_collapsable_node_state(&mut self) -> CollapsedNodeState<TNodeState> {
         let wrapped_current_collapsable_node = self.collapsable_nodes.get(self.current_collapsable_node_index).unwrap();
@@ -183,12 +183,12 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> DeterministicCol
     }
 }
 
-impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveFunction<'a, TNodeState> for DeterministicCollapsableWaveFunction<'a, TNodeState> {
+impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveFunction<'a, TNodeState> for SequentialCollapsableWaveFunction<'a, TNodeState> {
     #[time_graph::instrument]
     fn new(collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a, TNodeState>>>>, collapsable_node_per_id: HashMap<&'a str, Rc<RefCell<CollapsableNode<'a, TNodeState>>>>) -> Self {
         let collapsable_nodes_length: usize = collapsable_nodes.len();
 
-        let mut collapsable_wave_function = DeterministicCollapsableWaveFunction {
+        let mut collapsable_wave_function = SequentialCollapsableWaveFunction {
             collapsable_nodes: collapsable_nodes,
             collapsable_node_per_id: collapsable_node_per_id,
             collapsable_nodes_length: collapsable_nodes_length,

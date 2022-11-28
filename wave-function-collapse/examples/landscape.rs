@@ -9,7 +9,7 @@ use wave_function_collapse::wave_function::{
     Node,
     NodeStateCollection,
     WaveFunction,
-    NodeStateProbability, collapsable_wave_function::{deterministic_collapsable_wave_function::DeterministicCollapsableWaveFunction, collapsable_wave_function::CollapsableWaveFunction, accommodating_collapsable_wave_function::AccommodatingCollapsableWaveFunction}
+    NodeStateProbability, collapsable_wave_function::{collapsable_wave_function::CollapsableWaveFunction, accommodating_collapsable_wave_function::AccommodatingCollapsableWaveFunction}
 };
 
 #[derive(Debug, Eq, Hash, PartialEq, Clone, PartialOrd, Ord)]
@@ -216,7 +216,7 @@ impl Landscape {
                 let mut node_state_probability_per_node_state_id: HashMap<LandscapeElement, f32> = HashMap::new();
                 node_state_probability_per_node_state_id.insert(LandscapeElement::Water, 1.0);
                 node_state_probability_per_node_state_id.insert(LandscapeElement::Sand, 0.1);
-                node_state_probability_per_node_state_id.insert(LandscapeElement::Grass, 0.5);
+                node_state_probability_per_node_state_id.insert(LandscapeElement::Grass, 0.01);
                 node_state_probability_per_node_state_id.insert(LandscapeElement::Hill, 0.1);
                 node_state_probability_per_node_state_id.insert(LandscapeElement::Mountain, 1.0);
                 node_state_probability_per_node_state_id.insert(LandscapeElement::Tree, 0.1);

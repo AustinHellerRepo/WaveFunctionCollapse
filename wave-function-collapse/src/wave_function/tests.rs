@@ -692,7 +692,7 @@ mod wave_function_unit_tests {
 
     use rand::{RngCore, Rng};
 
-    use crate::wave_function::{Node, WaveFunction, NodeStateCollection, NodeStateProbability, collapsable_wave_function::{deterministic_collapsable_wave_function::DeterministicCollapsableWaveFunction, collapsable_wave_function::{CollapsedWaveFunction, CollapsedNodeState, CollapsableWaveFunction}, accommodating_collapsable_wave_function::AccommodatingCollapsableWaveFunction}};
+    use crate::wave_function::{Node, WaveFunction, NodeStateCollection, NodeStateProbability, collapsable_wave_function::{sequential_collapsable_wave_function::SequentialCollapsableWaveFunction, collapsable_wave_function::{CollapsedWaveFunction, CollapsedNodeState, CollapsableWaveFunction}, accommodating_collapsable_wave_function::AccommodatingCollapsableWaveFunction}};
 
     use super::*;
 
@@ -724,7 +724,7 @@ mod wave_function_unit_tests {
     }
 
     #[test]
-    fn one_node_no_states_deterministic() {
+    fn one_node_no_states_sequential() {
         init();
 
         let mut nodes: Vec<Node<String>> = Vec::new();
@@ -738,7 +738,7 @@ mod wave_function_unit_tests {
 
         let wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
-        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<DeterministicCollapsableWaveFunction<String>>(None).collapse();
+        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse();
 
         assert_eq!("Cannot collapse wave function.", collapsed_wave_function_result.err().unwrap());
     }
@@ -764,7 +764,7 @@ mod wave_function_unit_tests {
     }
 
     #[test]
-    fn one_node_one_state_deterministic() {
+    fn one_node_one_state_sequential() {
         init();
 
         let mut nodes: Vec<Node<String>> = Vec::new();
@@ -781,7 +781,7 @@ mod wave_function_unit_tests {
 
         let wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
-        let collapsed_wave_function = wave_function.get_collapsable_wave_function::<DeterministicCollapsableWaveFunction<String>>(None).collapse().unwrap();
+        let collapsed_wave_function = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse().unwrap();
         
         assert_eq!(1, collapsed_wave_function.node_state_per_node.keys().len());
         assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&node_id).unwrap());
@@ -812,7 +812,7 @@ mod wave_function_unit_tests {
     }
 
     #[test]
-    fn one_node_randomly_two_states_deterministic() {
+    fn one_node_randomly_two_states_sequential() {
         init();
 
         let mut nodes: Vec<Node<String>> = Vec::new();
@@ -839,7 +839,7 @@ mod wave_function_unit_tests {
 
         for _ in 0..100000 {
             let random_seed = Some(rng.next_u64());
-            let collapsed_wave_function = wave_function.get_collapsable_wave_function::<DeterministicCollapsableWaveFunction<String>>(random_seed).collapse().unwrap();
+            let collapsed_wave_function = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(random_seed).collapse().unwrap();
 
             let node_state_id: &str = collapsed_wave_function.node_state_per_node.get(&node_id).unwrap();
             *count_per_node_state_id.get_mut(node_state_id).unwrap() += 1;
@@ -913,7 +913,7 @@ mod wave_function_unit_tests {
     }
 
     #[test]
-    fn two_nodes_with_only_one_is_a_neighbor_restriction_ignored_deterministic() {
+    fn two_nodes_with_only_one_is_a_neighbor_restriction_ignored_sequential() {
         init();
 
         let mut nodes: Vec<Node<String>> = Vec::new();
@@ -952,7 +952,7 @@ mod wave_function_unit_tests {
         let mut wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
-        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<DeterministicCollapsableWaveFunction<String>>(None).collapse();
+        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse();
         let collapsed_wave_function = collapsed_wave_function_result.unwrap();
 
         assert_eq!(&unrestricted_node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
@@ -1050,7 +1050,7 @@ mod wave_function_unit_tests {
         let mut wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
-        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<DeterministicCollapsableWaveFunction<String>>(None).collapse();
+        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse();
         let collapsed_wave_function = collapsed_wave_function_result.unwrap();
 
         assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
@@ -1101,7 +1101,7 @@ mod wave_function_unit_tests {
         let mut wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
-        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<DeterministicCollapsableWaveFunction<String>>(None).collapse();
+        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse();
         let collapsed_wave_function = collapsed_wave_function_result.unwrap();
 
         assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
@@ -1155,7 +1155,7 @@ mod wave_function_unit_tests {
         let mut wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
-        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<DeterministicCollapsableWaveFunction<String>>(None).collapse();
+        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse();
 
         if let Err(error_message) = collapsed_wave_function_result {
             panic!("Error: {error_message}");
@@ -1214,7 +1214,7 @@ mod wave_function_unit_tests {
         let mut wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
-        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<DeterministicCollapsableWaveFunction<String>>(None).collapse();
+        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse();
 
         if let Err(error_message) = collapsed_wave_function_result {
             panic!("Error: {error_message}");
@@ -1278,7 +1278,7 @@ mod wave_function_unit_tests {
         let mut wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
-        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<DeterministicCollapsableWaveFunction<String>>(None).collapse();
+        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse();
 
         if let Err(error_message) = collapsed_wave_function_result {
             panic!("Error: {error_message}");
@@ -1348,7 +1348,7 @@ mod wave_function_unit_tests {
             wave_function.validate().unwrap();
             let random_seed = Some(rng.gen::<u64>());
 
-            let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<DeterministicCollapsableWaveFunction<String>>(random_seed).collapse();
+            let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(random_seed).collapse();
 
             if let Err(error_message) = collapsed_wave_function_result {
                 panic!("Error: {error_message}");
@@ -1469,7 +1469,7 @@ mod wave_function_unit_tests {
             wave_function.validate().unwrap();
             let random_seed = Some(rng.gen::<u64>());
 
-            let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<DeterministicCollapsableWaveFunction<String>>(random_seed).collapse();
+            let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(random_seed).collapse();
 
             assert_eq!("Cannot collapse wave function.", collapsed_wave_function_result.err().unwrap());
         }
@@ -1524,7 +1524,7 @@ mod wave_function_unit_tests {
         let mut wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
-        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<DeterministicCollapsableWaveFunction<String>>(None).collapse();
+        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse();
 
         if let Err(error_message) = collapsed_wave_function_result {
             panic!("Error: {error_message}");
@@ -1622,7 +1622,7 @@ mod wave_function_unit_tests {
         let mut wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
-        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<DeterministicCollapsableWaveFunction<String>>(None).collapse();
+        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse();
 
         if let Err(error_message) = collapsed_wave_function_result {
             panic!("Error: {error_message}");
@@ -1732,7 +1732,7 @@ mod wave_function_unit_tests {
             wave_function.validate().unwrap();
             let random_seed = Some(rng.next_u64());
 
-            let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<DeterministicCollapsableWaveFunction<String>>(random_seed).collapse();
+            let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(random_seed).collapse();
             
             if let Err(error_message) = collapsed_wave_function_result {
                 panic!("Error: {error_message}");
@@ -1822,7 +1822,7 @@ mod wave_function_unit_tests {
         let collapsed_wave_function_result: Result<CollapsedWaveFunction<String>, String>;
 
         time_graph::spanned!("collapsing wave function", {
-            collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<DeterministicCollapsableWaveFunction<String>>(None).collapse();
+            collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse();
         });
 
         time_graph::spanned!("check results", {
@@ -1926,7 +1926,7 @@ mod wave_function_unit_tests {
             
             time_graph::spanned!("collapsing wave function", {
                 let random_seed = Some(rng.next_u64());
-                collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<DeterministicCollapsableWaveFunction<String>>(random_seed).collapse();
+                collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(random_seed).collapse();
             });
 
             time_graph::spanned!("check results", {
@@ -2035,7 +2035,7 @@ mod wave_function_unit_tests {
         let collapsed_wave_function_result: Result<CollapsedWaveFunction<String>, String>;
         
         time_graph::spanned!("collapsing wave function", {
-            collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<DeterministicCollapsableWaveFunction<String>>(None).collapse();
+            collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse();
         });
 
         time_graph::spanned!("check results", {
@@ -2166,7 +2166,7 @@ mod wave_function_unit_tests {
             
             time_graph::spanned!("collapsing wave function", {
                 //let random_seed = Some(rng.gen::<u64>());  // TODO uncomment after fixing
-                collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<DeterministicCollapsableWaveFunction<String>>(random_seed).collapse();
+                collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(random_seed).collapse();
             });
 
             if index + 1 == max_runs {
@@ -2298,7 +2298,7 @@ mod wave_function_unit_tests {
             
             time_graph::spanned!("collapsing wave function", {
                 //let random_seed = Some(rng.gen::<u64>());  // TODO uncomment after fixing
-                collapsed_node_states_result = wave_function.get_collapsable_wave_function::<DeterministicCollapsableWaveFunction<String>>(random_seed).collapse_into_steps();
+                collapsed_node_states_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(random_seed).collapse_into_steps();
             });
 
             if let Err(error_message) = collapsed_node_states_result {
@@ -2368,8 +2368,8 @@ mod wave_function_unit_tests {
 
         file.close().unwrap();
 
-        let collapsed_wave_function = wave_function.get_collapsable_wave_function::<DeterministicCollapsableWaveFunction<String>>(None).collapse().unwrap();
-        let loaded_collapsed_wave_function = loaded_wave_function.get_collapsable_wave_function::<DeterministicCollapsableWaveFunction<String>>(None).collapse().unwrap();
+        let collapsed_wave_function = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse().unwrap();
+        let loaded_collapsed_wave_function = loaded_wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse().unwrap();
 
         assert_eq!(collapsed_wave_function.node_state_per_node, loaded_collapsed_wave_function.node_state_per_node);
     }
@@ -2439,7 +2439,7 @@ mod wave_function_unit_tests {
             let mut wave_function = WaveFunction::new(nodes, node_state_collections);
             wave_function.validate().unwrap();
 
-            let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<DeterministicCollapsableWaveFunction<String>>(random_seed).collapse();
+            let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(random_seed).collapse();
 
             if let Err(error_message) = collapsed_wave_function_result {
                 panic!("Error: {error_message}");
@@ -2527,7 +2527,7 @@ mod wave_function_unit_tests {
             let mut wave_function = WaveFunction::new(nodes, node_state_collections);
             wave_function.validate().unwrap();
 
-            let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<DeterministicCollapsableWaveFunction<String>>(random_seed).collapse();
+            let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(random_seed).collapse();
 
             if let Err(error_message) = collapsed_wave_function_result {
                 panic!("Error: {error_message}");
@@ -2649,7 +2649,7 @@ mod wave_function_unit_tests {
             let mut wave_function = WaveFunction::new(nodes, node_state_collections);
             wave_function.validate().unwrap();
 
-            let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<DeterministicCollapsableWaveFunction<String>>(random_seed).collapse();
+            let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(random_seed).collapse();
 
             if let Err(error_message) = collapsed_wave_function_result {
                 panic!("Error: {error_message}");
@@ -2778,7 +2778,7 @@ mod wave_function_unit_tests {
         let mut wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
-        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<DeterministicCollapsableWaveFunction<String>>(None).collapse();
+        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse();
 
         if let Err(error_message) = collapsed_wave_function_result {
             panic!("Error: {error_message}");

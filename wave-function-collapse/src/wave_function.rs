@@ -18,7 +18,7 @@ use self::probability_tree::ProbabilityTree;
 mod probability_container;
 use self::probability_container::ProbabilityContainer;
 pub mod collapsable_wave_function;
-use self::collapsable_wave_function::deterministic_collapsable_wave_function::DeterministicCollapsableWaveFunction;
+use self::collapsable_wave_function::sequential_collapsable_wave_function::SequentialCollapsableWaveFunction;
 mod tests;
 
 pub struct NodeStateProbability;

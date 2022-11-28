@@ -9,11 +9,11 @@ use super::collapsable_wave_function::{CollapsableWaveFunction, CollapsableNode,
 pub struct AccommodatingCollapsableWaveFunction<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> {
     collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a, TNodeState>>>>,
     collapsable_node_per_id: HashMap<&'a str, Rc<RefCell<CollapsableNode<'a, TNodeState>>>>,
-    collapsable_nodes_length: usize,
-    accommodate_node_ids: VecDeque<&'a str>,
-    recently_accommodated_node_ids: VecDeque<&'a str>,
-    recently_updated_neighbor_node_ids: VecDeque<&'a str>,
+    accommodate_node_ids: Vec<&'a str>,
+    accommodate_node_ids_length: usize,
     accommodate_node_ids_index: usize,
+    accommodated_total: usize,
+    impacted_node_ids: HashSet<&'a str>,
     node_state_type: PhantomData<TNodeState>
 }
 
@@ -33,7 +33,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingCol
                 return Err(String::from("Cannot collapse wave function."));
             }
             
-            self.recently_accommodated_node_ids.push_back(collapsable_node.id);
+            self.accommodate_node_ids.push(collapsable_node.id);
             let node_state = collapsable_node.node_state_indexed_view.get().unwrap();
             let collapsed_node_state: CollapsedNodeState<TNodeState> = CollapsedNodeState {
                 node_id: String::from(collapsable_node.id),
@@ -41,6 +41,8 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingCol
             };
             initial_node_states.push(collapsed_node_state);
         }
+        self.accommodate_node_ids_length = self.accommodate_node_ids.len();
+        self.accommodated_total = self.accommodate_node_ids_length;
 
         for wrapped_collapsable_node in self.collapsable_nodes.iter() {
             let collapsable_node = wrapped_collapsable_node.borrow();
@@ -68,7 +70,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingCol
 
         // returns if the temp_recently_accommodated_nodes is empty
 
-        self.recently_accommodated_node_ids.is_empty()
+        self.accommodated_total == 0
     }
     fn prepare_nodes_for_iteration(&mut self) {
 
@@ -78,19 +80,10 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingCol
 
         debug!("prior to being prepared: {:?}", self.accommodate_node_ids);
 
-        while !self.recently_accommodated_node_ids.is_empty() {
-            let node_id = self.recently_accommodated_node_ids.pop_front().unwrap();
-            self.accommodate_node_ids.push_back(node_id);
-        }
-
-        while !self.recently_updated_neighbor_node_ids.is_empty() {
-            let node_id = self.recently_updated_neighbor_node_ids.pop_back().unwrap();
-            self.accommodate_node_ids.push_front(node_id);
-        }
-
         self.accommodate_node_ids_index = 0;
-
-        self.accommodate_node_ids.make_contiguous().shuffle(&mut rand::thread_rng());
+        self.accommodate_node_ids.shuffle(&mut rand::thread_rng());  // TODO use a provided random instance for deterministic results
+        self.accommodated_total = 0;
+        self.impacted_node_ids.clear();
      
         debug!("after being prepared: {:?}", self.accommodate_node_ids);
     }
@@ -98,7 +91,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingCol
 
         // returns if pointer is outside the bounds of the collapsable_nodes
 
-        self.accommodate_node_ids_index == self.accommodate_node_ids.len()
+        self.accommodate_node_ids_index == self.accommodate_node_ids_length
     }
     fn is_current_node_in_conflict(&mut self) -> bool {
 
@@ -108,7 +101,19 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingCol
         let current_collapsable_node_id: &str = self.accommodate_node_ids[self.accommodate_node_ids_index];
         let wrapped_current_collapsable_node = self.collapsable_node_per_id.get(current_collapsable_node_id).unwrap();
         let current_collapsable_node = wrapped_current_collapsable_node.borrow();
-        let is_current_collapsable_node_in_conflict = current_collapsable_node.node_state_indexed_view.is_current_state_restricted();
+        let mut is_current_collapsable_node_in_conflict = current_collapsable_node.node_state_indexed_view.is_current_state_restricted();
+
+        if self.impacted_node_ids.contains(current_collapsable_node_id) {
+            is_current_collapsable_node_in_conflict = false;
+        }
+        else {
+            for parent_neighbor_node_id in current_collapsable_node.parent_neighbor_node_ids.iter() {
+                if self.impacted_node_ids.contains(parent_neighbor_node_id) {
+                    is_current_collapsable_node_in_conflict = false;
+                    break;
+                }
+            }
+        }
 
         if !is_current_collapsable_node_in_conflict {
             self.accommodate_node_ids_index += 1;
@@ -129,6 +134,8 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingCol
         // pop the current collapsable node out of collapsable_nodes
         // push the current collapsable node into the back of recently_accommodated_nodes
 
+        // NOTE: resetting the indexed_view for each accommodating parent significantly reduces the performance of this algorithm
+
         let mut changed_parent_node_states: Vec<CollapsedNodeState<TNodeState>> = Vec::new();
         let mut to_node_state_and_from_node_state_tuple_per_parent_node_id: HashMap<&str, (&TNodeState, &TNodeState)> = HashMap::new();
 
@@ -138,11 +145,11 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingCol
             let wrapped_current_collapsable_node = self.collapsable_node_per_id.get(current_collapsable_node_id).unwrap();
             let current_collapsable_node = wrapped_current_collapsable_node.borrow();
 
-            let mut parent_neighbor_node_ids: HashSet<&str> = HashSet::new();
+            self.impacted_node_ids.insert(current_collapsable_node_id);
 
             // accommodate by making each parent try to move to a good next state
             for parent_neighbor_node_id in current_collapsable_node.parent_neighbor_node_ids.iter() {
-                parent_neighbor_node_ids.insert(parent_neighbor_node_id);
+                self.impacted_node_ids.insert(parent_neighbor_node_id);
 
                 let wrapped_parent_neighbor_node = self.collapsable_node_per_id.get(parent_neighbor_node_id).unwrap();
                 let mut parent_neighbor_node = wrapped_parent_neighbor_node.borrow_mut();
@@ -190,27 +197,6 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingCol
                     }
                 }
             }
-
-            self.recently_updated_neighbor_node_ids.extend(&current_collapsable_node.parent_neighbor_node_ids);
-
-            for index in (0..self.accommodate_node_ids.len()).rev() {
-                let collapsable_node_id = self.accommodate_node_ids[index];
-                if parent_neighbor_node_ids.contains(collapsable_node_id) {
-                    debug!("found and removing parent node which just accommodated: {:?}", collapsable_node_id);
-                    self.accommodate_node_ids.remove(index);
-                    if index < self.accommodate_node_ids_index {
-                        self.accommodate_node_ids_index -= 1;
-                    }
-                }
-            }
-
-            debug!("removing accommodated node: {:?}", current_collapsable_node_id);
-            self.accommodate_node_ids.remove(self.accommodate_node_ids_index);
-            self.recently_accommodated_node_ids.push_back(current_collapsable_node_id);
-
-            debug!("current state of recently_updated_neighbor_node_ids: {:?}", self.recently_updated_neighbor_node_ids);
-            debug!("current state of recently_accommodated_node_ids: {:?}", self.recently_accommodated_node_ids);
-            debug!("current state of accommodate_node_ids: {:?}", self.accommodate_node_ids);
         }
 
         // subtract original masks for altered neighbors and add new masks
@@ -251,6 +237,8 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingCol
             }
         }
 
+        self.accommodated_total += 1;
+
         changed_parent_node_states
     }
     #[time_graph::instrument]
@@ -272,15 +260,14 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingCol
 impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveFunction<'a, TNodeState> for AccommodatingCollapsableWaveFunction<'a, TNodeState> {
     #[time_graph::instrument]
     fn new(collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a, TNodeState>>>>, collapsable_node_per_id: HashMap<&'a str, Rc<RefCell<CollapsableNode<'a, TNodeState>>>>) -> Self {
-        let collapsable_nodes_length: usize = collapsable_nodes.len();
         AccommodatingCollapsableWaveFunction {
             collapsable_nodes: collapsable_nodes,
             collapsable_node_per_id: collapsable_node_per_id,
-            collapsable_nodes_length: collapsable_nodes_length,
-            accommodate_node_ids: VecDeque::new(),
-            recently_accommodated_node_ids: VecDeque::new(),
-            recently_updated_neighbor_node_ids: VecDeque::new(),
+            accommodate_node_ids: Vec::new(),
+            accommodate_node_ids_length: 0,
             accommodate_node_ids_index: 0,
+            accommodated_total: 0,
+            impacted_node_ids: HashSet::new(),
             node_state_type: PhantomData
         }
     }
@@ -304,9 +291,6 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveF
                     self.accommodate_current_node();
                 }
                 iterations_total += 1;
-                if iterations_total == 10 {
-                    //panic!("stopping here for testing tt44");
-                }
             }
         }
         debug!("fully collapsed after {:?} iterations", iterations_total);
