@@ -1,5 +1,5 @@
-use std::{collections::{HashMap, HashSet, VecDeque}, cell::{RefCell}, rc::Rc, fmt::Display, hash::Hash, marker::PhantomData};
-use serde::{Deserialize, Serialize};
+use std::{collections::{HashMap, HashSet, VecDeque}, cell::{RefCell}, rc::Rc, fmt::Display, hash::Hash, marker::PhantomData, fs::File, io::BufReader};
+use serde::{Serialize, Deserialize, de::DeserializeOwned};
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use bitvec::prelude::*;
@@ -93,13 +93,13 @@ impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> NodeStateCollection<
     }
 }
 
-#[derive(Serialize, Clone)]
+#[derive(Serialize, Clone, Deserialize)]
 pub struct WaveFunction<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> {
     nodes: Vec<Node<TNodeState>>,
     node_state_collections: Vec<NodeStateCollection<TNodeState>>
 }
 
-impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> WaveFunction<TNodeState> {
+impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord + Serialize + DeserializeOwned> WaveFunction<TNodeState> {
     pub fn new(nodes: Vec<Node<TNodeState>>, node_state_collections: Vec<NodeStateCollection<TNodeState>>) -> Self {
         WaveFunction {
             nodes: nodes,
@@ -191,6 +191,9 @@ impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> WaveFunction<TNodeSt
     }
 
     pub fn optimize(&mut self) {
+        
+        panic!("Not implemented. I have not yet developed/implemented a good algorithm for organizing the order of the nodes ahead of time based on connections.");
+        
         //let current_collapsable_nodes_display = CollapsableNode::get_ids(&self.collapsable_nodes);
         //debug!("current sort order: {current_collapsable_nodes_display}.");
 
@@ -260,7 +263,6 @@ impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> WaveFunction<TNodeSt
         //debug!("next sort order: {next_collapsable_nodes_display}.");
     }
 
-    #[time_graph::instrument]
     pub fn get_collapsable_wave_function<'a, TCollapsableWaveFunction: CollapsableWaveFunction<'a, TNodeState>>(&'a self, random_seed: Option<u64>) -> TCollapsableWaveFunction {
         let mut node_per_id: HashMap<&str, &Node<TNodeState>> = HashMap::new();
         self.nodes.iter().for_each(|node: &Node<TNodeState>| {
@@ -285,95 +287,89 @@ impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> WaveFunction<TNodeSt
         // create, per parent neighbor, a mask for each node (as child of parent neighbor)
         let mut mask_per_parent_state_per_parent_neighbor_per_node: HashMap<&str, HashMap<&str, HashMap<&TNodeState, BitVec>>> = HashMap::new();
 
-        time_graph::spanned!("creating masks for nodes", {
+        // for each node
+        for child_node in self.nodes.iter() {
 
-            // for each node
-            for child_node in self.nodes.iter() {
+            let mut mask_per_parent_state_per_parent_neighbor: HashMap<&str, HashMap<&TNodeState, BitVec>> = HashMap::new();
 
-                let mut mask_per_parent_state_per_parent_neighbor: HashMap<&str, HashMap<&TNodeState, BitVec>> = HashMap::new();
+            // look for each parent neighbor node
+            for parent_neighbor_node in self.nodes.iter() {
+                // if you find that this is a parent neighbor node
+                if parent_neighbor_node.node_state_collection_ids_per_neighbor_node_id.contains_key(&child_node.id) {
 
-                // look for each parent neighbor node
-                for parent_neighbor_node in self.nodes.iter() {
-                    // if you find that this is a parent neighbor node
-                    if parent_neighbor_node.node_state_collection_ids_per_neighbor_node_id.contains_key(&child_node.id) {
+                    debug!("constructing mask for {:?}'s child node {:?}.", parent_neighbor_node.id, child_node.id);
 
-                        debug!("constructing mask for {:?}'s child node {:?}.", parent_neighbor_node.id, child_node.id);
+                    let mut mask_per_parent_state: HashMap<&TNodeState, BitVec> = HashMap::new();
 
-                        let mut mask_per_parent_state: HashMap<&TNodeState, BitVec> = HashMap::new();
-
-                        // get the node state collections that this parent neighbor node forces upon this node
-                        let node_state_collection_ids: &Vec<String> = parent_neighbor_node.node_state_collection_ids_per_neighbor_node_id.get(&child_node.id).unwrap();
-                        for node_state_collection_id in node_state_collection_ids.iter() {
-                            let node_state_collection_id: &str = node_state_collection_id;
-                            let node_state_collection = node_state_collection_per_id.get(node_state_collection_id).unwrap();
-                            // construct a mask for this parent neighbor's node state collection and node state for this child node
-                            let mut mask: BitVec = BitVec::new();
-                            for node_state_id in child_node.node_state_ids.iter() {
-                                // if the node state for the child is permitted by the parent neighbor node state collection
-                                if node_state_collection.node_state_ids.contains(node_state_id) {
-                                    mask.push(true);
-                                }
-                                else {
-                                    mask.push(false);
-                                }
+                    // get the node state collections that this parent neighbor node forces upon this node
+                    let node_state_collection_ids: &Vec<String> = parent_neighbor_node.node_state_collection_ids_per_neighbor_node_id.get(&child_node.id).unwrap();
+                    for node_state_collection_id in node_state_collection_ids.iter() {
+                        let node_state_collection_id: &str = node_state_collection_id;
+                        let node_state_collection = node_state_collection_per_id.get(node_state_collection_id).unwrap();
+                        // construct a mask for this parent neighbor's node state collection and node state for this child node
+                        let mut mask: BitVec = BitVec::new();
+                        for node_state_id in child_node.node_state_ids.iter() {
+                            // if the node state for the child is permitted by the parent neighbor node state collection
+                            if node_state_collection.node_state_ids.contains(node_state_id) {
+                                mask.push(true);
                             }
-                            // store the mask for this child node
-                            mask_per_parent_state.insert(&node_state_collection.node_state_id, mask);
+                            else {
+                                mask.push(false);
+                            }
                         }
-
-                        mask_per_parent_state_per_parent_neighbor.insert(&parent_neighbor_node.id, mask_per_parent_state);
+                        // store the mask for this child node
+                        mask_per_parent_state.insert(&node_state_collection.node_state_id, mask);
                     }
-                }
 
-                mask_per_parent_state_per_parent_neighbor_per_node.insert(&child_node.id, mask_per_parent_state_per_parent_neighbor);
+                    mask_per_parent_state_per_parent_neighbor.insert(&parent_neighbor_node.id, mask_per_parent_state);
+                }
             }
 
-            // fill the neighbor_mask_mapped_view_per_node_id now that all masks have been constructed
-            // neighbor_mask_mapped_view_per_node_id is equivalent to mask_per_child_neighbor_per_state_per_node
-            for node in self.nodes.iter() {
+            mask_per_parent_state_per_parent_neighbor_per_node.insert(&child_node.id, mask_per_parent_state_per_parent_neighbor);
+        }
 
-                // for this node, find all child neighbors
-                let node_id: &str = &node.id;
+        // fill the neighbor_mask_mapped_view_per_node_id now that all masks have been constructed
+        // neighbor_mask_mapped_view_per_node_id is equivalent to mask_per_child_neighbor_per_state_per_node
+        for node in self.nodes.iter() {
 
-                let mut mask_per_neighbor_per_state: HashMap<&TNodeState, HashMap<&str, BitVec>> = HashMap::new();
+            // for this node, find all child neighbors
+            let node_id: &str = &node.id;
 
-                for (neighbor_node_id, _) in node.node_state_collection_ids_per_neighbor_node_id.iter() {
-                    let neighbor_node_id: &str = neighbor_node_id;
+            let mut mask_per_neighbor_per_state: HashMap<&TNodeState, HashMap<&str, BitVec>> = HashMap::new();
 
-                    // get the inverse hashmap of this node to its child neighbor
-                    let mask_per_parent_state_per_parent_neighbor = mask_per_parent_state_per_parent_neighbor_per_node.get(neighbor_node_id).unwrap();
-                    let mask_per_parent_state = mask_per_parent_state_per_parent_neighbor.get(node_id).unwrap();
+            for (neighbor_node_id, _) in node.node_state_collection_ids_per_neighbor_node_id.iter() {
+                let neighbor_node_id: &str = neighbor_node_id;
 
-                    for (node_state_id, mask) in mask_per_parent_state.iter() {
-                        if !mask_per_neighbor_per_state.contains_key(node_state_id) {
-                            mask_per_neighbor_per_state.insert(node_state_id, HashMap::new());
-                        }
-                        mask_per_neighbor_per_state.get_mut(node_state_id).unwrap().insert(neighbor_node_id, mask.clone());
+                // get the inverse hashmap of this node to its child neighbor
+                let mask_per_parent_state_per_parent_neighbor = mask_per_parent_state_per_parent_neighbor_per_node.get(neighbor_node_id).unwrap();
+                let mask_per_parent_state = mask_per_parent_state_per_parent_neighbor.get(node_id).unwrap();
+
+                for (node_state_id, mask) in mask_per_parent_state.iter() {
+                    if !mask_per_neighbor_per_state.contains_key(node_state_id) {
+                        mask_per_neighbor_per_state.insert(node_state_id, HashMap::new());
                     }
+                    mask_per_neighbor_per_state.get_mut(node_state_id).unwrap().insert(neighbor_node_id, mask.clone());
                 }
-
-                neighbor_mask_mapped_view_per_node_id.insert(node_id, mask_per_neighbor_per_state);
             }
-        });
+
+            neighbor_mask_mapped_view_per_node_id.insert(node_id, mask_per_neighbor_per_state);
+        }
 
         let mut node_state_indexed_view_per_node_id: HashMap<&str, IndexedView<&TNodeState>> = HashMap::new();
 
-        time_graph::spanned!("storing masks into neighbors", {
+        // store all of the masks that my neighbors will be orienting so that this node can check for restrictions
+        for node in self.nodes.iter() {
+            let node_id: &str = &node.id;
 
-            // store all of the masks that my neighbors will be orienting so that this node can check for restrictions
-            for node in self.nodes.iter() {
-                let node_id: &str = &node.id;
+            //debug!("storing for node {node_id} restrictive masks into node state indexed view.");
 
-                //debug!("storing for node {node_id} restrictive masks into node state indexed view.");
+            let referenced_node_state_ids: Vec<&TNodeState> = node.node_state_ids.iter().collect();
+            let cloned_node_state_probabilities: Vec<f32> = node.node_state_probabilities.clone();
 
-                let referenced_node_state_ids: Vec<&TNodeState> = node.node_state_ids.iter().collect();
-                let cloned_node_state_probabilities: Vec<f32> = node.node_state_probabilities.clone();
-
-                let node_state_indexed_view = IndexedView::new(referenced_node_state_ids, cloned_node_state_probabilities);
-                //debug!("stored for node {node_id} node state indexed view {:?}", node_state_indexed_view);
-                node_state_indexed_view_per_node_id.insert(node_id, node_state_indexed_view);
-            }
-        });
+            let node_state_indexed_view = IndexedView::new(referenced_node_state_ids, cloned_node_state_probabilities);
+            //debug!("stored for node {node_id} node state indexed view {:?}", node_state_indexed_view);
+            node_state_indexed_view_per_node_id.insert(node_id, node_state_indexed_view);
+        }
 
         let mut collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<TNodeState>>>> = Vec::new();
         let mut collapsable_node_per_id: HashMap<&str, Rc<RefCell<CollapsableNode<TNodeState>>>> = HashMap::new();
@@ -415,18 +411,15 @@ impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> WaveFunction<TNodeSt
         TCollapsableWaveFunction::new(collapsable_nodes, collapsable_node_per_id)
     }
 
-    #[time_graph::instrument]
     pub fn save_to_file(&self, file_path: &str) {
-        todo!("The node order is the important part to save, not the entire WaveFunction instance.");
-        /*let serialized_self = serde_json::to_string(self).unwrap();
-        std::fs::write(file_path, serialized_self).unwrap();*/
+        let serialized_self = serde_json::to_string(self).unwrap();
+        std::fs::write(file_path, serialized_self).unwrap();
     }
 
-    #[time_graph::instrument]
     pub fn load_from_file(file_path: &str) -> Self {
-        todo!("The node order should be retrieved from the file.");
-        /*let serialized_self = std::fs::read_to_string(file_path).unwrap();
-        let deserialized_self: WaveFunction<TNodeState> = serde_json::from_str(&serialized_self).unwrap();
-        deserialized_self*/
+        let file = File::open(file_path).unwrap();
+        let reader = BufReader::new(file);
+        let deserialized_self: WaveFunction<TNodeState> = serde_json::from_reader(reader).unwrap();
+        deserialized_self
     }
 }

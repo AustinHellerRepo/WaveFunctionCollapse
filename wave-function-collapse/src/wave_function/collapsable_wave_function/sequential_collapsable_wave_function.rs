@@ -14,7 +14,6 @@ pub struct SequentialCollapsableWaveFunction<'a, TNodeState: Eq + Hash + Clone +
 }
 
 impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> SequentialCollapsableWaveFunction<'a, TNodeState> {
-    #[time_graph::instrument]
     fn try_increment_current_collapsable_node_state(&mut self) -> CollapsedNodeState<TNodeState> {
         let wrapped_current_collapsable_node = self.collapsable_nodes.get(self.current_collapsable_node_index).unwrap();
         let mut current_collapsable_node = wrapped_current_collapsable_node.borrow_mut();
@@ -38,7 +37,6 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> SequentialCollap
 
         collapsed_node_state
     }
-    #[time_graph::instrument]
     fn try_alter_reference_to_current_collapsable_node_mask(&mut self) -> bool {
         let mut is_successful: bool = true;
         let wrapped_current_collapsable_node = self.collapsable_nodes.get_mut(self.current_collapsable_node_index).expect("The collapsable node should exist at this index.");
@@ -77,7 +75,6 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> SequentialCollap
         }
         is_successful
     }
-    #[time_graph::instrument]
     fn move_to_next_collapsable_node(&mut self) {
         let wrapped_current_collapsable_node = self.collapsable_nodes.get(self.current_collapsable_node_index).unwrap();
         let current_node_id: &str = wrapped_current_collapsable_node.borrow().id;
@@ -96,11 +93,9 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> SequentialCollap
             debug!("moved to {next_node_id} at index {next_collapsable_node_index}");
         }
     }
-    #[time_graph::instrument]
     fn is_fully_collapsed(&self) -> bool {
         self.current_collapsable_node_index == self.collapsable_nodes_length
     }
-    #[time_graph::instrument]
     fn try_move_to_previous_collapsable_node_neighbor(&mut self) {
 
         {
@@ -142,7 +137,6 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> SequentialCollap
         }
             
     }
-    #[time_graph::instrument]
     fn is_fully_reset(&self) -> bool {
         let wrapped_current_collapsable_node = self.collapsable_nodes.get(self.current_collapsable_node_index).unwrap();
         let current_collapsable_node = wrapped_current_collapsable_node.borrow();
@@ -167,7 +161,6 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> SequentialCollap
             node_state_per_node: node_state_per_node
         }
     }
-    #[time_graph::instrument]
     fn get_collapsed_wave_function(&self) -> CollapsedWaveFunction<TNodeState> {
         let mut node_state_per_node: HashMap<String, TNodeState> = HashMap::new();
         for wrapped_collapsable_node in self.collapsable_nodes.iter() {
@@ -184,7 +177,6 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> SequentialCollap
 }
 
 impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveFunction<'a, TNodeState> for SequentialCollapsableWaveFunction<'a, TNodeState> {
-    #[time_graph::instrument]
     fn new(collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a, TNodeState>>>>, collapsable_node_per_id: HashMap<&'a str, Rc<RefCell<CollapsableNode<'a, TNodeState>>>>) -> Self {
         let collapsable_nodes_length: usize = collapsable_nodes.len();
 
@@ -198,7 +190,6 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveF
 
         collapsable_wave_function
     }
-    #[time_graph::instrument]
     fn collapse_into_steps(&'a mut self) -> Result<Vec<CollapsedNodeState<TNodeState>>, String> {
 
         let mut collapsed_node_states: Vec<CollapsedNodeState<TNodeState>> = Vec::new();
@@ -250,7 +241,6 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveF
         Ok(collapsed_node_states)
     }
 
-    #[time_graph::instrument]
     fn collapse(&'a mut self) -> Result<CollapsedWaveFunction<TNodeState>, String> {
 
         // TODO use the provided cells in cell_per_neighbor_node_id_per_node_id during construction of CollapsableNode

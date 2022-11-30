@@ -1,6 +1,7 @@
 use std::{collections::HashMap, time::Instant};
 use colored::{ColoredString, Colorize};
 use rand::Rng;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use wave_function_collapse::wave_function::{WaveFunction, NodeStateCollection, Node, collapsable_wave_function::{accommodating_collapsable_wave_function::AccommodatingCollapsableWaveFunction, collapsable_wave_function::CollapsableWaveFunction}};
 use log::debug;
@@ -13,7 +14,7 @@ struct Sparse {
     distance: u32
 }
 
-#[derive(Debug, Eq, Hash, PartialEq, Clone, PartialOrd, Ord)]
+#[derive(Debug, Eq, Hash, PartialEq, Clone, PartialOrd, Ord, Serialize, Deserialize)]
 enum SparseElement {
     Empty,
     Active

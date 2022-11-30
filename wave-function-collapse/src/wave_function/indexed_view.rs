@@ -25,7 +25,6 @@ pub struct IndexedView<TNodeState: Clone + Eq + Hash + Debug> {
 }
 
 impl<TNodeState: Clone + Eq + Hash + Debug> IndexedView<TNodeState> {
-    #[time_graph::instrument]
     pub fn new(node_state_ids: Vec<TNodeState>, node_state_probabilities: Vec<f32>) -> Self {
         let node_state_ids_length: usize = node_state_ids.len();
         let mut index_per_node_state_id: HashMap<TNodeState, usize> = HashMap::new();
@@ -53,7 +52,6 @@ impl<TNodeState: Clone + Eq + Hash + Debug> IndexedView<TNodeState> {
             previous_is_restricted_at_index: VecDeque::new()
         }
     }
-    #[time_graph::instrument]
     pub fn shuffle<R: Rng + ?Sized>(&mut self, random_instance: &mut R) {
         if self.index.is_some() {
             panic!("Can only be shuffled prior to use.");
@@ -72,7 +70,6 @@ impl<TNodeState: Clone + Eq + Hash + Debug> IndexedView<TNodeState> {
 
         debug!("randomized index mapping to {:?}.", self.index_mapping);
     }
-    #[time_graph::instrument]
     pub fn try_move_next(&mut self) -> bool {
         let mut is_unmasked = false;
         let mut next_index: usize;
@@ -103,7 +100,6 @@ impl<TNodeState: Clone + Eq + Hash + Debug> IndexedView<TNodeState> {
         }
         self.index.unwrap() != self.node_state_ids_length
     }
-    #[time_graph::instrument]
     pub fn move_next(&mut self) {
         let mut next_index: usize;
         if let Some(index) = self.index {
@@ -117,14 +113,12 @@ impl<TNodeState: Clone + Eq + Hash + Debug> IndexedView<TNodeState> {
         }
         self.index = Some(next_index);
     }
-    #[time_graph::instrument]
     fn is_unmasked_at_index(&self, index: usize) -> bool {
         //debug!("checking if unmasked at index {index} for node {mask_key}.");
         let mapped_index = self.index_mapping[index];
         //self.mask_counter[*mapped_index] == 0
         !self.is_restricted_at_index[mapped_index]
     }
-    #[time_graph::instrument]
     pub fn is_mask_restrictive_to_current_state(&self, mask: &BitVec) -> bool {
         if let Some(index) = self.index {
             let mapped_index = self.index_mapping[index];
@@ -142,7 +136,6 @@ impl<TNodeState: Clone + Eq + Hash + Debug> IndexedView<TNodeState> {
             false
         }
     }
-    #[time_graph::instrument]
     pub fn get(&self) -> Option<&TNodeState> {
         let value: Option<&TNodeState>;
         if let Some(index) = self.index {
@@ -159,12 +152,10 @@ impl<TNodeState: Clone + Eq + Hash + Debug> IndexedView<TNodeState> {
         }
         value
     }
-    #[time_graph::instrument]
     pub fn reset(&mut self) {
         self.index = Option::None;
         // NOTE: the mask_counter should not be fully reverted to ensure that the neighbor restrictions are still being considered
     }
-    #[time_graph::instrument]
     pub fn is_current_state_restricted(&self) -> bool {
         let is_restricted: bool;
         if let Some(index) = self.index {
@@ -175,7 +166,6 @@ impl<TNodeState: Clone + Eq + Hash + Debug> IndexedView<TNodeState> {
         }
         is_restricted
     }
-    #[time_graph::instrument]
     pub fn is_fully_restricted(&mut self) -> bool {
         if self.is_mask_dirty {
             self.is_fully_restricted = self.is_restricted_at_index.count_ones() == self.node_state_ids_length;
@@ -183,7 +173,6 @@ impl<TNodeState: Clone + Eq + Hash + Debug> IndexedView<TNodeState> {
         }
         self.is_fully_restricted
     }
-    #[time_graph::instrument]
     pub fn add_mask(&mut self, mask: &BitVec) {
         //debug!("adding mask {:?} at current state {:?}.", mask, self.mask_counter);
         for index in 0..self.node_state_ids_length {
@@ -200,7 +189,6 @@ impl<TNodeState: Clone + Eq + Hash + Debug> IndexedView<TNodeState> {
         }
         //debug!("added mask {:?} at current state {:?}.", mask, self.mask_counter);
     }
-    #[time_graph::instrument]
     pub fn subtract_mask(&mut self, mask: &BitVec) {
         //debug!("removing mask {:?} at current state {:?}.", mask, self.mask_counter);
         for index in 0..self.node_state_ids_length {
@@ -217,13 +205,11 @@ impl<TNodeState: Clone + Eq + Hash + Debug> IndexedView<TNodeState> {
         }
         //debug!("removed mask {:?} at current state {:?}.", mask, self.mask_counter);
     }
-    #[time_graph::instrument]
     pub fn forward_mask(&mut self, mask: &BitVec) {
         self.previous_mask_counters.push_back(self.mask_counter.clone());
         self.previous_is_restricted_at_index.push_back(self.is_restricted_at_index.clone());
         self.add_mask(mask);
     }
-    #[time_graph::instrument]
     pub fn reverse_mask(&mut self) {
         //debug!("removing mask {:?} at current state {:?}.", mask, self.mask_counter);
         self.mask_counter = self.previous_mask_counters.pop_back().unwrap();

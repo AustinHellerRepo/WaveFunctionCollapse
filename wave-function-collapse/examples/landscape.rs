@@ -4,6 +4,7 @@ use log::debug;
 extern crate pretty_env_logger;
 
 use rand::Rng;
+use serde::{Serialize, Deserialize};
 use uuid::Uuid;
 use wave_function_collapse::wave_function::{
     Node,
@@ -12,7 +13,7 @@ use wave_function_collapse::wave_function::{
     NodeStateProbability, collapsable_wave_function::{collapsable_wave_function::CollapsableWaveFunction, accommodating_collapsable_wave_function::AccommodatingCollapsableWaveFunction}
 };
 
-#[derive(Debug, Eq, Hash, PartialEq, Clone, PartialOrd, Ord)]
+#[derive(Debug, Eq, Hash, PartialEq, Clone, PartialOrd, Ord, Serialize, Deserialize)]
 enum LandscapeElement {
     Water,
     Sand,
@@ -216,7 +217,7 @@ impl Landscape {
                 let mut node_state_probability_per_node_state_id: HashMap<LandscapeElement, f32> = HashMap::new();
                 node_state_probability_per_node_state_id.insert(LandscapeElement::Water, 1.0);
                 node_state_probability_per_node_state_id.insert(LandscapeElement::Sand, 0.1);
-                node_state_probability_per_node_state_id.insert(LandscapeElement::Grass, 0.01);
+                node_state_probability_per_node_state_id.insert(LandscapeElement::Grass, 1.0);
                 node_state_probability_per_node_state_id.insert(LandscapeElement::Hill, 0.1);
                 node_state_probability_per_node_state_id.insert(LandscapeElement::Mountain, 1.0);
                 node_state_probability_per_node_state_id.insert(LandscapeElement::Tree, 0.1);

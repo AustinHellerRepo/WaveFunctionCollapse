@@ -241,7 +241,6 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingCol
 
         changed_parent_node_states
     }
-    #[time_graph::instrument]
     fn get_collapsed_wave_function(&self) -> CollapsedWaveFunction<TNodeState> {
         let mut node_state_per_node: HashMap<String, TNodeState> = HashMap::new();
         for wrapped_collapsable_node in self.collapsable_nodes.iter() {
@@ -258,7 +257,6 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingCol
 }
 
 impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveFunction<'a, TNodeState> for AccommodatingCollapsableWaveFunction<'a, TNodeState> {
-    #[time_graph::instrument]
     fn new(collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a, TNodeState>>>>, collapsable_node_per_id: HashMap<&'a str, Rc<RefCell<CollapsableNode<'a, TNodeState>>>>) -> Self {
         AccommodatingCollapsableWaveFunction {
             collapsable_nodes: collapsable_nodes,

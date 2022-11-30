@@ -58,7 +58,6 @@ pub struct CollapsableNode<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug +
 }
 
 impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableNode<'a, TNodeState> {
-    #[time_graph::instrument]
     pub fn new(id: &'a str, node_state_collection_ids_per_neighbor_node_id: &'a HashMap<String, Vec<String>>, mask_per_neighbor_per_state: HashMap<&'a TNodeState, HashMap<&'a str, BitVec>>, node_state_indexed_view: IndexedView<&'a TNodeState>) -> Self {
         // get the neighbors for this node
         let mut neighbor_node_ids: Vec<&str> = Vec::new();
@@ -79,15 +78,12 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableNode<
             node_state_type: PhantomData
         }
     }
-    #[time_graph::instrument]
     pub fn randomize<R: Rng + ?Sized>(&mut self, random_instance: &mut R) {
         self.node_state_indexed_view.shuffle(random_instance);
     }
-    #[time_graph::instrument]
     pub fn is_fully_restricted(&mut self) -> bool {
         self.node_state_indexed_view.is_fully_restricted() || self.node_state_indexed_view.is_current_state_restricted()
     }
-    #[time_graph::instrument]
     fn get_ids(collapsable_nodes: &Vec<Rc<RefCell<Self>>>) -> String {
         let mut string_builder = string_builder::Builder::new(0);
         for collapsable_node in collapsable_nodes.iter() {
@@ -99,23 +95,18 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableNode<
         }
         string_builder.string().unwrap()
     }
-    #[time_graph::instrument]
     pub fn add_mask(&mut self, mask: &BitVec) {
         self.node_state_indexed_view.add_mask(mask);
     }
-    #[time_graph::instrument]
     pub fn subtract_mask(&mut self, mask: &BitVec) {
         self.node_state_indexed_view.subtract_mask(mask);
     }
-    #[time_graph::instrument]
     pub fn forward_mask(&mut self, mask: &BitVec) {
         self.node_state_indexed_view.forward_mask(mask);
     }
-    #[time_graph::instrument]
     pub fn reverse_mask(&mut self) {
         self.node_state_indexed_view.reverse_mask();
     }
-    #[time_graph::instrument]
     pub fn is_mask_restrictive_to_current_state(&self, mask: &BitVec) -> bool {
         let is_restrictive = self.node_state_indexed_view.is_mask_restrictive_to_current_state(mask);
         if is_restrictive {
