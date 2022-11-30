@@ -6,9 +6,9 @@ use bitvec::vec::BitVec;
 use rand::Rng;
 use serde::{Serialize, Deserialize};
 use std::hash::Hash;
-
 use crate::wave_function::indexed_view::IndexedView;
 
+/// This trait defines the relationship between collapsable nodes and a collapsed state.
 pub trait CollapsableWaveFunction<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> {
     fn new(collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a, TNodeState>>>>, collapsable_node_per_id: HashMap<&'a str, Rc<RefCell<CollapsableNode<'a, TNodeState>>>>) -> Self where Self: Sized;
     fn collapse_into_steps(&'a mut self) -> Result<Vec<CollapsedNodeState<TNodeState>>, String>;
@@ -39,6 +39,7 @@ impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> Hash for Uncollapsed
     }
 }
 
+/// This struct represents a stateful node in a collapsable wave function which references a base node from the wave function.
 #[derive(Debug)]
 pub struct CollapsableNode<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> {
     // the node id that this collapsable node refers to
@@ -83,17 +84,6 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableNode<
     }
     pub fn is_fully_restricted(&mut self) -> bool {
         self.node_state_indexed_view.is_fully_restricted() || self.node_state_indexed_view.is_current_state_restricted()
-    }
-    fn get_ids(collapsable_nodes: &Vec<Rc<RefCell<Self>>>) -> String {
-        let mut string_builder = string_builder::Builder::new(0);
-        for collapsable_node in collapsable_nodes.iter() {
-            let node_id: &str = collapsable_node.borrow().id;
-            if string_builder.len() != 0 {
-                string_builder.append(", ");
-            }
-            string_builder.append(node_id);
-        }
-        string_builder.string().unwrap()
     }
     pub fn add_mask(&mut self, mask: &BitVec) {
         self.node_state_indexed_view.add_mask(mask);

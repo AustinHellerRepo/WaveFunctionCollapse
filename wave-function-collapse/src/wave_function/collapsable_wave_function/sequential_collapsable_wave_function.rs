@@ -2,8 +2,9 @@ use std::marker::PhantomData;
 use std::{cell::RefCell, rc::Rc, collections::HashMap};
 use std::hash::Hash;
 use bitvec::vec::BitVec;
-use super::collapsable_wave_function::{CollapsableWaveFunction, CollapsableNode, CollapsedNodeState, UncollapsedWaveFunction, CollapsedWaveFunction};
+use super::collapsable_wave_function::{CollapsableWaveFunction, CollapsableNode, CollapsedNodeState, CollapsedWaveFunction};
 
+/// This struct represents a CollapsableWaveFunction that sequentially searches every possible state systematically. This is best for finding solutions when the condition problem has very few, one, or no solutions.
 pub struct SequentialCollapsableWaveFunction<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> {
     // represents a wave function with all of the necessary steps to collapse
     collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a, TNodeState>>>>,
@@ -115,12 +116,11 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> SequentialCollap
             // revert the masks of the new current collapsable node prior to the next state change/increment
             {
                 let wrapped_current_collapsable_node = self.collapsable_nodes.get_mut(self.current_collapsable_node_index).expect("The collapsable node should exist at this index.");
-                let mut current_collapsable_node = wrapped_current_collapsable_node.borrow_mut();
+                let current_collapsable_node = wrapped_current_collapsable_node.borrow_mut();
 
                 let neighbor_node_ids: &Vec<&str>;
-                if let Some(current_possible_state) = current_collapsable_node.node_state_indexed_view.get() {
+                if let Some(current_collapsable_node_state) = current_collapsable_node.node_state_indexed_view.get() {
                     neighbor_node_ids = &current_collapsable_node.neighbor_node_ids;
-                    let current_collapsable_node_state = current_collapsable_node.node_state_indexed_view.get().unwrap();
                     if current_collapsable_node.mask_per_neighbor_per_state.contains_key(current_collapsable_node_state) {
                         let mask_per_neighbor = current_collapsable_node.mask_per_neighbor_per_state.get(current_collapsable_node_state).unwrap();
                         for neighbor_node_id in neighbor_node_ids.iter() {
@@ -142,25 +142,6 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> SequentialCollap
         let current_collapsable_node = wrapped_current_collapsable_node.borrow();
         self.current_collapsable_node_index == 0 && current_collapsable_node.current_chosen_from_sort_index.is_none()
     }
-    fn get_uncollapsed_wave_function(&self) -> UncollapsedWaveFunction<TNodeState> {
-        let mut node_state_per_node: HashMap<String, Option<TNodeState>> = HashMap::new();
-        for wrapped_collapsable_node in self.collapsable_nodes.iter() {
-            let collapsable_node = wrapped_collapsable_node.borrow();
-            let node_state_id_option: Option<TNodeState>;
-            if let Some(node_state_id) = collapsable_node.node_state_indexed_view.get() {
-                node_state_id_option = Some((*node_state_id).clone());
-            }
-            else {
-                node_state_id_option = None;
-            }
-            let node: String = String::from(collapsable_node.id);
-            debug!("established node {node} in state {:?}.", node_state_id_option);
-            node_state_per_node.insert(node, node_state_id_option);
-        }
-        UncollapsedWaveFunction {
-            node_state_per_node: node_state_per_node
-        }
-    }
     fn get_collapsed_wave_function(&self) -> CollapsedWaveFunction<TNodeState> {
         let mut node_state_per_node: HashMap<String, TNodeState> = HashMap::new();
         for wrapped_collapsable_node in self.collapsable_nodes.iter() {
@@ -180,7 +161,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveF
     fn new(collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a, TNodeState>>>>, collapsable_node_per_id: HashMap<&'a str, Rc<RefCell<CollapsableNode<'a, TNodeState>>>>) -> Self {
         let collapsable_nodes_length: usize = collapsable_nodes.len();
 
-        let mut collapsable_wave_function = SequentialCollapsableWaveFunction {
+        let collapsable_wave_function = SequentialCollapsableWaveFunction {
             collapsable_nodes: collapsable_nodes,
             collapsable_node_per_id: collapsable_node_per_id,
             collapsable_nodes_length: collapsable_nodes_length,
@@ -293,10 +274,6 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveF
                     debug!("moved to next collapsable node");
                     if !self.is_fully_collapsed() {
                         debug!("not yet fully collapsed");
-                        /*time_graph::spanned!("sort_collapsable_nodes (during)", {
-                            collapsable_wave_function.sort_collapsable_nodes();
-                        });
-                        debug!("sorted nodes");*/
                     }
                 }
                 else {

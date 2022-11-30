@@ -7,7 +7,6 @@ use wave_function_collapse::wave_function::{WaveFunction, NodeStateCollection, N
 use log::debug;
 extern crate pretty_env_logger;
 
-
 struct Sparse {
     width: u32,
     height: u32,

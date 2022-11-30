@@ -1,5 +1,4 @@
 use std::{collections::{BTreeMap, HashMap}, fmt::Debug};
-use log::kv::ToValue;
 use ordered_float::OrderedFloat;
 use rand::Rng;
 use std::hash::Hash;
@@ -53,7 +52,7 @@ impl<T: Eq + Hash + Clone + Debug> ProbabilityContainer<T> {
         self.probability_per_item.insert(item.clone(), probability);
         self.items.push(item);
     }
-    pub fn get_random<R: Rng + ?Sized>(&mut self, random_instance: &mut R) -> Option<T> {
+    pub fn peek_random<R: Rng + ?Sized>(&mut self, random_instance: &mut R) -> Option<T> {
         let item_option: Option<T>;
         if self.items_total == 0 {
             debug!("no items");
@@ -99,7 +98,7 @@ impl<T: Eq + Hash + Clone + Debug> ProbabilityContainer<T> {
             None
         }
         else {
-            let mut item_option: Option<T>;
+            let item_option: Option<T>;
             if self.items_total == 1 {
                 //self.item_per_cumulative_probability.remove(&OrderedFloat(self.probability_total))
                 item_option = self.items.first().cloned();

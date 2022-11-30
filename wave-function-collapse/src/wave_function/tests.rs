@@ -49,12 +49,9 @@ impl TestStruct {
 mod probability_collection_unit_tests {
 
     use std::collections::HashMap;
-
-    use ordered_float::OrderedFloat;
     use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha8Rng;
     use crate::wave_function::probability_collection::ProbabilityCollection;
-
     use super::*;
 
     fn init() {
@@ -210,12 +207,9 @@ mod probability_collection_unit_tests {
 mod probability_container_unit_tests {
 
     use std::collections::HashMap;
-
     use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha8Rng;
-
     use crate::wave_function::probability_container::ProbabilityContainer;
-
     use super::*;
 
     fn init() {
@@ -358,7 +352,7 @@ mod probability_container_unit_tests {
         
         let trials = 10000000;
         for _ in 0..trials {
-            let item_result = probability_container.get_random(&mut random_instance);
+            let item_result = probability_container.peek_random(&mut random_instance);
             assert!(item_result.is_some());
             let item_index = item_result.unwrap().id.parse::<usize>().unwrap();
             instances_per_index[item_index] += 1;
@@ -387,7 +381,7 @@ mod probability_container_unit_tests {
         for _ in 0..100 {
             let id = Uuid::new_v4().to_string();
             probability_container.push(TestStruct { id: id.clone() }, 1.0);
-            let item = probability_container.get_random(&mut random_instance).unwrap();
+            let item = probability_container.peek_random(&mut random_instance).unwrap();
             assert_eq!(id, item.id);
             let item = probability_container.pop_random(&mut random_instance).unwrap();
             assert_eq!(id, item.id);
@@ -491,7 +485,7 @@ mod probability_container_unit_tests {
             let trials = 10000000;
 
             for _ in 0..trials {
-                let item_result = probability_container.get_random(&mut random_instance);
+                let item_result = probability_container.peek_random(&mut random_instance);
                 assert!(item_result.is_some());
                 let item_index = item_result.unwrap().id.parse::<usize>().unwrap();
                 instances_per_index[item_index] += 1;
@@ -689,11 +683,8 @@ mod probability_container_unit_tests {
 mod wave_function_unit_tests {
 
     use std::collections::HashMap;
-
     use rand::{RngCore, Rng};
-
     use crate::wave_function::{Node, WaveFunction, NodeStateCollection, NodeStateProbability, collapsable_wave_function::{sequential_collapsable_wave_function::SequentialCollapsableWaveFunction, collapsable_wave_function::{CollapsedWaveFunction, CollapsedNodeState, CollapsableWaveFunction}, accommodating_collapsable_wave_function::AccommodatingCollapsableWaveFunction}};
-
     use super::*;
 
     fn init() {
@@ -2756,12 +2747,9 @@ mod wave_function_unit_tests {
 #[cfg(test)]
 mod indexed_view_unit_tests {
 
-    use std::collections::HashMap;
-
     use rand::{Rng, SeedableRng, seq::SliceRandom};
     use rand_chacha::ChaCha8Rng;
     use uuid::Uuid;
-
     use crate::wave_function::indexed_view::IndexedView;
 
     fn init() {

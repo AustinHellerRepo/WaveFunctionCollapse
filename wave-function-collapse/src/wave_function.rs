@@ -1,4 +1,4 @@
-use std::{collections::{HashMap, HashSet, VecDeque}, cell::{RefCell}, rc::Rc, hash::Hash, fs::File, io::BufReader};
+use std::{collections::{HashMap, HashSet}, cell::{RefCell}, rc::Rc, hash::Hash, fs::File, io::BufReader};
 use serde::{Serialize, Deserialize, de::DeserializeOwned};
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
@@ -14,6 +14,7 @@ mod probability_container;
 pub mod collapsable_wave_function;
 mod tests;
 
+/// This struct makes for housing convenient utility functions.
 pub struct NodeStateProbability;
 
 impl NodeStateProbability {
@@ -28,6 +29,7 @@ impl NodeStateProbability {
     }
 }
 
+/// This is a node in the graph of the wave function. It can be in any of the provided node states, trying to achieve the cooresponding probability, connected to other nodes as described by the node state collections.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Node<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> {
     pub id: String,
@@ -69,6 +71,7 @@ impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> Node<TNodeState> {
     }
 }
 
+/// This struct represents a relationship between the state of one "original" node to another "neighbor" node, permitting only those node states for the connected neighbor if the original node is in the specific state. This defines the constraints between nodes.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct NodeStateCollection<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> {
     pub id: String,
@@ -86,6 +89,7 @@ impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> NodeStateCollection<
     }
 }
 
+/// This struct represents the uncollapsed definition of nodes and their relationships to other nodes.
 #[derive(Serialize, Clone, Deserialize)]
 pub struct WaveFunction<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> {
     nodes: Vec<Node<TNodeState>>,
@@ -125,8 +129,8 @@ impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord + Serialize + Deseria
         let mut error_message = Option::None;
         
         // ensure that references neighbors are actually nodes
-        for (node_id, node) in node_per_id.iter() {
-            for (neighbor_node_id_string, node_state_collection_ids) in node.node_state_collection_ids_per_neighbor_node_id.iter() {
+        for (_, node) in node_per_id.iter() {
+            for (neighbor_node_id_string, _) in node.node_state_collection_ids_per_neighbor_node_id.iter() {
                 let neighbor_node_id: &str = neighbor_node_id_string;
                 if !node_ids.contains(neighbor_node_id) {
                     error_message = Some(format!("Neighbor node {neighbor_node_id} does not exist in main list of nodes."));
@@ -181,79 +185,6 @@ impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord + Serialize + Deseria
         else {
             Ok(())
         }
-    }
-
-    pub fn optimize(&mut self) {
-        
-        panic!("Not implemented. I have not yet developed/implemented a good algorithm for organizing the order of the nodes ahead of time based on connections.");
-        
-        //let current_collapsable_nodes_display = CollapsableNode::get_ids(&self.collapsable_nodes);
-        //debug!("current sort order: {current_collapsable_nodes_display}.");
-
-        let mut rng = rand::thread_rng();
-        let random_seed = rng.gen::<u64>();
-        let mut random_instance = ChaCha8Rng::seed_from_u64(random_seed);
-
-        self.nodes.shuffle(&mut random_instance);
-
-        // sort by most neighbors
-        if false {
-            self.nodes.sort_by(|a, b| {
-
-                let a_neighbors_length = a.get_neighbor_node_ids().len();
-                let b_neighbors_length = b.get_neighbor_node_ids().len();
-
-                a_neighbors_length.cmp(&b_neighbors_length)
-            });
-
-            let mut next_node_index_per_node_id: HashMap<String, usize> = HashMap::new();
-
-            {
-                let mut found_neighbor_node_ids: HashSet<String> = HashSet::new();
-                let mut searching_neighbor_node_ids: VecDeque<String> = VecDeque::new();
-                searching_neighbor_node_ids.push_back(self.nodes.first().unwrap().id.clone());
-
-                let mut node_per_id: HashMap<String, &Node<TNodeState>> = HashMap::new();
-                for node in self.nodes.iter() {
-                    node_per_id.insert(node.id.clone(), node);
-                }
-
-                let mut node_index_per_id: HashMap<&str, usize> = HashMap::new();
-                for (node_index, node) in self.nodes.iter().enumerate() {
-                    node_index_per_id.insert(&node.id, node_index);
-                }
-
-                let mut next_node_index: usize = 0;
-                while !searching_neighbor_node_ids.is_empty() {
-                    let searching_neighbor_node_id = searching_neighbor_node_ids.pop_front().unwrap();
-                    debug!("searching: {:?}", searching_neighbor_node_ids);
-
-                    next_node_index_per_node_id.insert(searching_neighbor_node_id.clone(), next_node_index);
-                    next_node_index += 1;
-
-                    found_neighbor_node_ids.insert(searching_neighbor_node_id.clone());
-                    let neighbor = node_per_id.get(&searching_neighbor_node_id).unwrap();
-                    for neighbors_neighbor_node_id in neighbor.node_state_collection_ids_per_neighbor_node_id.keys() {
-                        let neighbors_neighbor_node_id: &str = neighbors_neighbor_node_id;
-                        if !found_neighbor_node_ids.contains(neighbors_neighbor_node_id) {
-                            debug!("adding potential neighbor: {neighbors_neighbor_node_id}");
-                            searching_neighbor_node_ids.push_back(String::from(neighbors_neighbor_node_id));
-                        }
-                    }
-                }
-            }
-            
-            self.nodes.sort_by(|a, b| {
-
-                let a_node_index = next_node_index_per_node_id.get(&a.id);
-                let b_node_index = next_node_index_per_node_id.get(&b.id);
-
-                a_node_index.cmp(&b_node_index)
-            });
-        }
-
-        //let next_collapsable_nodes_display = CollapsableNode::get_ids(&self.collapsable_nodes);
-        //debug!("next sort order: {next_collapsable_nodes_display}.");
     }
 
     pub fn get_collapsable_wave_function<'a, TCollapsableWaveFunction: CollapsableWaveFunction<'a, TNodeState>>(&'a self, random_seed: Option<u64>) -> TCollapsableWaveFunction {

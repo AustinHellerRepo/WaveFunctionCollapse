@@ -1,9 +1,9 @@
 use std::{collections::{BTreeMap, HashMap}, fmt::Debug};
-use log::kv::ToValue;
 use ordered_float::OrderedFloat;
 use rand::Rng;
 use std::hash::Hash;
 
+/// This struct is optimized better than ProbabilityContainer to search for a random item but does not permit removing a random item.
 pub struct ProbabilityTree<T> {
     probability_total: f32,
     item_per_cumulative_probability: BTreeMap<OrderedFloat<f32>, T>,
@@ -30,7 +30,7 @@ impl<T: Eq + Hash + Clone + Debug> ProbabilityTree<T> {
             probability_per_item: probability_per_item
         }
     }
-    pub fn get<R: Rng + ?Sized>(&self, random_instance: &mut R) -> Option<T> {
+    pub fn peek_random<R: Rng + ?Sized>(&self, random_instance: &mut R) -> Option<T> {
         let item_option: Option<T>;
         if self.items_total == 0 {
             debug!("no items");

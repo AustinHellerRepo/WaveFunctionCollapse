@@ -2,7 +2,6 @@ use std::{slice::Iter, collections::HashMap, time::Instant};
 use colored::{Colorize, ColoredString};
 use log::debug;
 extern crate pretty_env_logger;
-
 use rand::Rng;
 use serde::{Serialize, Deserialize};
 use uuid::Uuid;
@@ -10,7 +9,7 @@ use wave_function_collapse::wave_function::{
     Node,
     NodeStateCollection,
     WaveFunction,
-    NodeStateProbability, collapsable_wave_function::{collapsable_wave_function::CollapsableWaveFunction, accommodating_collapsable_wave_function::AccommodatingCollapsableWaveFunction}
+    collapsable_wave_function::{collapsable_wave_function::CollapsableWaveFunction, accommodating_collapsable_wave_function::AccommodatingCollapsableWaveFunction}
 };
 
 #[derive(Debug, Eq, Hash, PartialEq, Clone, PartialOrd, Ord, Serialize, Deserialize)]

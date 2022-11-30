@@ -1,7 +1,6 @@
 use std::{collections::{HashMap}, slice::Iter};
 use log::debug;
 extern crate pretty_env_logger;
-
 use uuid::Uuid;
 use wave_function_collapse::wave_function::{
     Node,

@@ -1,5 +1,4 @@
 use std::{collections::HashMap, time::Instant};
-
 use wave_function_collapse::wave_function::{
     Node,
     NodeStateCollection,

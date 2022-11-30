@@ -4,7 +4,6 @@ use std::hash::Hash;
 use std::{collections::HashMap};
 use bitvec::prelude::*;
 use rand::{Rng};
-
 use crate::wave_function::probability_container::ProbabilityContainer;
 
 /// This struct represents a collection that can be incremented from an unstarted state to each sequential state provided. As masks are provided that either restrict or permit certain states, they will be skipped when performing try_move_next.

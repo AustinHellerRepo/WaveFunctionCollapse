@@ -1,8 +1,8 @@
-use std::{collections::{BTreeMap, HashMap}, fmt::Debug};
-use log::kv::ToValue;
+use std::{collections::{HashMap}, fmt::Debug};
 use rand::Rng;
 use std::hash::Hash;
 
+/// This struct is optimized better than ProbabilityContainer to remove a random item but does not permit searching for a random item.
 pub struct ProbabilityCollection<T> {
     probability_total: f32,
     items_total: u32,
