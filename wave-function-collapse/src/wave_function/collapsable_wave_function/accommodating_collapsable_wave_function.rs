@@ -6,7 +6,7 @@ use bitvec::vec::BitVec;
 use rand::seq::SliceRandom;
 use super::collapsable_wave_function::{CollapsableWaveFunction, CollapsableNode, CollapsedNodeState, CollapsedWaveFunction};
 
-/// This struct represents a CollapsableWaveFunction that picks a random node, tries to get each parent to accommodate to the current state of the random node, repeating until all nodes are unrestricted. This is best for finding solutions when the condition problem has many possible solutions and you want a more random solution.
+/// This struct represents a CollapsableWaveFunction that picks a random node, tries to get each parent to accommodate to the current state of the random node, repeating until all nodes are unrestricted. This is best for finding solutions when the condition problem has many possible solutions and you want a more random solution. If there are very few solutions, the wave function is uncollapsable by design, or there are certain types of cycles in the graph, this algorithm with perform poorly or never complete.
 pub struct AccommodatingCollapsableWaveFunction<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> {
     collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a, TNodeState>>>>,
     collapsable_node_per_id: HashMap<&'a str, Rc<RefCell<CollapsableNode<'a, TNodeState>>>>,

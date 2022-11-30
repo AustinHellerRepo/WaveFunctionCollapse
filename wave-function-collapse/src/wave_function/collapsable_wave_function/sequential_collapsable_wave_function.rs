@@ -224,41 +224,16 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveF
 
     fn collapse(&'a mut self) -> Result<CollapsedWaveFunction<TNodeState>, String> {
 
-        // TODO use the provided cells in cell_per_neighbor_node_id_per_node_id during construction of CollapsableNode
-
-        // set sort necessary
-        // set error message as None
-        // while
-        //          no error message
-        //          and
-        //          the collapsable node index is less than the total number of collapsable nodes
-        //
-        // REMOVE      if current collapsable node has Some state id index
-        // REMOVE          inform neighbors that this state id is now available again (if applicable)
-        //
-        //      try to increment the current collapsable node state id index (maybe just going from None to Some(0))
-        //
-        //      if succeeded to increment
-        //          alter reference to mask (via orient function)
-        //          if not at least one neighbor no longer having any valid states (or better said if all neighbors have at least one valid state)
-        //              increment current collapsable node index
-        //              if node index is not outside of the bounds
-        //                  sort by (1) chosen from sorted collapsable nodes vector index (in order to maintain the chosen order) and then (2) least possible states being first (in order to adjust the next possible nodes to pick the most restricted nodes first)
-        //      else (then we need to try a different state for the most recent parent that has the current node as a neighbor)
-        //          set is neighbor found to false
-        //          cache the current collapsable node id
-        //          while
-        //                  not yet errored
-        //                  and
-        //                  not found neighbor
-        //
-        //              if current collapsable node index is the first node (then the nodes have been exhausted)
-        //                  set error message
-        //              else
-        //                  set current collapsable node's state id index to None (via reset function)
-        //                  decrement current collapsale node index
-        //                  if one of the newly current collapsable node's neighbors is the original collapsable node
-        //                      set found neighbor to true
+        // while not yet discovered that the wave function is uncollapsable and not yet fully collapsed
+        //      try to increment the state of the current node forward
+        //      if it was possible to increment the state because the neighbor nodes are not restricting that state
+        //          try to inform the neighbor nodes of their new restrictions based on the current node's state
+        //          if all neighbors have at least one valid state that they could be
+        //              move the pointer to the next uncollapsed node
+        //      else
+        //          revert to the previous node so that it can try a different state since this is a dead end
+        //          if we ended up back at the root node and it has also been fully reset
+        //              this fully explored wave function is discovered to be uncollapsable
 
         let mut is_unable_to_collapse = false;
         debug!("starting while loop");
@@ -272,9 +247,6 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveF
                     debug!("altered reference and all neighbors have at least one valid state");
                     self.move_to_next_collapsable_node();
                     debug!("moved to next collapsable node");
-                    if !self.is_fully_collapsed() {
-                        debug!("not yet fully collapsed");
-                    }
                 }
                 else {
                     debug!("at least one neighbor is fully restricted");

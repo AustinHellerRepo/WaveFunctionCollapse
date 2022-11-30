@@ -5,6 +5,7 @@ use wave_function_collapse::wave_function::{
     WaveFunction, NodeStateProbability, collapsable_wave_function::{sequential_collapsable_wave_function::SequentialCollapsableWaveFunction, collapsable_wave_function::CollapsableWaveFunction}
 };
 
+/// This struct represents a Sudoku puzzle.
 struct SudokuPuzzle {
     number_per_row_per_column: Vec<Vec<Option<u8>>>
 }
@@ -22,10 +23,10 @@ impl SudokuPuzzle {
             }
         }
 
-        for (y_index, number_per_column) in number_per_column_per_row.iter().enumerate() {
+        for (_, number_per_column) in number_per_column_per_row.iter().enumerate() {
             println!("-------------------");
             print!("|");
-            for (x_index, number_option) in number_per_column.iter().enumerate() {
+            for (_, number_option) in number_per_column.iter().enumerate() {
                 if let Some(number) = number_option {
                     print!("{number}");
                 }
@@ -43,7 +44,7 @@ impl SudokuPuzzle {
         let mut node_id_per_y_per_x: HashMap<usize, HashMap<usize, String>> = HashMap::new();
         for (x_index, number_per_row) in self.number_per_row_per_column.iter().enumerate() {
             let mut node_id_per_y: HashMap<usize, String> = HashMap::new();
-            for (y_index, number) in number_per_row.iter().enumerate() {
+            for (y_index, _) in number_per_row.iter().enumerate() {
                 let node_id = format!("node_{}_{}", x_index, y_index);
                 node_id_per_y.insert(y_index, node_id);
             }

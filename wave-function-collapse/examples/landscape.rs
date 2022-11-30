@@ -12,6 +12,7 @@ use wave_function_collapse::wave_function::{
     collapsable_wave_function::{collapsable_wave_function::CollapsableWaveFunction, accommodating_collapsable_wave_function::AccommodatingCollapsableWaveFunction}
 };
 
+/// This enum represents the possible states of a node in the 2D world
 #[derive(Debug, Eq, Hash, PartialEq, Clone, PartialOrd, Ord, Serialize, Deserialize)]
 enum LandscapeElement {
     Water,
@@ -72,6 +73,7 @@ impl std::fmt::Display for LandscapeElement {
     }
 }
 
+/// This struct represents a 2D landscape of possible elements.
 struct Landscape {
     width: u32,
     height: u32
@@ -245,15 +247,12 @@ fn main() {
     let height: u32 = 60;
     let landscape = Landscape::new(width, height);
 
-    let mut wave_function = landscape.get_wave_function();
+    let wave_function = landscape.get_wave_function();
 
     wave_function.validate().unwrap();
-    //wave_function.sort();
-    //wave_function.optimize();
 
     let mut rng = rand::thread_rng();
     let random_seed = Some(rng.gen::<u64>());
-    //let random_seed = Some(0);
 
     let collapsed_wave_function = wave_function.get_collapsable_wave_function::<AccommodatingCollapsableWaveFunction<LandscapeElement>>(random_seed).collapse().unwrap();
 

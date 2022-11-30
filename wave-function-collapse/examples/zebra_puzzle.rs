@@ -10,7 +10,7 @@ use wave_function_collapse::wave_function::{
     collapsable_wave_function::{sequential_collapsable_wave_function::SequentialCollapsableWaveFunction, collapsable_wave_function::{CollapsedWaveFunction, CollapsableWaveFunction}}
 };
 
-
+/// This enum represents the different criteria that each person has unique to itself.
 #[derive(Eq, Hash, PartialEq, Debug)]
 enum InformationType {
     NationalOrigin,
@@ -60,6 +60,7 @@ impl InformationType {
     }
 }
 
+/// This enum represents the different national origins of the people.
 #[derive(Debug)]
 enum NationalOrigin {
     England,
@@ -90,6 +91,7 @@ impl NationalOrigin {
     }
 }
 
+/// This enum represents the different house colors of the people.
 #[derive(Debug)]
 enum HouseColor {
     Red,
@@ -120,6 +122,7 @@ impl HouseColor {
     }
 }
 
+/// This enum represents the different cigarette types of the people.
 #[derive(Debug)]
 enum CigaretteType {
     OldGold,
@@ -150,6 +153,7 @@ impl CigaretteType {
     }
 }
 
+/// This enum represents the different pets of the people.
 #[derive(Debug)]
 enum Pet {
     Dog,
@@ -180,6 +184,7 @@ impl Pet {
     }
 }
 
+/// This enum represents the different drinks of the people.
 #[derive(Debug)]
 enum Drink {
     Coffee,
@@ -210,8 +215,7 @@ impl Drink {
     }
 }
 
-// TODO create structure for containing the logic
-
+/// This enum describes how each information type exists in relation to each other.
 enum Proximity {
     Same,
     NotSame,
@@ -223,6 +227,7 @@ enum Proximity {
     ImmediateAdjacent
 }
 
+/// This struct represents a flattened unit of information, defined by the type.
 struct Information {
     national_origin: Option<NationalOrigin>,
     house_color: Option<HouseColor>,
@@ -302,6 +307,7 @@ impl Information {
     }
 }
 
+/// This struct represents the relationship between different information.
 struct Dependency {
     subject: Information,
     proximity: Proximity,
@@ -422,7 +428,7 @@ impl Dependency {
     }
     fn is_direct_pointer(&self) -> bool {
         match self.proximity {
-            Proximity::Index(index) => {
+            Proximity::Index(_) => {
                 panic!("Cannot use Index when a target is specified.");
             },
             Proximity::ImmediateLeft => {
@@ -447,16 +453,17 @@ impl Dependency {
                 return false;
             }
         }
-        false
     }
 }
 
+/// This struct represents a hashable key for ensuring that only unique NodeStateCollection instances are created.
 #[derive(PartialEq, Eq, Hash, Clone, Debug)]
 struct NodeStateCollectionKey {
     from_node_state_id: String,
     to_node_state_ids: Vec<String>
 }
 
+/// This struct represents the constraints between different person information relationships.
 struct ZebraPuzzle {
     dependencies: Vec<Dependency>
 }
@@ -866,6 +873,7 @@ impl ZebraPuzzle {
     }
 }
 
+/// This struct represents a solution to the puzzle.
 struct ZebraSolution {
     collapsed_wave_function: CollapsedWaveFunction<String>
 }
@@ -873,9 +881,9 @@ struct ZebraSolution {
 impl ZebraSolution {
     fn print(&self) {
         let mut node_state_per_column_per_row: Vec<Vec<Option<String>>> = Vec::new();
-        for information_type in InformationType::iter() {
+        for _ in InformationType::iter() {
             let mut node_state_per_column: Vec<Option<String>> = Vec::new();
-            for house_index in 0..5 {
+            for _ in 0..5 {
                 node_state_per_column.push(None);
             }
             node_state_per_column_per_row.push(node_state_per_column);

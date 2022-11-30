@@ -122,15 +122,12 @@ fn main() {
     let distance: u32 = 5;
     let landscape = Sparse::new(width, height, distance);
 
-    let mut wave_function = landscape.get_wave_function();
+    let wave_function = landscape.get_wave_function();
 
     wave_function.validate().unwrap();
-    //wave_function.sort();
-    //wave_function.optimize();
 
     let mut rng = rand::thread_rng();
     let random_seed = Some(rng.gen::<u64>());
-    //let random_seed = Some(0);
 
     let start = Instant::now();
 
