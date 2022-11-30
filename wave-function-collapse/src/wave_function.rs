@@ -1,24 +1,17 @@
-use std::{collections::{HashMap, HashSet, VecDeque}, cell::{RefCell}, rc::Rc, fmt::Display, hash::Hash, marker::PhantomData, fs::File, io::BufReader};
+use std::{collections::{HashMap, HashSet, VecDeque}, cell::{RefCell}, rc::Rc, hash::Hash, fs::File, io::BufReader};
 use serde::{Serialize, Deserialize, de::DeserializeOwned};
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use bitvec::prelude::*;
-use uuid::Uuid;
 use log::debug;
 extern crate pretty_env_logger;
-
 mod indexed_view;
 use crate::wave_function::collapsable_wave_function::collapsable_wave_function::CollapsableNode;
-
-use self::{indexed_view::IndexedView, collapsable_wave_function::collapsable_wave_function::{CollapsableWaveFunction, CollapsedNodeState, CollapsedWaveFunction}};
+use self::{indexed_view::IndexedView, collapsable_wave_function::collapsable_wave_function::{CollapsableWaveFunction}};
 mod probability_collection;
-use self::probability_collection::ProbabilityCollection;
 mod probability_tree;
-use self::probability_tree::ProbabilityTree;
 mod probability_container;
-use self::probability_container::ProbabilityContainer;
 pub mod collapsable_wave_function;
-use self::collapsable_wave_function::sequential_collapsable_wave_function::SequentialCollapsableWaveFunction;
 mod tests;
 
 pub struct NodeStateProbability;

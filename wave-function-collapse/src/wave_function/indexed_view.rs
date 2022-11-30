@@ -1,13 +1,13 @@
 use std::collections::VecDeque;
-use std::f32::consts::E;
 use std::fmt::{Debug};
 use std::hash::Hash;
 use std::{collections::HashMap};
 use bitvec::prelude::*;
-use rand::{seq::SliceRandom, Rng};
+use rand::{Rng};
 
 use crate::wave_function::probability_container::ProbabilityContainer;
 
+/// This struct represents a collection that can be incremented from an unstarted state to each sequential state provided. As masks are provided that either restrict or permit certain states, they will be skipped when performing try_move_next.
 pub struct IndexedView<TNodeState: Clone + Eq + Hash + Debug> {
     // items are states of the node
     node_state_ids: Vec<TNodeState>,
@@ -116,7 +116,6 @@ impl<TNodeState: Clone + Eq + Hash + Debug> IndexedView<TNodeState> {
     fn is_unmasked_at_index(&self, index: usize) -> bool {
         //debug!("checking if unmasked at index {index} for node {mask_key}.");
         let mapped_index = self.index_mapping[index];
-        //self.mask_counter[*mapped_index] == 0
         !self.is_restricted_at_index[mapped_index]
     }
     pub fn is_mask_restrictive_to_current_state(&self, mask: &BitVec) -> bool {
@@ -184,7 +183,6 @@ impl<TNodeState: Clone + Eq + Hash + Debug> IndexedView<TNodeState> {
                     self.is_restricted_at_index.set(index, true);
                     self.is_mask_dirty = true;
                 }
-                //self.mask_counter[index] = self.mask_counter[index].checked_add(1).unwrap();  // TODO replace with unchecked version above
             }
         }
         //debug!("added mask {:?} at current state {:?}.", mask, self.mask_counter);
@@ -200,7 +198,6 @@ impl<TNodeState: Clone + Eq + Hash + Debug> IndexedView<TNodeState> {
                     self.is_restricted_at_index.set(index, false);
                     self.is_mask_dirty = true;
                 }
-                //self.mask_counter[index] = self.mask_counter[index].checked_sub(1).unwrap();  // TODO replace with unchecked version above
             }
         }
         //debug!("removed mask {:?} at current state {:?}.", mask, self.mask_counter);

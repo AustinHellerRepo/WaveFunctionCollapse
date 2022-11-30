@@ -506,8 +506,8 @@ mod probability_container_unit_tests {
                 }
                 else {
                     let difference = instances_count.abs_diff(trials as u32 / current_number_of_items as u32);
-                    //println!("difference: {difference}");
-                    assert!(difference < 4000);
+                    println!("difference: {difference}");
+                    assert!(difference < 10000);
                 }
             }
             assert_eq!(number_of_items - current_number_of_items, zero_instances_count_total);
