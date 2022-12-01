@@ -19,7 +19,7 @@ Converts nodes and their constraints upon other nodes into a fully collapsed nod
 To use this framework, you will first want to determine the following:
 - What is the type of your node states?
   - An enum because there are only specific states?
-  - A String because it may be unknown at compile time?
+  - A UUID String because it may be unknown at compile time?
   - A u64 because it is a reference to an identifier in a database?
 - What does your graph of nodes look like?
   - Is it a flat grid like a checkerboard?
@@ -28,7 +28,7 @@ To use this framework, you will first want to determine the following:
   - Can direct neighbors of nodes not have the same state as the current node?
   - Are only certain states possible when the node is in this special state?
 
-Once these are answered, you can construct the vector of nodes and the vector of node state collections that those nodes reference for their permissive relationships. Please examine a relevant example to see how to the construction of nodes and node state collections occurs.
+Once these are answered, you can construct the vector of nodes and the vector of node state collections that those nodes reference for their permissive relationships. Please examine a relevant example to see how the construction of nodes and node state collections occurs.
 
 ## Examples
 

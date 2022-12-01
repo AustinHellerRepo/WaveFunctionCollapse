@@ -6,6 +6,12 @@ use bitvec::prelude::*;
 use rand::{Rng};
 use crate::wave_function::probability_container::ProbabilityContainer;
 
+/// This struct represents a stashed state of the IndexedView.
+pub struct IndexedViewMaskState {
+    mask_counter: Vec<u32>,
+    is_restricted_at_index: BitVec
+}
+
 /// This struct represents a collection that can be incremented from an unstarted state to each sequential state provided. As masks are provided that either restrict or permit certain states, they will be skipped when performing try_move_next.
 pub struct IndexedView<TNodeState: Clone + Eq + Hash + Debug> {
     // items are states of the node
@@ -73,12 +79,11 @@ impl<TNodeState: Clone + Eq + Hash + Debug> IndexedView<TNodeState> {
         let mut is_unmasked = false;
         let mut next_index: usize;
 
-        let node_state_ids_length = &self.node_state_ids_length;
         if let Some(index) = self.index {
-            debug!("trying to get next state starting with {index} and ending prior to {node_state_ids_length}.");
+            debug!("trying to get next state starting with {index} and ending prior to {}.", self.node_state_ids_length);
         }
         else {
-            debug!("trying to get next state starting with None and ending prior to {node_state_ids_length}.");
+            debug!("trying to get next state starting with None and ending prior to {}.", self.node_state_ids_length);
         }
 
         while self.index.is_none() || (self.index.unwrap() < self.node_state_ids_length && !is_unmasked) {
@@ -110,6 +115,71 @@ impl<TNodeState: Clone + Eq + Hash + Debug> IndexedView<TNodeState> {
         else {
             next_index = 0;
         }
+        self.index = Some(next_index);
+    }
+    pub fn try_move_next_cycle(&mut self, terminal_node_state: &TNodeState) -> bool {
+        let mut is_unmasked = false;
+        let mut next_index: usize;
+
+        if let Some(index) = self.index {
+            debug!("trying to get next state while cycling starting with {index} and cycling at {}.", self.node_state_ids_length);
+        }
+        else {
+            debug!("trying to get next state while cycling starting with None and cycling at {}.", self.node_state_ids_length);
+        }
+
+        let terminal_node_state_index: usize = *self.index_per_node_state_id.get(terminal_node_state).unwrap();
+
+        let mut is_incremented_at_least_once: bool = false;
+        let mut is_current_state_terminal_node_state: bool = false;
+        while !is_incremented_at_least_once || (!is_current_state_terminal_node_state && !is_unmasked) {
+            is_incremented_at_least_once = true;
+
+            if let Some(index) = self.index {
+                next_index = index + 1;
+                if next_index == self.node_state_ids_length {
+                    next_index = 0;
+                }
+            }
+            else {
+                next_index = 0;
+            }
+
+            debug!("incrementing or cycled index to {next_index}.");
+
+            self.index = Some(next_index);
+
+            if next_index == terminal_node_state_index {
+                is_current_state_terminal_node_state = true;
+            }
+            else {
+                is_unmasked = self.is_unmasked_at_index(next_index);
+            }
+        }
+        is_unmasked
+    }
+    pub fn move_next_cycle(&mut self) {
+        let mut next_index: usize;
+
+        if let Some(index) = self.index {
+            debug!("trying to get next state while cycling starting with {index} and cycling at {}.", self.node_state_ids_length);
+        }
+        else {
+            debug!("trying to get next state while cycling starting with None and cycling at {}.", self.node_state_ids_length);
+        }
+
+        if let Some(index) = self.index {
+            next_index = index + 1;
+            if next_index == self.node_state_ids_length {
+                next_index = 0;
+            }
+        }
+        else {
+            next_index = 0;
+        }
+
+        debug!("incrementing or cycled index to {next_index}.");
+
         self.index = Some(next_index);
     }
     fn is_unmasked_at_index(&self, index: usize) -> bool {
@@ -212,6 +282,29 @@ impl<TNodeState: Clone + Eq + Hash + Debug> IndexedView<TNodeState> {
         self.is_restricted_at_index = self.previous_is_restricted_at_index.pop_back().unwrap();
         self.is_fully_restricted = false;  // any movement backwards is to a non-restricted state
         //debug!("removed mask {:?} at current state {:?}.", mask, self.mask_counter);
+    }
+    pub fn stash_mask_state(&mut self) -> IndexedViewMaskState {
+        let indexed_view_mask_state = IndexedViewMaskState {
+            mask_counter: self.mask_counter.clone(),
+            is_restricted_at_index: self.is_restricted_at_index.clone()
+        };
+        for index in 0..self.node_state_ids_length {
+            self.mask_counter[index] = 0;
+            self.is_restricted_at_index.set(index, false);
+        }
+        self.is_mask_dirty = true;
+        indexed_view_mask_state
+    }
+    pub fn unstash_mask_state(&mut self, mut mask_state: IndexedViewMaskState) {
+        for index in 0..self.node_state_ids_length {
+            self.mask_counter[index] += mask_state.mask_counter[index];
+            let is_restricted_at_index: bool = self.is_restricted_at_index[index];
+            self.is_restricted_at_index.set(index, is_restricted_at_index || mask_state.is_restricted_at_index[index]);
+
+            mask_state.mask_counter[index] = 0;
+            mask_state.is_restricted_at_index.set(index, false);
+        }
+        self.is_mask_dirty = true;
     }
 }
 

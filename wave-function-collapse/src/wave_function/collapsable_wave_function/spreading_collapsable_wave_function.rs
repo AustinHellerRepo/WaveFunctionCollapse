@@ -1,13 +1,6 @@
-use std::collections::{HashSet};
-use std::marker::PhantomData;
-use std::{cell::RefCell, rc::Rc, collections::HashMap};
-use std::hash::Hash;
-use bitvec::vec::BitVec;
-use rand::seq::SliceRandom;
-use super::collapsable_wave_function::{CollapsableWaveFunction, CollapsableNode, CollapsedNodeState, CollapsedWaveFunction};
 
-/// This struct represents a CollapsableWaveFunction that picks a random node, tries to get each parent to accommodate to the current state of the random node, repeating until all nodes are unrestricted. This is best for finding solutions when the condition problem has many possible solutions and you want a more random solution. If there are very few solutions, the wave function is uncollapsable by design, or there are certain types of cycles in the graph, this algorithm with perform poorly or never complete.
-pub struct AccommodatingCollapsableWaveFunction<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> {
+
+pub struct SpreadingCollapsableWaveFunction<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> {
     collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a, TNodeState>>>>,
     collapsable_node_per_id: HashMap<&'a str, Rc<RefCell<CollapsableNode<'a, TNodeState>>>>,
     accommodate_node_ids: Vec<&'a str>,
@@ -300,9 +293,40 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveF
         //      initialize pointer to first element of collapsable_nodes
         //      while pointer is inside the bounds
         //          if current collapsable node is in conflict and not already impacted
-        //              accommodate this collapsable node
-        //              alter mask for neighbors
-        //              cache impacted nodes
+        //              remove current collapsable node mask from neighbors
+        //              remove each neighbors masks from each other who happen to also be neighbors
+        //              cache the stash from each neighbor
+        //              cache the state from each neighbor
+        //              add current collapsable node masks to neighbors
+        //              randomize order of neighbor nodes
+        //              initialize neighbor pointer to first neighbor
+        //              set current neighbor node cycle not required
+        //              while pointer is inside the bounds
+        //                  if the neighbor is in a restricted state or neighbor node cycle is required
+        //                      set current neighbor cycle not required
+        //                      try to cycle the neighbor node state
+        //                      if it was successful
+        //                          try to inform the neighbor nodes of their new restrictions
+        //                          if all neighbors have at least one valid state and are not currently restricted
+        //                              move the neighbor pointer to the next neighbor
+        //                          else
+        //                              set current neighbor node cycle required
+        //                      else the cached node state was rediscovered after cycling
+        //                          if the pointer is at the first neighbor
+        //                              restore the neighbor stashes
+        //                              restore each neighbor's masks to each other
+        //                              break out of the neighbor while loop
+        //                          else
+        //                              revert to the previous neighbor node so that it can try a different state
+        //                              set current neighbor node cycle required
+        //                  else
+        //                      try to inform the neighbor nodes of their new restrictions
+        //                      if all neighbors have at least one valid state and are not currently restricted
+        //                          move the neighbor pointer to the next neighbor
+        //                      else
+        //                          set current neighbor node cycle required
+        //              if pointer is outside the bounds
+        //                  cache impacted nodes
         //          increment pointer
         //
         // NOTE: this could cause an infinite loop for the AB<-->CD unit test
