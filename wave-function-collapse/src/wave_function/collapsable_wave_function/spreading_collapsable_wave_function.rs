@@ -1,17 +1,33 @@
+use std::{rc::Rc, cell::RefCell, collections::{HashMap, HashSet}, marker::PhantomData};
+use std::hash::Hash;
+use bitvec::vec::BitVec;
+use rand::seq::SliceRandom;
+
+use crate::wave_function::indexed_view::IndexedViewMaskState;
+
+use super::collapsable_wave_function::{CollapsableNode, CollapsedNodeState, CollapsedWaveFunction, CollapsableWaveFunction};
+
 
 
 pub struct SpreadingCollapsableWaveFunction<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> {
     collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a, TNodeState>>>>,
     collapsable_node_per_id: HashMap<&'a str, Rc<RefCell<CollapsableNode<'a, TNodeState>>>>,
-    accommodate_node_ids: Vec<&'a str>,
-    accommodate_node_ids_length: usize,
-    accommodate_node_ids_index: usize,
-    accommodated_total: usize,
+    spread_node_ids: Vec<&'a str>,
+    spread_node_ids_length: usize,
+    spread_node_ids_index: usize,
+    spread_total: usize,
     impacted_node_ids: HashSet<&'a str>,
+    stash_per_node_id: HashMap<&'a str, IndexedViewMaskState>,
+    original_node_state_per_node_id: HashMap<&'a str, &'a TNodeState>,
+    current_neighbor_node_ids: Vec<&'a str>,
+    current_neighbor_node_ids_index: usize,
+    current_neighbor_node_ids_length: usize,
+    is_current_neighbor_node_cycle_required: bool,
+    is_current_node_neighbors_collapse_possible: bool,
     node_state_type: PhantomData<TNodeState>
 }
 
-impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingCollapsableWaveFunction<'a, TNodeState> {
+impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> SpreadingCollapsableWaveFunction<'a, TNodeState> {
     fn initialize_nodes(&mut self) -> Result<Vec<CollapsedNodeState<TNodeState>>, String> {
 
         // initialize each collapsable node to its first (random) state, storing them for the return
@@ -25,7 +41,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingCol
                 return Err(String::from("Cannot collapse wave function."));
             }
             
-            self.accommodate_node_ids.push(collapsable_node.id);
+            self.spread_node_ids.push(collapsable_node.id);
             let node_state = collapsable_node.node_state_indexed_view.get().unwrap();
             let collapsed_node_state: CollapsedNodeState<TNodeState> = CollapsedNodeState {
                 node_id: String::from(collapsable_node.id),
@@ -33,8 +49,8 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingCol
             };
             initial_node_states.push(collapsed_node_state);
         }
-        self.accommodate_node_ids_length = self.accommodate_node_ids.len();
-        self.accommodated_total = self.accommodate_node_ids_length;
+        self.spread_node_ids_length = self.spread_node_ids.len();
+        self.spread_total = self.spread_node_ids_length;
 
         for wrapped_collapsable_node in self.collapsable_nodes.iter() {
             let collapsable_node = wrapped_collapsable_node.borrow();
@@ -62,34 +78,34 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingCol
 
         // returns if the temp_recently_accommodated_nodes is empty
 
-        self.accommodated_total == 0
+        self.spread_total == 0
     }
     fn prepare_nodes_for_iteration(&mut self) {
 
         // shuffle collapsable nodes
         // initialize pointer to first element of collapsable_nodes
 
-        debug!("prior to being prepared: {:?}", self.accommodate_node_ids);
+        debug!("prior to being prepared: {:?}", self.spread_node_ids);
 
-        self.accommodate_node_ids_index = 0;
-        self.accommodate_node_ids.shuffle(&mut rand::thread_rng());  // TODO use a provided random instance for deterministic results
-        self.accommodated_total = 0;
+        self.spread_node_ids_index = 0;
+        self.spread_node_ids.shuffle(&mut rand::thread_rng());  // TODO use a provided random instance for deterministic results
+        self.spread_total = 0;
         self.impacted_node_ids.clear();
      
-        debug!("after being prepared: {:?}", self.accommodate_node_ids);
+        debug!("after being prepared: {:?}", self.spread_node_ids);
     }
-    fn is_done_accommodating_nodes(&self) -> bool {
+    fn is_done_spreading_nodes(&self) -> bool {
 
         // returns if pointer is outside the bounds of the collapsable_nodes
 
-        self.accommodate_node_ids_index == self.accommodate_node_ids_length
+        self.spread_node_ids_index == self.spread_node_ids_length
     }
     fn is_current_node_in_conflict(&mut self) -> bool {
 
         // returns if the current state of the current node is restricted and not yet impacted
         // increment pointer if false
 
-        let current_collapsable_node_id: &str = self.accommodate_node_ids[self.accommodate_node_ids_index];
+        let current_collapsable_node_id: &str = self.spread_node_ids[self.spread_node_ids_index];
         let wrapped_current_collapsable_node = self.collapsable_node_per_id.get(current_collapsable_node_id).unwrap();
         let current_collapsable_node = wrapped_current_collapsable_node.borrow();
         let mut is_current_collapsable_node_in_conflict = current_collapsable_node.node_state_indexed_view.is_current_state_restricted();
@@ -107,7 +123,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingCol
         }
 
         if !is_current_collapsable_node_in_conflict {
-            self.accommodate_node_ids_index += 1;
+            self.spread_node_ids_index += 1;
             debug!("node is not in conflict: {:?}", current_collapsable_node_id);
         }
         else {
@@ -116,118 +132,139 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingCol
 
         is_current_collapsable_node_in_conflict
     }
-    fn accommodate_current_node(&mut self) -> Vec<CollapsedNodeState<TNodeState>> {
+    fn prepare_current_node_neighbors(&mut self) {
 
-        // accommodate this collapsable node, storing the node states for the return
-        // alter mask for neighbors
-        // cache impacted nodes
+        // remove current collapsable node mask from neighbors
+        // remove each neighbor's masks from all other nodes
+        // cache the state from each neighbor
+        // cache the stash from each neighbor
+        // add current collapsable node masks to neighbors
+        // randomize order of neighbor nodes
+        // initialize neighbor pointer to first neighbor
+        // set current neighbor node cycle not required
+        // set neighbors collapse possible true
 
-        // NOTE: resetting the indexed_view for each accommodating parent significantly reduces the performance of this algorithm
+        let current_collapsable_node_id: &str = self.spread_node_ids[self.spread_node_ids_index];
 
-        let mut changed_parent_node_states: Vec<CollapsedNodeState<TNodeState>> = Vec::new();
-        let mut to_node_state_and_from_node_state_tuple_per_parent_node_id: HashMap<&str, (&TNodeState, &TNodeState)> = HashMap::new();
-
-        // try to get each parent neighbor node to accommodate the current node
+        // remove current collapsable node mask from neighbors
         {
-            let current_collapsable_node_id: &str = self.accommodate_node_ids[self.accommodate_node_ids_index];
             let wrapped_current_collapsable_node = self.collapsable_node_per_id.get(current_collapsable_node_id).unwrap();
             let current_collapsable_node = wrapped_current_collapsable_node.borrow();
 
-            self.impacted_node_ids.insert(current_collapsable_node_id);
+            self.current_neighbor_node_ids = current_collapsable_node.neighbor_node_ids.clone();
 
-            // accommodate by making each parent try to move to a good next state
-            for parent_neighbor_node_id in current_collapsable_node.parent_neighbor_node_ids.iter() {
-                self.impacted_node_ids.insert(parent_neighbor_node_id);
-
-                let wrapped_parent_neighbor_node = self.collapsable_node_per_id.get(parent_neighbor_node_id).unwrap();
-                let mut parent_neighbor_node = wrapped_parent_neighbor_node.borrow_mut();
-                let original_node_state = *parent_neighbor_node.node_state_indexed_view.get().unwrap();
-                let mut current_node_state = original_node_state;
-                let mut is_current_node_state_restrictive = true;
-                while is_current_node_state_restrictive {
-                    let is_current_mask_from_parent_restrictive: bool;
-                    if parent_neighbor_node.mask_per_neighbor_per_state.contains_key(&current_node_state) {
-                        let mask_per_neighbor = parent_neighbor_node.mask_per_neighbor_per_state.get(&current_node_state).unwrap();
-                        let mask = mask_per_neighbor.get(current_collapsable_node_id).unwrap();
-                        is_current_mask_from_parent_restrictive = current_collapsable_node.is_mask_restrictive_to_current_state(mask);
-                    }
-                    else {
-                        is_current_mask_from_parent_restrictive = false;
-                    }
-                    if !is_current_mask_from_parent_restrictive {
-                        debug!("found unrestricted mask (or no mask) for neighbor {:?}", parent_neighbor_node_id);
-                        is_current_node_state_restrictive = false;  // leave the while loop for this parent neighbor node
-
-                        if current_node_state != original_node_state {
-                            debug!("the node state had to change to {:?}", current_node_state);
-
-                            // store the changed node state
-                            changed_parent_node_states.push(CollapsedNodeState {
-                                node_id: String::from(*parent_neighbor_node_id),
-                                node_state_id: Some(current_node_state.clone())
-                            });
-                            
-                            to_node_state_and_from_node_state_tuple_per_parent_node_id.insert(parent_neighbor_node_id, (original_node_state, current_node_state));
-                        }
-                        else {
-                            debug!("the node state was already good at {:?}", current_node_state);
-                        }
-                    }
-                    else {
-                        parent_neighbor_node.node_state_indexed_view.move_next();
-                        let next_node_state = *parent_neighbor_node.node_state_indexed_view.get().unwrap();
-                        if next_node_state == original_node_state {
-                            // unable to accommodate the current collapsable node
-                            debug!("Unable to accommodate the current collapsable node {:?} at state {:?}", current_collapsable_node_id, current_collapsable_node.node_state_indexed_view.get().unwrap());
-                            break;
-                        }
-                        current_node_state = next_node_state;
-                    }
+            let current_collapsable_node_state = current_collapsable_node.node_state_indexed_view.get().unwrap();
+            let mask_per_neighbor = current_collapsable_node.mask_per_neighbor_per_state.get(current_collapsable_node_state).unwrap();
+            for neighbor_node_id in current_collapsable_node.neighbor_node_ids.iter() {
+                if mask_per_neighbor.contains_key(neighbor_node_id) {
+                    let mask = mask_per_neighbor.get(neighbor_node_id).unwrap();
+                    let wrapped_neighbor_collapsable_node = self.collapsable_node_per_id.get(neighbor_node_id).unwrap();
+                    let mut neighbor_collapsable_node = wrapped_current_collapsable_node.borrow_mut();
+                    neighbor_collapsable_node.subtract_mask(mask);
                 }
             }
         }
 
-        // subtract original masks for altered neighbors and add new masks
+        // remove each neighbor's masks from all other nodes
+        // cache the state from each neighbor
         {
-            for (parent_neighbor_node_id, (original_node_state, current_node_state)) in to_node_state_and_from_node_state_tuple_per_parent_node_id.iter() {
-                let wrapped_parent_neighbor_node = self.collapsable_node_per_id.get(parent_neighbor_node_id).unwrap();
-                let parent_neighbor_node = wrapped_parent_neighbor_node.borrow();
+            for neighbor_node_id in self.current_neighbor_node_ids.iter() {
+                let wrapped_neighbor_collapsable_node = self.collapsable_node_per_id.get(neighbor_node_id).unwrap();
+                let neighbor_collapsable_node = wrapped_neighbor_collapsable_node.borrow();
+                let neighbor_collapsable_node_state = neighbor_collapsable_node.node_state_indexed_view.get().unwrap();
                 
-                // inform the impacted neighbors
-                let neighbor_node_ids: &Vec<&str> = &parent_neighbor_node.neighbor_node_ids;
-                let mask_per_neighbor_per_state: &HashMap<&TNodeState, HashMap<&str, BitVec>> = &parent_neighbor_node.mask_per_neighbor_per_state;
-                if let Some(mask_per_neighbor) = mask_per_neighbor_per_state.get(original_node_state) {
-                    for neighbor_node_id in neighbor_node_ids.iter() {
-                        if mask_per_neighbor.contains_key(neighbor_node_id) {
-                            let wrapped_neighbor_collapsable_node = self.collapsable_node_per_id.get(neighbor_node_id).unwrap();
-                            let mut neighbor_collapsable_node = wrapped_neighbor_collapsable_node.borrow_mut();
-                            //debug!("looking for mask from parent {:?} to child {:?}.", collapsable_node.id, neighbor_node_id);
-                            //debug!("mask_per_neighbor: {:?}", mask_per_neighbor);
-                            let mask = mask_per_neighbor.get(neighbor_node_id).unwrap();
-                            neighbor_collapsable_node.subtract_mask(mask);
-                            debug!("subtracting mask to {:?} when in accommodate_current_node", neighbor_node_id);
-                        }
-                    }
-                }
-                if let Some(mask_per_neighbor) = mask_per_neighbor_per_state.get(current_node_state) {
-                    for neighbor_node_id in neighbor_node_ids.iter() {
-                        if mask_per_neighbor.contains_key(neighbor_node_id) {
-                            let wrapped_neighbor_collapsable_node = self.collapsable_node_per_id.get(neighbor_node_id).unwrap();
-                            let mut neighbor_collapsable_node = wrapped_neighbor_collapsable_node.borrow_mut();
-                            //debug!("looking for mask from parent {:?} to child {:?}.", collapsable_node.id, neighbor_node_id);
-                            //debug!("mask_per_neighbor: {:?}", mask_per_neighbor);
-                            let mask = mask_per_neighbor.get(neighbor_node_id).unwrap();
-                            neighbor_collapsable_node.add_mask(mask);
-                            debug!("adding mask to {:?} when in accommodate_current_node", neighbor_node_id);
-                        }
+                self.original_node_state_per_node_id.insert(neighbor_node_id, neighbor_collapsable_node_state);
+
+                let mask_per_neighbor = neighbor_collapsable_node.mask_per_neighbor_per_state.get(neighbor_collapsable_node_state).unwrap();
+                for great_neighbor_node_id in neighbor_collapsable_node.neighbor_node_ids.iter() {
+                    if mask_per_neighbor.contains_key(great_neighbor_node_id) {
+                        let mask = mask_per_neighbor.get(great_neighbor_node_id).unwrap();
+                        let wrapped_great_neighbor_collapsable_node = self.collapsable_node_per_id.get(great_neighbor_node_id).unwrap();
+                        let mut great_neighbor_collapsable_node = wrapped_great_neighbor_collapsable_node.borrow_mut();
+                        great_neighbor_collapsable_node.subtract_mask(mask);
                     }
                 }
             }
         }
 
-        self.accommodated_total += 1;
+        // cache the stash from each neighbor
+        {
+            for neighbor_node_id in self.current_neighbor_node_ids.iter() {
+                let wrapped_neighbor_collapsable_node = self.collapsable_node_per_id.get(neighbor_node_id).unwrap();
+                let neighbor_collapsable_node = wrapped_neighbor_collapsable_node.borrow();
+                let indexed_view_mask_state = neighbor_collapsable_node.node_state_indexed_view.stash_mask_state();
+                
+                self.stash_per_node_id.insert(neighbor_node_id, indexed_view_mask_state);
+            }
+        }
 
-        changed_parent_node_states
+        // add current collapsable node masks to neighbors
+        {
+            let wrapped_current_collapsable_node = self.collapsable_node_per_id.get(current_collapsable_node_id).unwrap();
+            let current_collapsable_node = wrapped_current_collapsable_node.borrow();
+            let current_collapsable_node_state = current_collapsable_node.node_state_indexed_view.get().unwrap();
+            let mask_per_neighbor = current_collapsable_node.mask_per_neighbor_per_state.get(current_collapsable_node_state).unwrap();
+            for neighbor_node_id in current_collapsable_node.neighbor_node_ids.iter() {
+                if mask_per_neighbor.contains_key(neighbor_node_id) {
+                    let mask = mask_per_neighbor.get(neighbor_node_id).unwrap();
+                    let wrapped_neighbor_collapsable_node = self.collapsable_node_per_id.get(neighbor_node_id).unwrap();
+                    let mut neighbor_collapsable_node = wrapped_current_collapsable_node.borrow_mut();
+                    neighbor_collapsable_node.add_mask(mask);
+                }
+            }
+        }
+
+        // randomize order of neighbor nodes
+        self.current_neighbor_node_ids.shuffle(&mut rand::thread_rng());
+
+        // initialize neighbor pointer to first neighbor
+        self.current_neighbor_node_ids_index = 0;
+        self.current_neighbor_node_ids_length = self.current_neighbor_node_ids.len();
+
+        // set current neighbor node cycle not required
+        self.is_current_neighbor_node_cycle_required = false;
+
+        // set neighbor collapse possible true
+        self.is_current_node_neighbors_collapse_possible = true;
+    }
+    fn is_current_node_neighbors_collapsed(&self) -> bool {
+        // while pointer is inside the bounds and neighbors are possible
+        self.current_neighbor_node_ids_index < self.current_neighbor_node_ids_length && self.is_current_node_neighbors_collapse_possible
+    }
+    fn is_current_node_neighbor_state_change_required(&self) -> bool {
+        // if the neighbor is in a restricted state or neighbor node cycle is required
+        if self.is_current_neighbor_node_cycle_required {
+            true
+        }
+        else {
+            let neighbor_node_id = self.current_neighbor_node_ids[self.current_neighbor_node_ids_index];
+            let wrapped_neighbor_collapsable_node = self.collapsable_node_per_id.get(neighbor_node_id).unwrap();
+            let neighbor_collapsable_node = wrapped_neighbor_collapsable_node.borrow();
+            neighbor_collapsable_node.node_state_indexed_view.is_current_state_restricted()
+        }
+    }
+    fn change_state_of_current_node_neighbor(&mut self) -> Vec<CollapsedNodeState<TNodeState>> {
+
+        // set current neighbor cycle not required
+        // try to cycle the neighbor node state
+        // if it was successful
+        //     try to inform the current node and neighbor nodes of their new restrictions
+        //     if all affected nodes have at least one valid state and are not currently restricted
+        //         move the neighbor pointer to the next neighbor
+        //     else
+        //         set current neighbor node cycle required
+        // else the cached node state was rediscovered after cycling
+        //     if the pointer is at the first neighbor
+        //         set neighbors collapse possible false
+        //     else
+        //         revert to the previous neighbor node so that it can try a different state
+        //         set current neighbor node cycle required
+
+        let mut changed_neighbor_node_states: Vec<CollapsedNodeState<TNodeState>> = Vec::new();
+
+        
+
+        changed_neighbor_node_states
     }
     fn get_collapsed_wave_function(&self) -> CollapsedWaveFunction<TNodeState> {
         let mut node_state_per_node: HashMap<String, TNodeState> = HashMap::new();
@@ -244,16 +281,22 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingCol
     }
 }
 
-impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveFunction<'a, TNodeState> for AccommodatingCollapsableWaveFunction<'a, TNodeState> {
+impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveFunction<'a, TNodeState> for SpreadingCollapsableWaveFunction<'a, TNodeState> {
     fn new(collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a, TNodeState>>>>, collapsable_node_per_id: HashMap<&'a str, Rc<RefCell<CollapsableNode<'a, TNodeState>>>>) -> Self {
-        AccommodatingCollapsableWaveFunction {
+        SpreadingCollapsableWaveFunction {
             collapsable_nodes: collapsable_nodes,
             collapsable_node_per_id: collapsable_node_per_id,
-            accommodate_node_ids: Vec::new(),
-            accommodate_node_ids_length: 0,
-            accommodate_node_ids_index: 0,
-            accommodated_total: 0,
+            spread_node_ids: Vec::new(),
+            spread_node_ids_length: 0,
+            spread_node_ids_index: 0,
+            spread_total: 0,
             impacted_node_ids: HashSet::new(),
+            stash_per_node_id: HashMap::new(),
+            original_node_state_per_node_id: HashMap::new(),
+            current_neighbor_node_ids_index: 0,
+            current_neighbor_node_ids_length: 0,
+            is_current_neighbor_node_cycle_required: false,
+            is_current_node_neighbors_collapse_possible: true,
             node_state_type: PhantomData
         }
     }
@@ -294,39 +337,42 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveF
         //      while pointer is inside the bounds
         //          if current collapsable node is in conflict and not already impacted
         //              remove current collapsable node mask from neighbors
-        //              remove each neighbors masks from each other who happen to also be neighbors
-        //              cache the stash from each neighbor
+        //              remove each neighbor's masks from all other nodes
         //              cache the state from each neighbor
+        //              cache the stash from each neighbor
         //              add current collapsable node masks to neighbors
         //              randomize order of neighbor nodes
         //              initialize neighbor pointer to first neighbor
         //              set current neighbor node cycle not required
-        //              while pointer is inside the bounds
+        //              set neighbors collapse possible true
+        //              while pointer is inside the bounds and neighbors are possible
         //                  if the neighbor is in a restricted state or neighbor node cycle is required
         //                      set current neighbor cycle not required
         //                      try to cycle the neighbor node state
         //                      if it was successful
-        //                          try to inform the neighbor nodes of their new restrictions
-        //                          if all neighbors have at least one valid state and are not currently restricted
+        //                          try to inform the current node and neighbor nodes of their new restrictions
+        //                          if all affected nodes have at least one valid state and are not currently restricted
         //                              move the neighbor pointer to the next neighbor
         //                          else
         //                              set current neighbor node cycle required
         //                      else the cached node state was rediscovered after cycling
         //                          if the pointer is at the first neighbor
-        //                              restore the neighbor stashes
-        //                              restore each neighbor's masks to each other
-        //                              break out of the neighbor while loop
+        //                              set neighbors collapse possible false
         //                          else
         //                              revert to the previous neighbor node so that it can try a different state
         //                              set current neighbor node cycle required
         //                  else
-        //                      try to inform the neighbor nodes of their new restrictions
-        //                      if all neighbors have at least one valid state and are not currently restricted
+        //                      try to inform the current node and neighbor nodes of their new restrictions
+        //                      if all affected nodes have at least one valid state and are not currently restricted
         //                          move the neighbor pointer to the next neighbor
         //                      else
         //                          set current neighbor node cycle required
         //              if pointer is outside the bounds
         //                  cache impacted nodes
+        //                  add neighbor masks only to other nodes
+        //              else
+        //                  add neighbor masks to all of their neighbors and other nodes
+        //              unstash the neighbors
         //          increment pointer
         //
         // NOTE: this could cause an infinite loop for the AB<-->CD unit test
@@ -342,10 +388,18 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveF
 
         while !self.is_fully_collapsed() {
             self.prepare_nodes_for_iteration();
-            while !self.is_done_accommodating_nodes() {
+            while !self.is_done_spreading_nodes() {
                 if self.is_current_node_in_conflict() {
-                    let accommodated_neighbor_node_states = self.accommodate_current_node();
-                    collapsed_node_states.extend(accommodated_neighbor_node_states);
+                    self.prepare_current_node_neighbors();
+                    while !self.is_current_node_neighbors_collapsed() {
+                        if self.is_current_node_neighbor_state_change_required() {
+                            let spreading_neighbor_node_state = self.change_state_of_current_node_neighbor();
+                            collapsed_node_states.extend(spreading_neighbor_node_state);
+                        }
+                        else {
+                            self.allow_current_node_neighbor_to_maintain_state();
+                        }
+                    }
                 }
             }
         }
