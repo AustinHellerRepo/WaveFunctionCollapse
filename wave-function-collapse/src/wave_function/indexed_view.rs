@@ -295,7 +295,7 @@ impl<TNodeState: Clone + Eq + Hash + Debug> IndexedView<TNodeState> {
         self.is_mask_dirty = true;
         indexed_view_mask_state
     }
-    pub fn unstash_mask_state(&mut self, mut mask_state: IndexedViewMaskState) {
+    pub fn unstash_mask_state(&mut self, mask_state: &mut IndexedViewMaskState) {
         for index in 0..self.node_state_ids_length {
             self.mask_counter[index] += mask_state.mask_counter[index];
             let is_restricted_at_index: bool = self.is_restricted_at_index[index];

@@ -9,7 +9,7 @@ use wave_function_collapse::wave_function::{
     Node,
     NodeStateCollection,
     WaveFunction,
-    collapsable_wave_function::{collapsable_wave_function::CollapsableWaveFunction, accommodating_collapsable_wave_function::AccommodatingCollapsableWaveFunction}
+    collapsable_wave_function::{collapsable_wave_function::CollapsableWaveFunction, accommodating_collapsable_wave_function::AccommodatingCollapsableWaveFunction, spreading_collapsable_wave_function::SpreadingCollapsableWaveFunction}
 };
 
 /// This enum represents the possible states of a node in the 2D world
@@ -254,7 +254,7 @@ fn main() {
     let mut rng = rand::thread_rng();
     let random_seed = Some(rng.gen::<u64>());
 
-    let collapsed_wave_function = wave_function.get_collapsable_wave_function::<AccommodatingCollapsableWaveFunction<LandscapeElement>>(random_seed).collapse().unwrap();
+    let collapsed_wave_function = wave_function.get_collapsable_wave_function::<SpreadingCollapsableWaveFunction<LandscapeElement>>(random_seed).collapse().unwrap();
 
     let mut node_state_per_y_per_x: Vec<Vec<Option<LandscapeElement>>> = Vec::new();
     for _ in 0..width {

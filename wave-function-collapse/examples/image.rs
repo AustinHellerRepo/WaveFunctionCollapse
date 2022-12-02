@@ -1,7 +1,7 @@
 use std::{collections::{HashSet, HashMap}, io::Write, time::Instant};
 use serde::{Serialize, Deserialize};
 use uuid::Uuid;
-use wave_function_collapse::wave_function::{WaveFunction, NodeStateCollection, Node, collapsable_wave_function::{accommodating_collapsable_wave_function::AccommodatingCollapsableWaveFunction, collapsable_wave_function::{CollapsableWaveFunction, CollapsedWaveFunction}, sequential_collapsable_wave_function::SequentialCollapsableWaveFunction}};
+use wave_function_collapse::wave_function::{WaveFunction, NodeStateCollection, Node, collapsable_wave_function::{accommodating_collapsable_wave_function::AccommodatingCollapsableWaveFunction, collapsable_wave_function::{CollapsableWaveFunction, CollapsedWaveFunction}, sequential_collapsable_wave_function::SequentialCollapsableWaveFunction, spreading_collapsable_wave_function::SpreadingCollapsableWaveFunction}};
 use image::{io::Reader as ImageReader, GenericImageView, DynamicImage, ImageFormat};
 use colored::{Colorize, ColoredString};
 use std::cmp;
@@ -254,7 +254,7 @@ fn main() {
 
     println!("validated");
 
-    let mut collapsable_wave_function = wave_function.get_collapsable_wave_function::<AccommodatingCollapsableWaveFunction<ImageFragment>>(None);
+    let mut collapsable_wave_function = wave_function.get_collapsable_wave_function::<SpreadingCollapsableWaveFunction<ImageFragment>>(None);
     
     let start = Instant::now();
     let collapsed_wave_function = collapsable_wave_function.collapse().unwrap();
