@@ -191,12 +191,12 @@ impl<TNodeState: Clone + Eq + Hash + Debug> IndexedView<TNodeState> {
         if let Some(index) = self.index {
             let mapped_index = self.index_mapping[index];
             let is_restrictive = !mask[mapped_index];
-            if is_restrictive {
+            /*if is_restrictive {
                 debug!("mask is restrictive at index {:?} after mapping to index {:?} for mask {:?}", index, mapped_index, mask);
             }
             else {
                 debug!("mask is not restrictive at index {:?} after mapping to index {:?} for mask {:?}", index, mapped_index, mask);
-            }
+            }*/
             is_restrictive
         }
         else {
@@ -305,6 +305,23 @@ impl<TNodeState: Clone + Eq + Hash + Debug> IndexedView<TNodeState> {
             mask_state.is_restricted_at_index.set(index, false);
         }
         self.is_mask_dirty = true;
+    }
+    pub fn is_fully_unmasked(&self) -> bool {
+        let mut is_masked = false;
+        for index in 0..self.node_state_ids_length {
+            if self.mask_counter[index] != 0 {
+                is_masked = true;
+                break;
+            }
+        }
+        !is_masked
+    }
+    pub fn get_mask_density(&self) -> u32 {
+        let mut mask_density = 0;
+        for index in 0..self.node_state_ids_length {
+            mask_density += self.mask_counter[index];
+        }
+        mask_density
     }
 }
 
