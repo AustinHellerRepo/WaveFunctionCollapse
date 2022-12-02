@@ -2,12 +2,8 @@ use std::{rc::Rc, cell::RefCell, collections::{HashMap, HashSet}, marker::Phanto
 use std::hash::Hash;
 use bitvec::vec::BitVec;
 use rand::seq::SliceRandom;
-
 use crate::wave_function::indexed_view::IndexedViewMaskState;
-
 use super::collapsable_wave_function::{CollapsableNode, CollapsedNodeState, CollapsedWaveFunction, CollapsableWaveFunction};
-
-
 
 pub struct SpreadingCollapsableWaveFunction<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> {
     collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a, TNodeState>>>>,
@@ -505,21 +501,32 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveF
             return Err(initialized_node_states_result.err().unwrap());
         }
 
+        debug!("beginning main while loop");
         while !self.is_fully_collapsed() {
+            debug!("preparing nodes for iteration");
             self.prepare_nodes_for_iteration();
+            debug!("while not done spreading nodes");
             while !self.is_done_spreading_nodes() {
+                debug!("checking if current node is in conflict");
                 if self.is_current_node_in_conflict() {
+                    debug!("preparing current node neighbors");
                     self.prepare_current_node_neighbors();
+                    debug!("while current node neighbors not yet collapsed");
                     while !self.is_current_node_neighbors_collapsed() {
+                        debug!("checking if current node neighbor state change is required");
                         if self.is_current_node_neighbor_state_change_required() {
+                            debug!("changing state of current node neighbor");
                             self.change_state_of_current_node_neighbor();
                         }
                         else {
+                            debug!("allowing current node neighbor to maintain its state");
                             self.allow_current_node_neighbor_to_maintain_state();
                         }
                     }
+                    debug!("cleaning up current node neighbors");
                     self.cleanup_current_node_neighbors();
                 }
+                debug!("moving to next collapsable node");
                 self.move_to_next_node();
             }
             iterations_total += 1;

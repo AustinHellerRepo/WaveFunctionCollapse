@@ -684,12 +684,12 @@ mod wave_function_unit_tests {
 
     use std::collections::HashMap;
     use rand::{RngCore, Rng};
-    use crate::wave_function::{Node, WaveFunction, NodeStateCollection, NodeStateProbability, collapsable_wave_function::{sequential_collapsable_wave_function::SequentialCollapsableWaveFunction, collapsable_wave_function::{CollapsedWaveFunction, CollapsedNodeState, CollapsableWaveFunction}, accommodating_collapsable_wave_function::AccommodatingCollapsableWaveFunction}};
+    use crate::wave_function::{Node, WaveFunction, NodeStateCollection, NodeStateProbability, collapsable_wave_function::{sequential_collapsable_wave_function::SequentialCollapsableWaveFunction, collapsable_wave_function::{CollapsedWaveFunction, CollapsedNodeState, CollapsableWaveFunction}, accommodating_collapsable_wave_function::AccommodatingCollapsableWaveFunction, spreading_collapsable_wave_function::SpreadingCollapsableWaveFunction}};
     use super::*;
 
     fn init() {
         std::env::set_var("RUST_LOG", "trace");
-        //pretty_env_logger::try_init();
+        pretty_env_logger::try_init();
     }
 
     #[test]
@@ -755,6 +755,26 @@ mod wave_function_unit_tests {
     }
 
     #[test]
+    fn one_node_no_states_spreading() {
+        init();
+
+        let mut nodes: Vec<Node<String>> = Vec::new();
+        let node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+
+        nodes.push(Node::new(
+            Uuid::new_v4().to_string(),
+            HashMap::new(),
+            HashMap::new()
+        ));
+
+        let wave_function = WaveFunction::new(nodes, node_state_collections);
+        wave_function.validate().unwrap();
+        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SpreadingCollapsableWaveFunction<String>>(None).collapse();
+
+        assert_eq!("Cannot collapse wave function.", collapsed_wave_function_result.err().unwrap());
+    }
+
+    #[test]
     fn one_node_one_state_sequential() {
         init();
 
@@ -797,6 +817,30 @@ mod wave_function_unit_tests {
         let wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
         let collapsed_wave_function = wave_function.get_collapsable_wave_function::<AccommodatingCollapsableWaveFunction<String>>(None).collapse().unwrap();
+        
+        assert_eq!(1, collapsed_wave_function.node_state_per_node.keys().len());
+        assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&node_id).unwrap());
+    }
+
+    #[test]
+    fn one_node_one_state_spreading() {
+        init();
+
+        let mut nodes: Vec<Node<String>> = Vec::new();
+        let node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+
+        let node_id: String = Uuid::new_v4().to_string();
+        let node_state_id: String = Uuid::new_v4().to_string();
+        
+        nodes.push(Node::new(
+            node_id.clone(),
+            NodeStateProbability::get_equal_probability(vec![node_state_id.clone()]),
+            HashMap::new()
+        ));
+
+        let wave_function = WaveFunction::new(nodes, node_state_collections);
+        wave_function.validate().unwrap();
+        let collapsed_wave_function = wave_function.get_collapsable_wave_function::<SpreadingCollapsableWaveFunction<String>>(None).collapse().unwrap();
         
         assert_eq!(1, collapsed_wave_function.node_state_per_node.keys().len());
         assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&node_id).unwrap());
