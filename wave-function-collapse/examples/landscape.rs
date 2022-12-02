@@ -243,8 +243,8 @@ fn main() {
 
     let start = Instant::now();
 
-    let width: u32 = 6;
-    let height: u32 = 6;
+    let width: u32 = 8;
+    let height: u32 = 8;
     let landscape = Landscape::new(width, height);
 
     let wave_function = landscape.get_wave_function();

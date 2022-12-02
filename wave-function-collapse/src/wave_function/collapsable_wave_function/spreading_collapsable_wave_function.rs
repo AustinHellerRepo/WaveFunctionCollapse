@@ -110,16 +110,40 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> SpreadingCollaps
 
         // returns if current collapsable node is in conflict and not already impacted
 
-        let current_collapsable_node_id: &str = self.spread_node_ids[self.spread_node_ids_index];
-        let wrapped_current_collapsable_node = self.collapsable_node_per_id.get(current_collapsable_node_id).unwrap();
-        let current_collapsable_node = wrapped_current_collapsable_node.borrow();
-        debug!("node {:?} is assumed to always be in conflict regardless of it being in state {:?}", current_collapsable_node_id, current_collapsable_node.node_state_indexed_view.get().unwrap());
-        return true;
+        if false {
+            let current_collapsable_node_id: &str = self.spread_node_ids[self.spread_node_ids_index];
+            let wrapped_current_collapsable_node = self.collapsable_node_per_id.get(current_collapsable_node_id).unwrap();
+            let current_collapsable_node = wrapped_current_collapsable_node.borrow();
+            debug!("node {:?} is assumed to always be in conflict regardless of it being in state {:?}", current_collapsable_node_id, current_collapsable_node.node_state_indexed_view.get().unwrap());
+            return true;
+        }
 
         let current_collapsable_node_id: &str = self.spread_node_ids[self.spread_node_ids_index];
         let wrapped_current_collapsable_node = self.collapsable_node_per_id.get(current_collapsable_node_id).unwrap();
         let current_collapsable_node = wrapped_current_collapsable_node.borrow();
         let mut is_current_collapsable_node_in_conflict = current_collapsable_node.node_state_indexed_view.is_current_state_restricted();
+
+        if !is_current_collapsable_node_in_conflict {
+            for neighbor_node_id in current_collapsable_node.neighbor_node_ids.iter() {
+                let wrapped_neighbor_collapsable_node = self.collapsable_node_per_id.get(neighbor_node_id).unwrap();
+                let neighbor_collapsable_node = wrapped_neighbor_collapsable_node.borrow();
+                if neighbor_collapsable_node.node_state_indexed_view.is_current_state_restricted() {
+                    is_current_collapsable_node_in_conflict = true;
+                    break;
+                }
+            }
+
+            if !is_current_collapsable_node_in_conflict {
+                for neighbor_node_id in current_collapsable_node.parent_neighbor_node_ids.iter() {
+                    let wrapped_neighbor_collapsable_node = self.collapsable_node_per_id.get(neighbor_node_id).unwrap();
+                    let neighbor_collapsable_node = wrapped_neighbor_collapsable_node.borrow();
+                    if neighbor_collapsable_node.node_state_indexed_view.is_current_state_restricted() {
+                        is_current_collapsable_node_in_conflict = true;
+                        break;
+                    }
+                }
+            }
+        }
 
         if self.impacted_node_ids.contains(current_collapsable_node_id) {
             debug!("current node was already impacted");
