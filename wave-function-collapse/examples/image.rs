@@ -1,4 +1,5 @@
 use std::{collections::{HashSet, HashMap}, io::Write, time::Instant};
+use rand::Rng;
 use serde::{Serialize, Deserialize};
 use uuid::Uuid;
 use wave_function_collapse::wave_function::{WaveFunction, NodeStateCollection, Node, collapsable_wave_function::{accommodating_collapsable_wave_function::AccommodatingCollapsableWaveFunction, collapsable_wave_function::{CollapsableWaveFunction, CollapsedWaveFunction}, sequential_collapsable_wave_function::SequentialCollapsableWaveFunction, spreading_collapsable_wave_function::SpreadingCollapsableWaveFunction}};
@@ -8,8 +9,7 @@ use std::cmp;
 
 fn print_pixel(color: &[u8; 4]) {
     let character = "\u{2588}";
-    print!("{}", character.truecolor(color[0], color[1], color[2]));
-    print!("{}", character.truecolor(color[0], color[1], color[2]));
+    print!("{}{}", character.truecolor(color[0], color[1], color[2]), character.truecolor(color[0], color[1], color[2]));
 }
 
 #[derive(Hash, Clone, Debug, PartialEq, PartialOrd, Eq, Ord, Serialize, Deserialize)]
@@ -58,6 +58,34 @@ impl ImageFragment {
             println!("");
         }
     }
+    fn rotate(&self) -> Self {
+        let mut pixels = [[[0; 4]; 3]; 3];
+        for height_index in 0..3 {
+            for width_index in 0..3 {
+                let source_color = self.pixels[width_index][height_index];
+                let destination_width_index = 2 - height_index;
+                let destination_height_index = width_index;
+                pixels[destination_width_index][destination_height_index] = source_color;
+            }
+        }
+        ImageFragment {
+            pixels: pixels
+        }
+    }
+    fn flip(&self) -> Self {
+        let mut pixels = [[[0; 4]; 3]; 3];
+        for height_index in 0..3 {
+            for width_index in 0..3 {
+                let source_color = self.pixels[width_index][height_index];
+                let destination_width_index = 2 - width_index;
+                let destination_height_index = height_index;
+                pixels[destination_width_index][destination_height_index] = source_color;
+            }
+        }
+        ImageFragment {
+            pixels: pixels
+        }
+    }
 }
 
 struct Canvas {
@@ -86,16 +114,30 @@ impl Canvas {
 
         for image_height_index in 0..(image_height - 2) {
             for image_width_index in 0..(image_width - 2) {
-                let image_fragment = ImageFragment::new_from_image(&image, image_width_index, image_height_index);
-                if !image_fragment_duplicates_total_per_image_fragment.contains_key(&image_fragment) {
-                    image_fragment_duplicates_total_per_image_fragment.insert(image_fragment.clone(), 1.0);
-                }
-                else {
-                    let image_fragment_duplicates_total: &f32 = image_fragment_duplicates_total_per_image_fragment.get(&image_fragment).unwrap();
-                    image_fragment_duplicates_total_per_image_fragment.insert(image_fragment.clone(), image_fragment_duplicates_total + 1.0);
-                }
+                let mut oriented_image_fragments: Vec<ImageFragment> = Vec::new();
+                let mut image_fragment = ImageFragment::new_from_image(&image, image_width_index, image_height_index);
+                oriented_image_fragments.push(image_fragment.clone());
+                image_fragment = image_fragment.rotate();
+                oriented_image_fragments.push(image_fragment.clone());
+                image_fragment = image_fragment.rotate();
+                oriented_image_fragments.push(image_fragment.clone());
+                image_fragment = image_fragment.rotate();
+                oriented_image_fragments.push(image_fragment.clone());
+                image_fragment = image_fragment.flip();
+                oriented_image_fragments.push(image_fragment.clone());
+                image_fragment = image_fragment.rotate();
+                oriented_image_fragments.push(image_fragment.clone());
+                image_fragment = image_fragment.rotate();
+                oriented_image_fragments.push(image_fragment.clone());
+                image_fragment = image_fragment.rotate();
+                oriented_image_fragments.push(image_fragment.clone());
+                for image_fragment in oriented_image_fragments.into_iter() {
+                    if !image_fragment_duplicates_total_per_image_fragment.contains_key(&image_fragment) {
+                        image_fragment_duplicates_total_per_image_fragment.insert(image_fragment.clone(), 1.0);
+                    }
 
-                image_fragments.insert(image_fragment);
+                    image_fragments.insert(image_fragment);
+                }
             }
         }
 
@@ -208,6 +250,14 @@ impl Canvas {
         }
 
         for (node_id, node_state) in collapsed_wave_function.node_state_per_node.into_iter() {
+            println!("{}", node_id);
+            for height_index in 0..3 as usize {
+                for width_index in 0..3 as usize {
+                    let color = &node_state.pixels[width_index][height_index];
+                    print_pixel(color);
+                }
+                println!("");
+            }
             let node_id_split = node_id.split("_").collect::<Vec<&str>>();
             let node_width_index = node_id_split[1].parse::<usize>().unwrap();
             let node_height_index = node_id_split[2].parse::<usize>().unwrap();
@@ -239,13 +289,16 @@ impl Canvas {
 
 fn main() {
     let plant_image_base64: String = String::from("Qk1eGQAAAAAAADYAAAAoAAAALgAAAC4AAAABABgAAAAAACgZAAAAAAAAAAAAAAAAAAAAAAAAV3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5AABXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerkAAFd6uVd6uVd6uVd6uVd6uVd6uVd6uVd6uVd6uVd6uVd6uVd6uVd6uVd6uVd6uVd6uQCqAACqAFd6uVd6uVd6uVd6uVd6uVd6uVd6uVd6uVd6uVd6uVd6uVd6uVd6uVd6uQCqAACqAFd6uVd6uVd6uVd6uVd6uVd6uVd6uVd6uVd6uVd6uVd6uVd6uQAAV3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5AKoAAKoAV3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5AKoAAKoAV3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5AADy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AqgAAqgDy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AqgAAqgDy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AAPLov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/LovwCqAACqAPLov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/LovwCqAACqAPLov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/LovwAA8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/AKoAAKoA8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/AKoAAKoA8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/AADy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AqgAAqgDy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AqgAAqgDy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AAPLov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/LovwCqAACqAACqAACqAACqAACqAPLov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/LovwCqAACqAACqAACqAACqAACqAPLov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/LovwAA8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/AKoAAKoAAKoAAKoAAKoAAKoA8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/AKoAAKoAAKoAAKoAAKoAAKoA8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/AADy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AqgAAqgDy6L/y6L8AqgAAqgAAqgAAqgDy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AqgAAqgDy6L/y6L8AqgAAqgAAqgAAqgDy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AAPLov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/LovwCqAACqAPLov/LovwCqAACqAACqAACqAPLov/Lov/Lov/Lov/Lov/Lov/Lov/LovwCqAACqAPLov/LovwCqAACqAACqAACqAPLov/Lov/Lov/Lov/Lov/Lov/Lov/LovwAA8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/AKoAAKoAAKoAAKoA8ui/8ui/8ui/8ui/AKoAAKoAAKoAAKoA8ui/8ui/8ui/8ui/8ui/8ui/APL/APL/8ui/8ui/8ui/8ui/AKoAAKoAAKoAAKoA8ui/8ui/8ui/8ui/8ui/8ui/AADy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AqgAAqgAAqgAAqgDy6L/y6L/y6L/y6L8AqgAAqgAAqgAAqgDy6L/y6L/y6L/y6L/y6L/y6L8A8v8A8v/y6L/y6L/y6L/y6L8AqgAAqgAAqgAAqgDy6L/y6L/y6L/y6L/y6L/y6L8AAPLov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/LovwCqAACqAACqAACqAPLov/Lov/Lov/Lov/Lov/Lov/Lov/LovwCqAACqAPLov/Lov/Lov/LovwDy/wDy/wCqAACqAADy/wDy//Lov/Lov/Lov/LovwCqAACqAPLov/Lov/Lov/Lov/Lov/LovwAA8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/AKoAAKoAAKoAAKoA8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/AKoAAKoA8ui/8ui/8ui/8ui/APL/APL/AKoAAKoAAPL/APL/8ui/8ui/8ui/8ui/AKoAAKoA8ui/8ui/8ui/8ui/8ui/8ui/AADy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AqgAAqgAAqgAAqgDy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AqgAAqgAAqgAAqgAAqgAAqgDy6L/y6L/y6L/y6L8A8v8A8v/y6L/y6L/y6L/y6L/y6L/y6L8AqgAAqgDy6L/y6L/y6L/y6L/y6L/y6L8AAPLov/Lov/Lov/Lov/Lov/Lov/Lov/LovwCqAACqAACqAACqAPLov/Lov/Lov/Lov/Lov/Lov/Lov/LovwCqAACqAACqAACqAACqAACqAPLov/Lov/Lov/LovwDy/wDy//Lov/Lov/Lov/Lov/Lov/LovwCqAACqAPLov/Lov/Lov/Lov/Lov/LovwAA8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/AKoAAKoA8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/AKoAAKoA8ui/8ui/AKoAAKoAAKoAAKoA8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/AKoAAKoAAKoAAKoAAKoAAKoA8ui/8ui/8ui/8ui/AADy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AqgAAqgDy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AqgAAqgDy6L/y6L8AqgAAqgAAqgAAqgDy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AqgAAqgAAqgAAqgAAqgAAqgDy6L/y6L/y6L/y6L8AAPLov/Lov/Lov/Lov/Lov/LovwCqAACqAACqAACqAACqAACqAPLov/Lov/Lov/Lov/Lov/Lov/Lov/LovwCqAACqAPLov/Lov/Lov/LovwCqAACqAACqAACqAPLov/Lov/Lov/LovwCqAACqAACqAACqAPLov/LovwCqAACqAPLov/Lov/Lov/LovwAA8ui/8ui/8ui/8ui/8ui/8ui/AKoAAKoAAKoAAKoAAKoAAKoA8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/AKoAAKoA8ui/8ui/8ui/8ui/AKoAAKoAAKoAAKoA8ui/8ui/8ui/8ui/AKoAAKoAAKoAAKoA8ui/8ui/AKoAAKoA8ui/8ui/8ui/8ui/AADy6L/y6L/y6L/y6L/y6L/y6L8AqgAAqgDy6L/y6L8AqgAAqgAAqgAAqgDy6L/y6L/y6L/y6L/y6L/y6L8A8v8A8v/y6L/y6L/y6L/y6L/y6L/y6L8AqgAAqgDy6L/y6L/y6L/y6L8AqgAAqgDy6L/y6L/y6L/y6L8A8v8A8v/y6L/y6L/y6L/y6L8AAPLov/Lov/Lov/Lov/Lov/LovwCqAACqAPLov/LovwCqAACqAACqAACqAPLov/Lov/Lov/Lov/Lov/LovwDy/wDy//Lov/Lov/Lov/Lov/Lov/LovwCqAACqAPLov/Lov/Lov/LovwCqAACqAPLov/Lov/Lov/LovwDy/wDy//Lov/Lov/Lov/LovwAA8ui/8ui/8ui/8ui/AKoAAKoAAKoAAKoA8ui/8ui/8ui/8ui/AKoAAKoAAKoAAKoA8ui/8ui/APL/APL/AKoAAKoAAPL/APL/8ui/8ui/8ui/8ui/AKoAAKoA8ui/8ui/AKoAAKoAAKoAAKoA8ui/8ui/APL/APL/AKoAAKoAAPL/APL/8ui/8ui/AADy6L/y6L/y6L/y6L8AqgAAqgAAqgAAqgDy6L/y6L/y6L/y6L8AqgAAqgAAqgAAqgDy6L/y6L8A8v8A8v8AqgAAqgAA8v8A8v/y6L/y6L/y6L/y6L8AqgAAqgDy6L/y6L8AqgAAqgAAqgAAqgDy6L/y6L8A8v8A8v8AqgAAqgAA8v8A8v/y6L/y6L8AAPLov/Lov/Lov/LovwCqAACqAPLov/Lov/Lov/Lov/Lov/Lov/Lov/LovwCqAACqAPLov/Lov/Lov/LovwDy/wDy//Lov/Lov/Lov/LovwCqAACqAACqAACqAPLov/LovwCqAACqAPLov/Lov/Lov/Lov/Lov/LovwDy/wDy//Lov/Lov/Lov/LovwAA8ui/8ui/8ui/8ui/AKoAAKoA8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/AKoAAKoA8ui/8ui/8ui/8ui/APL/APL/8ui/8ui/8ui/8ui/AKoAAKoAAKoAAKoA8ui/8ui/AKoAAKoA8ui/8ui/8ui/8ui/8ui/8ui/APL/APL/8ui/8ui/8ui/8ui/AADy6L/y6L/y6L/y6L8A8v8A8v/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AqgAAqgAAqgAAqgDy6L/y6L/y6L/y6L/y6L/y6L8AqgAAqgAAqgAAqgDy6L/y6L/y6L/y6L8AqgAAqgAAqgAAqgDy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AAPLov/Lov/Lov/LovwDy/wDy//Lov/Lov/Lov/Lov/Lov/Lov/Lov/LovwCqAACqAACqAACqAPLov/Lov/Lov/Lov/Lov/LovwCqAACqAACqAACqAPLov/Lov/Lov/LovwCqAACqAACqAACqAPLov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/LovwAA8ui/8ui/APL/APL/AKoAAKoAAPL/APL/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/AKoAAKoA8ui/8ui/8ui/8ui/8ui/8ui/AKoAAKoA8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/AKoAAKoAAKoAAKoA8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/AADy6L/y6L8A8v8A8v8AqgAAqgAA8v8A8v/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AqgAAqgDy6L/y6L/y6L/y6L/y6L/y6L8AqgAAqgDy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AqgAAqgAAqgAAqgDy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AAPLov/Lov/Lov/LovwDy/wDy//Lov/Lov/Lov/Lov/Lov/Lov/Lov/LovwCqAACqAACqAACqAPLov/Lov/Lov/Lov/Lov/LovwCqAACqAACqAACqAPLov/Lov/Lov/Lov/Lov/Lov/Lov/LovwCqAACqAACqAACqAPLov/Lov/Lov/Lov/Lov/LovwAA8ui/8ui/8ui/8ui/APL/APL/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/AKoAAKoAAKoAAKoA8ui/8ui/8ui/8ui/8ui/8ui/AKoAAKoAAKoAAKoA8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/AKoAAKoAAKoAAKoA8ui/8ui/8ui/8ui/8ui/8ui/AADy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AqgAAqgAAqgAAqgDy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AqgAAqgAAqgAAqgDy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AqgAAqgDy6L/y6L/y6L/y6L/y6L/y6L8AAPLov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/LovwCqAACqAACqAACqAPLov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/LovwCqAACqAACqAACqAPLov/Lov/Lov/Lov/Lov/Lov/Lov/LovwCqAACqAPLov/Lov/Lov/Lov/Lov/LovwAA8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/AKoAAKoA8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/AKoAAKoA8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/APL/APL/8ui/8ui/8ui/8ui/8ui/8ui/AADy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AqgAAqgDy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AqgAAqgDy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8A8v8A8v/y6L/y6L/y6L/y6L/y6L/y6L8AAPLov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/LovwDy/wDy//Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/LovwDy/wDy//Lov/Lov/Lov/Lov/Lov/LovwDy/wDy/wCqAACqAADy/wDy//Lov/Lov/Lov/LovwAA8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/APL/APL/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/APL/APL/8ui/8ui/8ui/8ui/8ui/8ui/APL/APL/AKoAAKoAAPL/APL/8ui/8ui/8ui/8ui/AADy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8A8v8A8v8AqgAAqgAA8v8A8v/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8A8v8A8v8AqgAAqgAA8v8A8v/y6L/y6L/y6L/y6L/y6L/y6L8A8v8A8v/y6L/y6L/y6L/y6L/y6L/y6L8AAPLov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/LovwDy/wDy/wCqAACqAADy/wDy//Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/LovwDy/wDy/wCqAACqAADy/wDy//Lov/Lov/Lov/Lov/Lov/LovwDy/wDy//Lov/Lov/Lov/Lov/Lov/LovwAA8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/APL/APL/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/APL/APL/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/AADy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8A8v8A8v/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8A8v8A8v/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AAPLov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/LovwAA8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/AAA=");
+    let rooms_image_base64: String = String::from("Qk02DAAAAAAAADYAAAAoAAAAIAAAACAAAAABABgAAAAAAAAMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAA");
+
+    let image_base64 = rooms_image_base64;
     let mut file = tempfile::NamedTempFile::new().unwrap();
-    let bytes = base64::decode(plant_image_base64).unwrap();
+    let bytes = base64::decode(image_base64).unwrap();
     println!("Image bytes: {}", bytes.len());
     file.write(bytes.as_slice()).unwrap();
     let file_path: &str = file.path().to_str().unwrap();
 
-    let canvas = Canvas::new(20, 20);
+    let canvas = Canvas::new(60, 60);
     let wave_function = canvas.get_wave_function(file_path);
 
     file.close().unwrap();
@@ -254,7 +307,12 @@ fn main() {
 
     println!("validated");
 
-    let mut collapsable_wave_function = wave_function.get_collapsable_wave_function::<SpreadingCollapsableWaveFunction<ImageFragment>>(None);
+    time_graph::enable_data_collection(true);
+
+    let mut rng = rand::thread_rng();
+    let random_seed = Some(rng.gen::<u64>());
+
+    let mut collapsable_wave_function = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<ImageFragment>>(random_seed);
     
     let start = Instant::now();
     let collapsed_wave_function = collapsable_wave_function.collapse().unwrap();
@@ -263,4 +321,6 @@ fn main() {
     canvas.print(collapsed_wave_function);
     let duration = start.elapsed();
     println!("Duration: {:?}", duration);
+
+    println!("{}", time_graph::get_full_graph().as_dot());
 }

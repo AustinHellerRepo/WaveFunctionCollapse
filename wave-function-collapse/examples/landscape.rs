@@ -241,6 +241,8 @@ fn main() {
     std::env::set_var("RUST_LOG", "trace");
     //pretty_env_logger::init();
 
+    time_graph::enable_data_collection(true);
+
     let start = Instant::now();
 
     let width: u32 = 8;
@@ -294,4 +296,6 @@ fn main() {
 
     let duration = start.elapsed();
     println!("Duration: {:?}", duration);
+
+    println!("{}", time_graph::get_full_graph().as_dot());
 }

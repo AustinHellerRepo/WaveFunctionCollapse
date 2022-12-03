@@ -25,6 +25,7 @@ pub struct SpreadingCollapsableWaveFunction<'a, TNodeState: Eq + Hash + Clone + 
 }
 
 impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> SpreadingCollapsableWaveFunction<'a, TNodeState> {
+    #[time_graph::instrument]
     fn initialize_nodes(&mut self) -> Result<Vec<CollapsedNodeState<TNodeState>>, String> {
 
         // initialize each collapsable node to its first (random) state, storing them for the return
@@ -72,6 +73,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> SpreadingCollaps
 
         Ok(initial_node_states)
     }
+    #[time_graph::instrument]
     fn is_fully_collapsed(&self) -> bool {
 
         // returns if the temp_recently_accommodated_nodes is empty
@@ -86,6 +88,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> SpreadingCollaps
         }
         true
     }
+    #[time_graph::instrument]
     fn prepare_nodes_for_iteration(&mut self) {
 
         // shuffle collapsable nodes
@@ -100,12 +103,14 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> SpreadingCollaps
      
         debug!("after being prepared: {:?}", self.spread_node_ids);
     }
+    #[time_graph::instrument]
     fn is_done_spreading_nodes(&self) -> bool {
 
         // returns if pointer is outside the bounds of the collapsable_nodes
 
         self.spread_node_ids_index == self.spread_node_ids_length
     }
+    #[time_graph::instrument]
     fn is_current_node_in_conflict(&mut self) -> bool {
 
         // returns if current collapsable node is in conflict and not already impacted
@@ -177,6 +182,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> SpreadingCollaps
 
         is_current_collapsable_node_in_conflict
     }
+    #[time_graph::instrument]
     fn prepare_current_node_neighbors(&mut self) {
 
         // cache all relevant neighbor nodes (parents and children together)
@@ -196,6 +202,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> SpreadingCollaps
 
         // cache all relevant neighbor nodes (parents and children together)
         // remove current collapsable node mask from neighbors
+        time_graph::spanned!("cache all relevant neighbor nodes (parents and children together)", 
         {
             let wrapped_current_collapsable_node = self.collapsable_node_per_id.get(current_collapsable_node_id).unwrap();
             let current_collapsable_node = wrapped_current_collapsable_node.borrow();
@@ -220,10 +227,11 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> SpreadingCollaps
             }
 
             debug!("removed current node mask from neighbors");
-        }
+        });
 
         // remove each neighbor's masks from all other nodes
         // cache the state from each neighbor
+        time_graph::spanned!("remove each neighbor's masks from all other nodes", 
         {
             for neighbor_node_id in self.current_neighbor_node_ids.iter() {
                 let wrapped_neighbor_collapsable_node = self.collapsable_node_per_id.get(neighbor_node_id).unwrap();
@@ -246,9 +254,10 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> SpreadingCollaps
             }
 
             debug!("removed parent and child neighbors' masks from their child neighbors");
-        }
+        });
 
         // cache the stash from each neighbor
+        time_graph::spanned!("cache the stash from each neighbor", 
         {
             for neighbor_node_id in self.current_neighbor_node_ids.iter() {
                 let wrapped_neighbor_collapsable_node = self.collapsable_node_per_id.get(neighbor_node_id).unwrap();
@@ -259,9 +268,10 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> SpreadingCollaps
             }
 
             debug!("stashing masks from parent and child neighbors, making them fully unmasked");
-        }
+        });
 
         // add current collapsable node masks to neighbors
+        time_graph::spanned!("add current collapsable node masks to neighbors", 
         {
             let wrapped_current_collapsable_node = self.collapsable_node_per_id.get(current_collapsable_node_id).unwrap();
             let current_collapsable_node = wrapped_current_collapsable_node.borrow();
@@ -279,13 +289,14 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> SpreadingCollaps
             }
 
             debug!("added current node masks to neighbors");
-        }
+        });
 
         // randomize order of neighbor nodes
         self.current_neighbor_node_ids.shuffle(&mut rand::thread_rng());
         debug!("shuffled neighbors: {:?}", self.current_neighbor_node_ids);
 
         // cache great neighbor node ids per neighbor (excluding other nodes)
+        time_graph::spanned!("cache great neighbor node ids per neighbor (excluding other nodes)", 
         {
             for neighbor_node_id in self.current_neighbor_node_ids.iter() {
                 let wrapped_neighbor_collapsable_node = self.collapsable_node_per_id.get(neighbor_node_id).unwrap();
@@ -311,7 +322,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> SpreadingCollaps
                 self.great_neighbor_node_ids_per_neighbor_node_id.insert(neighbor_node_id, great_neighbor_node_ids);
                 self.nongreat_neighbor_node_ids_per_neighbor_node_id.insert(neighbor_node_id, nongreat_neighbor_node_ids);
             }
-        }
+        });
 
         // initialize neighbor pointer to first neighbor
         self.current_neighbor_node_ids_index = 0;
@@ -323,6 +334,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> SpreadingCollaps
         // set neighbor collapse possible true
         self.is_current_node_neighbors_collapse_possible = true;
     }
+    #[time_graph::instrument]
     fn is_current_node_neighbors_collapsed(&self) -> bool {
 
         // while pointer is inside the bounds and neighbors are possible
@@ -332,6 +344,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> SpreadingCollaps
         debug!("is_current_node_neighbors_collapse_possible: {:?}", self.is_current_node_neighbors_collapse_possible);
         !(is_neighbor_index_within_bounds && self.is_current_node_neighbors_collapse_possible)
     }
+    #[time_graph::instrument]
     fn is_current_node_neighbor_state_change_required(&self) -> bool {
 
         // if the neighbor is in a restricted state or neighbor node cycle is required
@@ -346,6 +359,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> SpreadingCollaps
             neighbor_collapsable_node.node_state_indexed_view.is_current_state_restricted()
         }
     }
+    #[time_graph::instrument]
     fn change_state_of_current_node_neighbor(&mut self) -> Vec<CollapsedNodeState<TNodeState>> {
 
         // set current neighbor cycle not required
@@ -466,6 +480,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> SpreadingCollaps
 
         changed_neighbor_node_states
     }
+    #[time_graph::instrument]
     fn allow_current_node_neighbor_to_maintain_state(&mut self) {
 
         // try to inform the current node and neighbor nodes of their new restrictions
@@ -522,6 +537,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> SpreadingCollaps
             self.current_neighbor_node_ids_index += 1;
         }
     }
+    #[time_graph::instrument]
     fn cleanup_current_node_neighbors(&mut self) {
 
         // if pointer is outside the bounds
@@ -591,6 +607,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> SpreadingCollaps
         self.current_neighbor_node_ids.clear();
 
     }
+    #[time_graph::instrument]
     fn move_to_next_node(&mut self) {
 
         // increment pointer
