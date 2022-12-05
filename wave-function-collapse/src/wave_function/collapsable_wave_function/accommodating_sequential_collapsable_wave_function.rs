@@ -5,7 +5,7 @@ use rand::seq::SliceRandom;
 use crate::wave_function::indexed_view::IndexedViewMaskState;
 use super::collapsable_wave_function::{CollapsableNode, CollapsedNodeState, CollapsedWaveFunction, CollapsableWaveFunction};
 
-pub struct SpreadingCollapsableWaveFunction<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> {
+pub struct AccommodatingSequentialCollapsableWaveFunction<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> {
     collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a, TNodeState>>>>,
     collapsable_node_per_id: HashMap<&'a str, Rc<RefCell<CollapsableNode<'a, TNodeState>>>>,
     spread_node_ids: Vec<&'a str>,
@@ -24,7 +24,7 @@ pub struct SpreadingCollapsableWaveFunction<'a, TNodeState: Eq + Hash + Clone + 
     node_state_type: PhantomData<TNodeState>
 }
 
-impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> SpreadingCollapsableWaveFunction<'a, TNodeState> {
+impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingSequentialCollapsableWaveFunction<'a, TNodeState> {
     #[time_graph::instrument]
     fn initialize_nodes(&mut self) -> Result<Vec<CollapsedNodeState<TNodeState>>, String> {
 
@@ -629,9 +629,9 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> SpreadingCollaps
     }
 }
 
-impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveFunction<'a, TNodeState> for SpreadingCollapsableWaveFunction<'a, TNodeState> {
+impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveFunction<'a, TNodeState> for AccommodatingSequentialCollapsableWaveFunction<'a, TNodeState> {
     fn new(collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a, TNodeState>>>>, collapsable_node_per_id: HashMap<&'a str, Rc<RefCell<CollapsableNode<'a, TNodeState>>>>) -> Self {
-        SpreadingCollapsableWaveFunction {
+        AccommodatingSequentialCollapsableWaveFunction {
             collapsable_nodes: collapsable_nodes,
             collapsable_node_per_id: collapsable_node_per_id,
             spread_node_ids: Vec::new(),

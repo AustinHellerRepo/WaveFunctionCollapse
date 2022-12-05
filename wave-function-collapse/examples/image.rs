@@ -2,7 +2,7 @@ use std::{collections::{HashSet, HashMap}, io::Write, time::Instant};
 use rand::Rng;
 use serde::{Serialize, Deserialize};
 use uuid::Uuid;
-use wave_function_collapse::wave_function::{WaveFunction, NodeStateCollection, Node, collapsable_wave_function::{accommodating_collapsable_wave_function::AccommodatingCollapsableWaveFunction, collapsable_wave_function::{CollapsableWaveFunction, CollapsedWaveFunction}, sequential_collapsable_wave_function::SequentialCollapsableWaveFunction, spreading_collapsable_wave_function::SpreadingCollapsableWaveFunction}};
+use wave_function_collapse::wave_function::{WaveFunction, NodeStateCollection, Node, collapsable_wave_function::{accommodating_collapsable_wave_function::AccommodatingCollapsableWaveFunction, collapsable_wave_function::{CollapsableWaveFunction, CollapsedWaveFunction}, sequential_collapsable_wave_function::SequentialCollapsableWaveFunction, accommodating_sequential_collapsable_wave_function::AccommodatingSequentialCollapsableWaveFunction}};
 use image::{io::Reader as ImageReader, GenericImageView, DynamicImage, ImageFormat};
 use colored::{Colorize, ColoredString};
 use std::cmp;

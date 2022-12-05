@@ -684,12 +684,12 @@ mod wave_function_unit_tests {
 
     use std::collections::HashMap;
     use rand::{RngCore, Rng};
-    use crate::wave_function::{Node, WaveFunction, NodeStateCollection, NodeStateProbability, collapsable_wave_function::{sequential_collapsable_wave_function::SequentialCollapsableWaveFunction, collapsable_wave_function::{CollapsedWaveFunction, CollapsedNodeState, CollapsableWaveFunction}, accommodating_collapsable_wave_function::AccommodatingCollapsableWaveFunction, spreading_collapsable_wave_function::SpreadingCollapsableWaveFunction}};
+    use crate::wave_function::{Node, WaveFunction, NodeStateCollection, NodeStateProbability, collapsable_wave_function::{sequential_collapsable_wave_function::SequentialCollapsableWaveFunction, collapsable_wave_function::{CollapsedWaveFunction, CollapsedNodeState, CollapsableWaveFunction}, accommodating_collapsable_wave_function::AccommodatingCollapsableWaveFunction, accommodating_sequential_collapsable_wave_function::AccommodatingSequentialCollapsableWaveFunction}};
     use super::*;
 
     fn init() {
         std::env::set_var("RUST_LOG", "trace");
-        pretty_env_logger::try_init();
+        //pretty_env_logger::try_init();
     }
 
     #[test]
@@ -755,7 +755,7 @@ mod wave_function_unit_tests {
     }
 
     #[test]
-    fn one_node_no_states_spreading() {
+    fn one_node_no_states_acc_seq() {
         init();
 
         let mut nodes: Vec<Node<String>> = Vec::new();
@@ -769,7 +769,7 @@ mod wave_function_unit_tests {
 
         let wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
-        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SpreadingCollapsableWaveFunction<String>>(None).collapse();
+        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<AccommodatingSequentialCollapsableWaveFunction<String>>(None).collapse();
 
         assert_eq!("Cannot collapse wave function.", collapsed_wave_function_result.err().unwrap());
     }
@@ -823,7 +823,7 @@ mod wave_function_unit_tests {
     }
 
     #[test]
-    fn one_node_one_state_spreading() {
+    fn one_node_one_state_acc_seq() {
         init();
 
         let mut nodes: Vec<Node<String>> = Vec::new();
@@ -840,7 +840,7 @@ mod wave_function_unit_tests {
 
         let wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
-        let collapsed_wave_function = wave_function.get_collapsable_wave_function::<SpreadingCollapsableWaveFunction<String>>(None).collapse().unwrap();
+        let collapsed_wave_function = wave_function.get_collapsable_wave_function::<AccommodatingSequentialCollapsableWaveFunction<String>>(None).collapse().unwrap();
         
         assert_eq!(1, collapsed_wave_function.node_state_per_node.keys().len());
         assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&node_id).unwrap());
@@ -925,7 +925,7 @@ mod wave_function_unit_tests {
     }
 
     #[test]
-    fn one_node_randomly_two_states_spreading() {
+    fn one_node_randomly_two_states_acc_seq() {
         init();
 
         let mut nodes: Vec<Node<String>> = Vec::new();
@@ -952,7 +952,7 @@ mod wave_function_unit_tests {
 
         for _ in 0..100000 {
             let random_seed = Some(rng.next_u64());
-            let collapsed_wave_function = wave_function.get_collapsable_wave_function::<SpreadingCollapsableWaveFunction<String>>(random_seed).collapse().unwrap();
+            let collapsed_wave_function = wave_function.get_collapsable_wave_function::<AccommodatingSequentialCollapsableWaveFunction<String>>(random_seed).collapse().unwrap();
 
             let node_state_id: &str = collapsed_wave_function.node_state_per_node.get(&node_id).unwrap();
             *count_per_node_state_id.get_mut(node_state_id).unwrap() += 1;
@@ -1081,7 +1081,7 @@ mod wave_function_unit_tests {
     }
 
     #[test]
-    fn two_nodes_with_only_one_is_a_neighbor_restriction_ignored_spreading() {
+    fn two_nodes_with_only_one_is_a_neighbor_restriction_ignored_acc_seq() {
         init();
 
         let mut nodes: Vec<Node<String>> = Vec::new();
@@ -1120,7 +1120,7 @@ mod wave_function_unit_tests {
         let mut wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
-        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SpreadingCollapsableWaveFunction<String>>(None).collapse();
+        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<AccommodatingSequentialCollapsableWaveFunction<String>>(None).collapse();
         let collapsed_wave_function = collapsed_wave_function_result.unwrap();
 
         assert_eq!(&unrestricted_node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
@@ -1184,7 +1184,7 @@ mod wave_function_unit_tests {
     }
 
     #[test]
-    fn two_nodes_with_parent_unrestricted_and_child_only_one_state_restricted_spreading() {
+    fn two_nodes_with_parent_unrestricted_and_child_only_one_state_restricted_acc_seq() {
         init();
 
         let mut nodes: Vec<Node<String>> = Vec::new();
@@ -1232,7 +1232,7 @@ mod wave_function_unit_tests {
         let mut wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
-        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SpreadingCollapsableWaveFunction<String>>(None).collapse();
+        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<AccommodatingSequentialCollapsableWaveFunction<String>>(None).collapse();
         let collapsed_wave_function = collapsed_wave_function_result.unwrap();
 
         assert_eq!(&permitting_node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
@@ -1287,7 +1287,7 @@ mod wave_function_unit_tests {
     }
 
     #[test]
-    fn two_nodes_with_child_two_states_restricted_and_parent_one_state_unrestricted_spreading() {
+    fn two_nodes_with_child_two_states_restricted_and_parent_one_state_unrestricted_acc_seq() {
         init();
 
         let mut nodes: Vec<Node<String>> = Vec::new();
@@ -1326,7 +1326,7 @@ mod wave_function_unit_tests {
         let mut wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
-        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SpreadingCollapsableWaveFunction<String>>(None).collapse();
+        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<AccommodatingSequentialCollapsableWaveFunction<String>>(None).collapse();
         let collapsed_wave_function = collapsed_wave_function_result.unwrap();
 
         assert_eq!(&restricting_node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
@@ -2071,7 +2071,7 @@ mod wave_function_unit_tests {
     }
 
     #[test]
-    fn three_nodes_as_dense_neighbors_all_different_states_spreading() {
+    fn three_nodes_as_dense_neighbors_all_different_states_acc_seq() {
         init();
 
         let mut nodes: Vec<Node<String>> = Vec::new();
@@ -2155,7 +2155,7 @@ mod wave_function_unit_tests {
         let mut wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
-        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SpreadingCollapsableWaveFunction<String>>(None).collapse();
+        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<AccommodatingSequentialCollapsableWaveFunction<String>>(None).collapse();
 
         if let Err(error_message) = collapsed_wave_function_result {
             panic!("Error: {error_message}");
@@ -2454,7 +2454,7 @@ mod wave_function_unit_tests {
     }
     
     #[test]
-    fn many_nodes_as_dense_neighbors_all_different_states_spreading() {
+    fn many_nodes_as_dense_neighbors_all_different_states_acc_seq() {
         //init();
 
         let nodes_total = 50;
@@ -2514,7 +2514,7 @@ mod wave_function_unit_tests {
 
         let collapsed_wave_function_result: Result<CollapsedWaveFunction<String>, String>;
 
-        collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SpreadingCollapsableWaveFunction<String>>(None).collapse();
+        collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<AccommodatingSequentialCollapsableWaveFunction<String>>(None).collapse();
 
         if let Err(error_message) = collapsed_wave_function_result {
             panic!("Error: {error_message}");
@@ -2822,7 +2822,7 @@ mod wave_function_unit_tests {
     }
 
     #[test]
-    fn many_nodes_as_3D_grid_all_different_states_spreading() {
+    fn many_nodes_as_3D_grid_all_different_states_acc_seq() {
         init();
 
         let nodes_height = 3;
@@ -2896,7 +2896,7 @@ mod wave_function_unit_tests {
 
         let collapsed_wave_function_result: Result<CollapsedWaveFunction<String>, String>;
         
-        collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SpreadingCollapsableWaveFunction<String>>(None).collapse();
+        collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<AccommodatingSequentialCollapsableWaveFunction<String>>(None).collapse();
 
         if let Err(error_message) = collapsed_wave_function_result {
             panic!("Error: {error_message}");
@@ -3505,7 +3505,7 @@ mod wave_function_unit_tests {
     }
 
     #[test]
-    fn four_nodes_as_square_neighbors_in_cycle_affects_another_square_spreading() {
+    fn four_nodes_as_square_neighbors_in_cycle_affects_another_square_acc_seq() {
         init();
 
         let mut rng = rand::thread_rng();
@@ -3603,7 +3603,7 @@ mod wave_function_unit_tests {
             let mut wave_function = WaveFunction::new(nodes, node_state_collections);
             wave_function.validate().unwrap();
 
-            let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SpreadingCollapsableWaveFunction<String>>(random_seed).collapse();
+            let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<AccommodatingSequentialCollapsableWaveFunction<String>>(random_seed).collapse();
 
             if let Err(error_message) = collapsed_wave_function_result {
                 panic!("Error: {error_message}");
