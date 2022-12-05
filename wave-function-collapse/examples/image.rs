@@ -329,8 +329,6 @@ fn main() {
 
     println!("validated");
 
-    time_graph::enable_data_collection(true);
-
     let mut rng = rand::thread_rng();
     let random_seed = Some(rng.gen::<u64>());
 
@@ -343,6 +341,4 @@ fn main() {
     canvas.print(collapsed_wave_function, fragment_width, fragment_height);
     let duration = start.elapsed();
     println!("Duration: {:?}", duration);
-
-    println!("{}", time_graph::get_full_graph().as_dot());
 }
