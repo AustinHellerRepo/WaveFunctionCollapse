@@ -245,8 +245,8 @@ fn main() {
 
     let start = Instant::now();
 
-    let width: u32 = 8;
-    let height: u32 = 8;
+    let width: u32 = 60;
+    let height: u32 = 60;
     let landscape = Landscape::new(width, height);
 
     let wave_function = landscape.get_wave_function();
@@ -256,7 +256,7 @@ fn main() {
     let mut rng = rand::thread_rng();
     let random_seed = Some(rng.gen::<u64>());
 
-    let collapsed_wave_function = wave_function.get_collapsable_wave_function::<AccommodatingSequentialCollapsableWaveFunction<LandscapeElement>>(random_seed).collapse().unwrap();
+    let collapsed_wave_function = wave_function.get_collapsable_wave_function::<AccommodatingCollapsableWaveFunction<LandscapeElement>>(random_seed).collapse().unwrap();
 
     let mut node_state_per_y_per_x: Vec<Vec<Option<LandscapeElement>>> = Vec::new();
     for _ in 0..width {
