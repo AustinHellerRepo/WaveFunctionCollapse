@@ -55,13 +55,13 @@ impl<T: Eq + Hash + Clone + Debug> ProbabilityContainer<T> {
     pub fn peek_random<R: Rng + ?Sized>(&mut self, random_instance: &mut R) -> Option<T> {
         let item_option: Option<T>;
         if self.items_total == 0 {
-            debug!("no items");
+            //debug!("no items");
             item_option = None;
         }
         else {
             if self.items_total == 1 {
                 item_option = Some(self.items.iter().next().unwrap().clone());
-                debug!("one item: {:?}", item_option);
+                //debug!("one item: {:?}", item_option);
             }
             else {
                 let random_value = random_instance.gen::<f32>() * self.probability_total;
@@ -72,19 +72,19 @@ impl<T: Eq + Hash + Clone + Debug> ProbabilityContainer<T> {
                         let item_probability = self.probability_per_item.get(current_item.unwrap()).unwrap();
                         if item_probability != &0.0 {
                             self.last_cumulative_probability += item_probability;
-                            debug!("inserting {:?} with cumulative probability {:?}", self.last_item_index_to_apply_to_item_index_per_cumulative_probability, self.last_cumulative_probability);
+                            //debug!("inserting {:?} with cumulative probability {:?}", self.last_item_index_to_apply_to_item_index_per_cumulative_probability, self.last_cumulative_probability);
                             self.item_index_per_cumulative_probability.insert(OrderedFloat(self.last_cumulative_probability), self.last_item_index_to_apply_to_item_index_per_cumulative_probability);
                         }
                         self.last_item_index_to_apply_to_item_index_per_cumulative_probability += 1;
                     }
                     let current_item = current_item.unwrap().clone();
-                    debug!("found item {:?}", current_item);
+                    //debug!("found item {:?}", current_item);
                     item_option = Some(current_item.clone());
                 }
                 else {
-                    debug!("random_value: {:?}", random_value);
+                    //debug!("random_value: {:?}", random_value);
                     let (temp_key, temp_value) = self.item_index_per_cumulative_probability.range(OrderedFloat(random_value)..).next().unwrap();
-                    debug!("found item {:?} with probability {:?}", temp_value, temp_key);
+                    //debug!("found item {:?} with probability {:?}", temp_value, temp_key);
                     item_option = Some(self.items.get(*temp_value).unwrap().clone());
                 }
             }
@@ -92,9 +92,9 @@ impl<T: Eq + Hash + Clone + Debug> ProbabilityContainer<T> {
         item_option
     }
     pub fn pop_random<R: Rng + ?Sized>(&mut self, random_instance: &mut R) -> Option<T> {
-        debug!("current state: {:?}", self.probability_per_item);
+        //debug!("current state: {:?}", self.probability_per_item);
         if self.items_total == 0 {
-            debug!("no items");
+            //debug!("no items");
             None
         }
         else {
@@ -102,7 +102,7 @@ impl<T: Eq + Hash + Clone + Debug> ProbabilityContainer<T> {
             if self.items_total == 1 {
                 //self.item_per_cumulative_probability.remove(&OrderedFloat(self.probability_total))
                 item_option = self.items.first().cloned();
-                debug!("one item: {:?}", item_option);
+                //debug!("one item: {:?}", item_option);
                 self.items.clear();
                 self.items_total = 0;
                 self.probability_total = 0.0;
@@ -113,10 +113,10 @@ impl<T: Eq + Hash + Clone + Debug> ProbabilityContainer<T> {
             }
             else {
                 let random_value = random_instance.gen::<f32>() * self.probability_total;
-                debug!("random_value: {:?}", random_value);
-                debug!("self.probability_total: {:?}", self.probability_total);
-                debug!("self.last_cumulative_probability: {:?}", self.last_cumulative_probability);
-                debug!("self.last_item_index_to_apply_to_item_index_per_cumulative_probability: {:?}", self.last_item_index_to_apply_to_item_index_per_cumulative_probability);
+                //debug!("random_value: {:?}", random_value);
+                //debug!("self.probability_total: {:?}", self.probability_total);
+                //debug!("self.last_cumulative_probability: {:?}", self.last_cumulative_probability);
+                //debug!("self.last_item_index_to_apply_to_item_index_per_cumulative_probability: {:?}", self.last_item_index_to_apply_to_item_index_per_cumulative_probability);
                 
                 let mut is_item_outside_random_value: bool;
                 if self.last_item_index_to_apply_to_item_index_per_cumulative_probability as u32 == self.items_total {
@@ -140,30 +140,29 @@ impl<T: Eq + Hash + Clone + Debug> ProbabilityContainer<T> {
                         let item_probability = self.probability_per_item.get(current_item).unwrap();
                         if item_probability != &0.0 {
                             if self.last_cumulative_probability + item_probability >= random_value {
-                                debug!("found next item with probability {:?}", item_probability);
+                                //debug!("found next item with probability {:?}", item_probability);
 
                                 // that there hasn't been floating point errors leading to missing the last item
                                 if (self.last_item_index_to_apply_to_item_index_per_cumulative_probability as u32) + 1 == self.items_total {
                                     self.probability_total = self.last_cumulative_probability + item_probability;
-                                    debug!("fixed probability total after incrementing to item");
+                                    //debug!("fixed probability total after incrementing to item");
                                 }
                                 
                                 break;
                             }
                             else {
                                 self.last_cumulative_probability += item_probability;
-                                debug!("inserting {:?} with cumulative probability {:?} into index {:?}", current_item, self.last_cumulative_probability, self.last_item_index_to_apply_to_item_index_per_cumulative_probability);
+                                //debug!("inserting {:?} with cumulative probability {:?} into index {:?}", current_item, self.last_cumulative_probability, self.last_item_index_to_apply_to_item_index_per_cumulative_probability);
                                 self.item_index_per_cumulative_probability.insert(OrderedFloat(self.last_cumulative_probability), self.last_item_index_to_apply_to_item_index_per_cumulative_probability);
                             }
                         }
                         self.last_item_index_to_apply_to_item_index_per_cumulative_probability += 1;
-                        debug!("self.last_item_index_to_apply_to_item_index_per_cumulative_probability: {:?}", self.last_item_index_to_apply_to_item_index_per_cumulative_probability);
+                        //debug!("self.last_item_index_to_apply_to_item_index_per_cumulative_probability: {:?}", self.last_item_index_to_apply_to_item_index_per_cumulative_probability);
 
-                        
                         // that there hasn't been floating point errors leading to missing the last item
                         if (self.last_item_index_to_apply_to_item_index_per_cumulative_probability as u32) == self.items_total {
                             self.probability_total = self.last_cumulative_probability;
-                            debug!("fixed probability total after missing item");
+                            //debug!("fixed probability total after missing item");
 
                             // move back one item so that the process ends up grabbing the last item
                             self.last_item_index_to_apply_to_item_index_per_cumulative_probability -= 1;
@@ -178,7 +177,7 @@ impl<T: Eq + Hash + Clone + Debug> ProbabilityContainer<T> {
                     item_option = Some(item);
                     self.items_total -= 1;
 
-                    debug!("found item {:?}", item_option);
+                    //debug!("found item {:?}", item_option);
                 }
                 else {
                     let found_key: f32;
@@ -186,7 +185,7 @@ impl<T: Eq + Hash + Clone + Debug> ProbabilityContainer<T> {
                     let found_item: T;
                     {
                         let (temp_key, temp_value) = self.item_index_per_cumulative_probability.range(OrderedFloat(random_value)..).next().unwrap();
-                        debug!("found item {:?} with probability {:?}", temp_value, temp_key);
+                        //debug!("found item {:?} with probability {:?}", temp_value, temp_key);
                         found_item = self.items.remove(*temp_value);
                         self.items_total -= 1;
                         item_option = Some(found_item.clone());
@@ -198,14 +197,14 @@ impl<T: Eq + Hash + Clone + Debug> ProbabilityContainer<T> {
                     let found_key_ordered_float = &OrderedFloat(found_key);
                     self.item_index_per_cumulative_probability.retain(|probability, _| probability < found_key_ordered_float);
                     self.last_item_index_to_apply_to_item_index_per_cumulative_probability = found_index;
-                    debug!("self.last_item_index_to_apply_to_item_index_per_cumulative_probability: {:?}", self.last_item_index_to_apply_to_item_index_per_cumulative_probability);
+                    //debug!("self.last_item_index_to_apply_to_item_index_per_cumulative_probability: {:?}", self.last_item_index_to_apply_to_item_index_per_cumulative_probability);
                     let found_item_probability = self.probability_per_item.remove(&found_item).unwrap();
                     self.last_cumulative_probability = found_key - found_item_probability;
 
                     // that there hasn't been floating point errors leading to missing the last item
                     if (self.last_item_index_to_apply_to_item_index_per_cumulative_probability as u32) == self.items_total {
                         self.probability_total = self.last_cumulative_probability;
-                        debug!("fixed probability total after finding item");
+                        //debug!("fixed probability total after finding item");
                     }
                     else {
                         self.probability_total -= found_item_probability;
@@ -215,7 +214,7 @@ impl<T: Eq + Hash + Clone + Debug> ProbabilityContainer<T> {
                 if item_option.is_none() {
                     panic!("Failed to find item even though some exists.");
                 }
-                debug!("more than one item: {:?}", item_option);
+                //debug!("more than one item: {:?}", item_option);
             }
             item_option
         }

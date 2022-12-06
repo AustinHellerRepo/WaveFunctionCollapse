@@ -35,28 +35,28 @@ pub struct Node<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> {
     pub id: String,
     pub node_state_collection_ids_per_neighbor_node_id: HashMap<String, Vec<String>>,
     pub node_state_ids: Vec<TNodeState>,
-    pub node_state_probabilities: Vec<f32>
+    pub node_state_ratios: Vec<f32>
 }
 
 impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> Node<TNodeState> {
-    pub fn new(id: String, node_state_probability_per_node_state_id: HashMap<TNodeState, f32>, node_state_collection_ids_per_neighbor_node_id: HashMap<String, Vec<String>>) -> Self {
+    pub fn new(id: String, node_state_ratio_per_node_state_id: HashMap<TNodeState, f32>, node_state_collection_ids_per_neighbor_node_id: HashMap<String, Vec<String>>) -> Self {
         let mut node_state_ids: Vec<TNodeState> = Vec::new();
-        let mut node_state_probabilities: Vec<f32> = Vec::new();
-        for (node_state_id, node_state_probability) in node_state_probability_per_node_state_id.iter() {
+        let mut node_state_ratios: Vec<f32> = Vec::new();
+        for (node_state_id, node_state_ratio) in node_state_ratio_per_node_state_id.iter() {
             node_state_ids.push(node_state_id.clone());
-            node_state_probabilities.push(*node_state_probability);
+            node_state_ratios.push(*node_state_ratio);
         }
         
         // sort the node_state_ids and node_state_probabilities
         let mut sort_permutation = permutation::sort(&node_state_ids);
         sort_permutation.apply_slice_in_place(&mut node_state_ids);
-        sort_permutation.apply_slice_in_place(&mut node_state_probabilities);
+        sort_permutation.apply_slice_in_place(&mut node_state_ratios);
 
         Node {
             id: id,
             node_state_collection_ids_per_neighbor_node_id: node_state_collection_ids_per_neighbor_node_id,
             node_state_ids: node_state_ids,
-            node_state_probabilities: node_state_probabilities
+            node_state_ratios: node_state_ratios
         }
     }
     pub fn get_id(&self) -> String {
@@ -288,9 +288,9 @@ impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord + Serialize + Deseria
             //debug!("storing for node {node_id} restrictive masks into node state indexed view.");
 
             let referenced_node_state_ids: Vec<&TNodeState> = node.node_state_ids.iter().collect();
-            let cloned_node_state_probabilities: Vec<f32> = node.node_state_probabilities.clone();
+            let cloned_node_state_ratios: Vec<f32> = node.node_state_ratios.clone();
 
-            let node_state_indexed_view = IndexedView::new(referenced_node_state_ids, cloned_node_state_probabilities);
+            let node_state_indexed_view = IndexedView::new(referenced_node_state_ids, cloned_node_state_ratios);
             //debug!("stored for node {node_id} node state indexed view {:?}", node_state_indexed_view);
             node_state_indexed_view_per_node_id.insert(node_id, node_state_indexed_view);
         }
