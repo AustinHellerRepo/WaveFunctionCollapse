@@ -326,18 +326,54 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveF
         Ok(collapsed_node_states)
     }
     fn collapse(&'a mut self) -> Result<CollapsedWaveFunction<TNodeState>, String> {
-        todo!();
 
         let mut is_unable_to_collapse = false;
+        debug!("starting main while loop");
         while !self.is_fully_collapsed() && !is_unable_to_collapse {
+            debug!("finding least entropic collapsable node");
             self.set_current_collapsable_node_to_least_entropic_collapsable_node();
+            debug!("try incrementing current collapsable node state");
             let collapsed_node_state = self.try_increment_current_collapsable_node_state();
             let is_successful: bool = collapsed_node_state.node_state_id.is_some();
-            if is_successful {
-                //self.alter_reference_to_current_collapsable_node_mask();
+            if !is_successful {
+                debug!("failed to increment node");
+                is_unable_to_collapse = true;
             }
             else {
-                is_unable_to_collapse = true;
+                debug!("succeeded to increment node and caching pairs");
+                self.cache_neighbor_node_and_mask_pairs();
+                debug!("starting neighbor node and mask pairs while loop");
+                while !self.is_cached_neighbor_node_and_mask_pairs_empty() {
+                    debug!("popping first neighbor node and mask");
+                    self.pop_first_neighbor_node_and_mask();
+                    debug!("trying to apply popped mask to neighbor node (etc.)");
+                    let is_successful = self.try_apply_popped_mask_to_neighbor_node_and_collect_possible_states_and_great_neighbors();
+                    if !is_successful {
+                        debug!("failed to apply popped mask");
+                        is_unable_to_collapse = true;
+                    }
+                    else {
+                        debug!("succeeded to apply popped mask and preparing to explore great neighbors");
+                        self.prepare_to_explore_each_great_neighbor_of_popped_neighbor();
+                        debug!("while not every great neighbor has been explored");
+                        while !self.is_every_great_neighbor_explored() {
+                            debug!("incrementing to next great neighbor node");
+                            self.explore_next_great_neighbor_node();
+                            debug!("collecting masks");
+                            self.collect_masks_for_each_possible_state_of_popped_neighbor_for_currently_explored_great_neighbor();
+                            debug!("calculate flattened mask");
+                            self.calculate_flattened_mask();
+                            let is_restrictive = self.is_flattened_mask_restrictive_to_explored_neighbor();
+                            if is_restrictive {
+                                debug!("is restrictive");
+                                self.append_explored_neighbor_and_flattened_mask_to_cache_of_neighbor_node_and_mask_pairs();
+                            }
+                            else {
+                                debug!("is not restrictive");
+                            }
+                        }
+                    }
+                }
             }
         }
 

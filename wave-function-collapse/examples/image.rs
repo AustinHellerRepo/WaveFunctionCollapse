@@ -1,4 +1,4 @@
-use std::{collections::{HashSet, HashMap}, io::Write, time::Instant};
+use std::{collections::{HashSet, HashMap}, io::Write, time::{Instant, Duration}};
 use bitvec::macros::internal::funty::Fundamental;
 use rand::Rng;
 use serde::{Serialize, Deserialize};
@@ -127,7 +127,7 @@ impl Canvas {
             height: height
         }
     }
-    fn get_wave_function(&self, source_image_file_path: &str, fragment_width: u32, fragment_height: u32) -> WaveFunction<ImageFragment> {
+    fn get_wave_function(&self, source_image_file_path: &str, fragment_width: u32, fragment_height: u32, is_reflection_permitted: bool, is_rotation_permitted: bool, is_periodic: bool, contains_ground: bool) -> WaveFunction<ImageFragment> {
 
         // get all of the possible image fragments from the original image
         let mut image_reader = ImageReader::open(source_image_file_path).expect("The source image file should exist at the provided file path.");
@@ -138,22 +138,42 @@ impl Canvas {
 
         let mut image_fragments: HashSet<ImageFragment> = HashSet::new();
         let mut image_fragment_duplicates_total_per_image_fragment: HashMap<ImageFragment, f32> = HashMap::new();
+        let mut ground_image_fragments: HashSet<ImageFragment> = HashSet::new();
 
         for image_height_index in 0..(image_height - (fragment_height - 1)) {
             for image_width_index in 0..(image_width - (fragment_width - 1)) {
                 let mut oriented_image_fragments: Vec<ImageFragment> = Vec::new();
                 let mut image_fragment = ImageFragment::new_from_image(&image, image_width_index, image_height_index, fragment_width, fragment_height);
+
+                if image_height_index + 1 == (image_height - (fragment_height - 1)) {
+                    ground_image_fragments.insert(image_fragment.clone());
+                }
+
                 oriented_image_fragments.push(image_fragment.clone());
 
-                if false {
-                    image_fragment = image_fragment.rotate();
-                    oriented_image_fragments.push(image_fragment.clone());
-                    image_fragment = image_fragment.rotate();
-                    oriented_image_fragments.push(image_fragment.clone());
-                    image_fragment = image_fragment.rotate();
-                    oriented_image_fragments.push(image_fragment.clone());
-                    image_fragment = image_fragment.flip();
-                    oriented_image_fragments.push(image_fragment.clone());
+                if is_reflection_permitted {
+                    if is_rotation_permitted {
+                        image_fragment = image_fragment.rotate();
+                        oriented_image_fragments.push(image_fragment.clone());
+                        image_fragment = image_fragment.rotate();
+                        oriented_image_fragments.push(image_fragment.clone());
+                        image_fragment = image_fragment.rotate();
+                        oriented_image_fragments.push(image_fragment.clone());
+                        image_fragment = image_fragment.flip();
+                        oriented_image_fragments.push(image_fragment.clone());
+                        image_fragment = image_fragment.rotate();
+                        oriented_image_fragments.push(image_fragment.clone());
+                        image_fragment = image_fragment.rotate();
+                        oriented_image_fragments.push(image_fragment.clone());
+                        image_fragment = image_fragment.rotate();
+                        oriented_image_fragments.push(image_fragment.clone());
+                    }
+                    else {
+                        image_fragment = image_fragment.flip();
+                        oriented_image_fragments.push(image_fragment.clone());
+                    }
+                }
+                else if is_rotation_permitted {
                     image_fragment = image_fragment.rotate();
                     oriented_image_fragments.push(image_fragment.clone());
                     image_fragment = image_fragment.rotate();
@@ -185,9 +205,9 @@ impl Canvas {
 
         let mut permitted_node_states_per_height_offset_per_width_offset_per_node_state: HashMap<&ImageFragment, HashMap<i8, HashMap<i8, Vec<ImageFragment>>>> = HashMap::new();
         for root_image_fragment in image_fragments.iter() {
-            println!("====================");
-            println!("Root:");
-            root_image_fragment.print();
+            //println!("====================");
+            //println!("Root:");
+            //root_image_fragment.print();
             let mut permitted_node_states_per_height_offset_per_width_offset: HashMap<i8, HashMap<i8, Vec<ImageFragment>>> = HashMap::new();
             for width_offset in -1..=1 as i8 {
                 let mut permitted_node_states_per_height_offset: HashMap<i8, Vec<ImageFragment>> = HashMap::new();
@@ -198,8 +218,8 @@ impl Canvas {
                         let mut permitted_node_states: Vec<ImageFragment> = Vec::new();
                         for other_image_fragment in image_fragments.iter() {
                             if root_image_fragment.is_overlapping(&other_image_fragment, width_offset, height_offset) {
-                                println!("overlapping at {} {}", width_offset, height_offset);
-                                other_image_fragment.print();
+                                //println!("overlapping at {} {}", width_offset, height_offset);
+                                //other_image_fragment.print();
                                 permitted_node_states.push(other_image_fragment.clone());
                             }
                         }
@@ -253,8 +273,22 @@ impl Canvas {
                     for neighbor_height_offset in -1..=1 as i8 {
                         if !(neighbor_width_offset == 0 && neighbor_height_offset == 0 ||
                             neighbor_width_offset.abs() == 1 && neighbor_height_offset.abs() == 1) {
-                            let neighbor_width_index = node_width_index + neighbor_width_offset;
-                            let neighbor_height_index = node_height_index + neighbor_height_offset;
+                            let mut neighbor_width_index = node_width_index + neighbor_width_offset;
+                            let mut neighbor_height_index = node_height_index + neighbor_height_offset;
+                            if is_periodic {
+                                if neighbor_width_index < 0 {
+                                    neighbor_width_index += (self.width - (fragment_width - 1)) as i8;
+                                }
+                                else if neighbor_width_index >= (self.width - (fragment_width - 1)) as i8 {
+                                    neighbor_width_index -= (self.width - (fragment_width - 1)) as i8;
+                                }
+                                if neighbor_height_index < 0 {
+                                    neighbor_height_index += (self.height - (fragment_height - 1)) as i8;
+                                }
+                                else if neighbor_height_index >= (self.height - (fragment_height - 1)) as i8 {
+                                    neighbor_height_index -= (self.height - (fragment_height - 1)) as i8;
+                                }
+                            }
                             if neighbor_width_index >= 0 &&
                                 neighbor_width_index < (self.width - (fragment_width - 1)) as i8 &&
                                 neighbor_height_index >= 0 &&
@@ -268,7 +302,28 @@ impl Canvas {
                     }
                 }
 
-                let node: Node<ImageFragment> = Node::new(node_id.clone(), image_fragment_duplicates_total_per_image_fragment.clone(), node_state_collection_ids_per_neighbor_node_id);
+                let mut node_state_ratio_per_node_state_id: HashMap<ImageFragment, f32> = HashMap::new();
+                if contains_ground {
+                    if node_height_index + 1 == (self.height - (fragment_height - 1)) as i8 {
+                        for (image_fragment, ratio) in image_fragment_duplicates_total_per_image_fragment.iter() {
+                            if ground_image_fragments.contains(image_fragment) {
+                                node_state_ratio_per_node_state_id.insert(image_fragment.clone(), *ratio);
+                            }
+                        }
+                    }
+                    else {
+                        for (image_fragment, ratio) in image_fragment_duplicates_total_per_image_fragment.iter() {
+                            if !ground_image_fragments.contains(image_fragment) {
+                                node_state_ratio_per_node_state_id.insert(image_fragment.clone(), *ratio);
+                            }
+                        }
+                    }
+                }
+                else {
+                    node_state_ratio_per_node_state_id = image_fragment_duplicates_total_per_image_fragment.clone();
+                }
+
+                let node: Node<ImageFragment> = Node::new(node_id.clone(), node_state_ratio_per_node_state_id, node_state_collection_ids_per_neighbor_node_id);
                 nodes.push(node);
             }
         }
@@ -292,23 +347,36 @@ impl Canvas {
             node_state_per_height_index_per_width_index.get_mut(&node_width_index).unwrap().insert(node_height_index, Some(node_state));
         }
 
-        let mut color_per_height_index_per_width_index: HashMap<usize, HashMap<usize, [u8; 4]>> = HashMap::new();
+        let mut pixels: Vec<Vec<[u8; 4]>> = Vec::new();
+        for _ in 0..self.width {
+            let mut vec = Vec::new();
+            for _ in 0..self.height {
+                vec.push([0 as u8, 0, 128, 0]);
+            }
+            pixels.push(vec);
+        }
+
         for width_index in 0..(self.width - (fragment_width - 1)) as usize {
-            let mut color_per_height_index: HashMap<usize, [u8; 4]> = HashMap::new();
             for height_index in 0..(self.height - (fragment_height - 1)) as usize {
                 let node_state = node_state_per_height_index_per_width_index.get(&width_index).unwrap().get(&height_index).unwrap().as_ref().unwrap();
                 
-                color_per_height_index.insert(height_index, node_state.pixels[0][0]);
-
-                // TODO get right and bottom
+                if width_index + 1 == (self.width - (fragment_width - 1)) as usize || height_index + 1 == (self.height - (fragment_height - 1)) as usize {
+                    for pixel_height_index in 0..node_state.height as usize {
+                        for pixel_width_index in 0..node_state.width as usize {
+                            pixels[width_index + pixel_width_index][height_index + pixel_height_index] = node_state.pixels[pixel_width_index][pixel_height_index];
+                        }
+                    }
+                }
+                else {
+                    pixels[width_index][height_index] = node_state.pixels[0][0];
+                }
             }
-            color_per_height_index_per_width_index.insert(width_index, color_per_height_index);
         }
 
-        for height_index in 0..(self.height - (fragment_height - 1)) as usize {
-            for width_index in 0..(self.width - (fragment_width - 1)) as usize {
-                let color = color_per_height_index_per_width_index.get(&width_index).unwrap().get(&height_index).unwrap();
-                print_pixel(color);
+        for height_index in 0..self.height as usize {
+            for width_index in 0..self.width as usize {
+                let color = pixels[width_index][height_index];
+                print_pixel(&color);
             }
             println!("");
         }
@@ -328,14 +396,21 @@ impl Canvas {
             let node_id_split = collapsed_node_state.node_id.split("_").collect::<Vec<&str>>();
             let node_width_index = node_id_split[1].parse::<usize>().unwrap();
             let node_height_index = node_id_split[2].parse::<usize>().unwrap();
-            let chosen_color: [u8; 4];
             if let Some(pixel_color) = &collapsed_node_state.node_state_id {
-                chosen_color = pixel_color.pixels[0][0];
+                if node_width_index + pixel_color.width as usize == self.width as usize || node_height_index + pixel_color.height as usize == self.height as usize {
+                    for pixel_height_index in 0..pixel_color.height as usize {
+                        for pixel_width_index in 0..pixel_color.width as usize{
+                            pixels[node_width_index + pixel_width_index][node_height_index + pixel_height_index] = pixel_color.pixels[pixel_width_index][pixel_height_index];
+                        }
+                    }
+                }
+                else {
+                    pixels[node_width_index][node_height_index] = pixel_color.pixels[0][0];
+                }
             }
             else {
-                chosen_color = [255, 0, 0, 255];
+                pixels[node_width_index][node_height_index] = [255, 0, 0, 255];
             }
-            pixels[node_width_index][node_height_index] = chosen_color;
         }
 
         println!("Step {step_index} ======================================");
@@ -348,34 +423,69 @@ impl Canvas {
     }
 }
 
+enum Image {
+    Plant,
+    Rooms,
+    Houses
+}
+
 fn main() {
     std::env::set_var("RUST_LOG", "trace");
     //pretty_env_logger::init();
 
-    let plant_image_base64: String = String::from("Qk1eGQAAAAAAADYAAAAoAAAALgAAAC4AAAABABgAAAAAACgZAAAAAAAAAAAAAAAAAAAAAAAAV3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5AABXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerlXerkAAFd6uVd6uVd6uVd6uVd6uVd6uVd6uVd6uVd6uVd6uVd6uVd6uVd6uVd6uVd6uVd6uQCqAACqAFd6uVd6uVd6uVd6uVd6uVd6uVd6uVd6uVd6uVd6uVd6uVd6uVd6uVd6uQCqAACqAFd6uVd6uVd6uVd6uVd6uVd6uVd6uVd6uVd6uVd6uVd6uVd6uQAAV3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5AKoAAKoAV3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5AKoAAKoAV3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5AADy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AqgAAqgDy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AqgAAqgDy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AAPLov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/LovwCqAACqAPLov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/LovwCqAACqAPLov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/LovwAA8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/AKoAAKoA8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/AKoAAKoA8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/AADy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AqgAAqgDy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AqgAAqgDy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AAPLov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/LovwCqAACqAACqAACqAACqAACqAPLov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/LovwCqAACqAACqAACqAACqAACqAPLov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/LovwAA8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/AKoAAKoAAKoAAKoAAKoAAKoA8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/AKoAAKoAAKoAAKoAAKoAAKoA8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/AADy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AqgAAqgDy6L/y6L8AqgAAqgAAqgAAqgDy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AqgAAqgDy6L/y6L8AqgAAqgAAqgAAqgDy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AAPLov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/LovwCqAACqAPLov/LovwCqAACqAACqAACqAPLov/Lov/Lov/Lov/Lov/Lov/Lov/LovwCqAACqAPLov/LovwCqAACqAACqAACqAPLov/Lov/Lov/Lov/Lov/Lov/Lov/LovwAA8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/AKoAAKoAAKoAAKoA8ui/8ui/8ui/8ui/AKoAAKoAAKoAAKoA8ui/8ui/8ui/8ui/8ui/8ui/APL/APL/8ui/8ui/8ui/8ui/AKoAAKoAAKoAAKoA8ui/8ui/8ui/8ui/8ui/8ui/AADy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AqgAAqgAAqgAAqgDy6L/y6L/y6L/y6L8AqgAAqgAAqgAAqgDy6L/y6L/y6L/y6L/y6L/y6L8A8v8A8v/y6L/y6L/y6L/y6L8AqgAAqgAAqgAAqgDy6L/y6L/y6L/y6L/y6L/y6L8AAPLov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/LovwCqAACqAACqAACqAPLov/Lov/Lov/Lov/Lov/Lov/Lov/LovwCqAACqAPLov/Lov/Lov/LovwDy/wDy/wCqAACqAADy/wDy//Lov/Lov/Lov/LovwCqAACqAPLov/Lov/Lov/Lov/Lov/LovwAA8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/AKoAAKoAAKoAAKoA8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/AKoAAKoA8ui/8ui/8ui/8ui/APL/APL/AKoAAKoAAPL/APL/8ui/8ui/8ui/8ui/AKoAAKoA8ui/8ui/8ui/8ui/8ui/8ui/AADy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AqgAAqgAAqgAAqgDy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AqgAAqgAAqgAAqgAAqgAAqgDy6L/y6L/y6L/y6L8A8v8A8v/y6L/y6L/y6L/y6L/y6L/y6L8AqgAAqgDy6L/y6L/y6L/y6L/y6L/y6L8AAPLov/Lov/Lov/Lov/Lov/Lov/Lov/LovwCqAACqAACqAACqAPLov/Lov/Lov/Lov/Lov/Lov/Lov/LovwCqAACqAACqAACqAACqAACqAPLov/Lov/Lov/LovwDy/wDy//Lov/Lov/Lov/Lov/Lov/LovwCqAACqAPLov/Lov/Lov/Lov/Lov/LovwAA8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/AKoAAKoA8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/AKoAAKoA8ui/8ui/AKoAAKoAAKoAAKoA8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/AKoAAKoAAKoAAKoAAKoAAKoA8ui/8ui/8ui/8ui/AADy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AqgAAqgDy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AqgAAqgDy6L/y6L8AqgAAqgAAqgAAqgDy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AqgAAqgAAqgAAqgAAqgAAqgDy6L/y6L/y6L/y6L8AAPLov/Lov/Lov/Lov/Lov/LovwCqAACqAACqAACqAACqAACqAPLov/Lov/Lov/Lov/Lov/Lov/Lov/LovwCqAACqAPLov/Lov/Lov/LovwCqAACqAACqAACqAPLov/Lov/Lov/LovwCqAACqAACqAACqAPLov/LovwCqAACqAPLov/Lov/Lov/LovwAA8ui/8ui/8ui/8ui/8ui/8ui/AKoAAKoAAKoAAKoAAKoAAKoA8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/AKoAAKoA8ui/8ui/8ui/8ui/AKoAAKoAAKoAAKoA8ui/8ui/8ui/8ui/AKoAAKoAAKoAAKoA8ui/8ui/AKoAAKoA8ui/8ui/8ui/8ui/AADy6L/y6L/y6L/y6L/y6L/y6L8AqgAAqgDy6L/y6L8AqgAAqgAAqgAAqgDy6L/y6L/y6L/y6L/y6L/y6L8A8v8A8v/y6L/y6L/y6L/y6L/y6L/y6L8AqgAAqgDy6L/y6L/y6L/y6L8AqgAAqgDy6L/y6L/y6L/y6L8A8v8A8v/y6L/y6L/y6L/y6L8AAPLov/Lov/Lov/Lov/Lov/LovwCqAACqAPLov/LovwCqAACqAACqAACqAPLov/Lov/Lov/Lov/Lov/LovwDy/wDy//Lov/Lov/Lov/Lov/Lov/LovwCqAACqAPLov/Lov/Lov/LovwCqAACqAPLov/Lov/Lov/LovwDy/wDy//Lov/Lov/Lov/LovwAA8ui/8ui/8ui/8ui/AKoAAKoAAKoAAKoA8ui/8ui/8ui/8ui/AKoAAKoAAKoAAKoA8ui/8ui/APL/APL/AKoAAKoAAPL/APL/8ui/8ui/8ui/8ui/AKoAAKoA8ui/8ui/AKoAAKoAAKoAAKoA8ui/8ui/APL/APL/AKoAAKoAAPL/APL/8ui/8ui/AADy6L/y6L/y6L/y6L8AqgAAqgAAqgAAqgDy6L/y6L/y6L/y6L8AqgAAqgAAqgAAqgDy6L/y6L8A8v8A8v8AqgAAqgAA8v8A8v/y6L/y6L/y6L/y6L8AqgAAqgDy6L/y6L8AqgAAqgAAqgAAqgDy6L/y6L8A8v8A8v8AqgAAqgAA8v8A8v/y6L/y6L8AAPLov/Lov/Lov/LovwCqAACqAPLov/Lov/Lov/Lov/Lov/Lov/Lov/LovwCqAACqAPLov/Lov/Lov/LovwDy/wDy//Lov/Lov/Lov/LovwCqAACqAACqAACqAPLov/LovwCqAACqAPLov/Lov/Lov/Lov/Lov/LovwDy/wDy//Lov/Lov/Lov/LovwAA8ui/8ui/8ui/8ui/AKoAAKoA8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/AKoAAKoA8ui/8ui/8ui/8ui/APL/APL/8ui/8ui/8ui/8ui/AKoAAKoAAKoAAKoA8ui/8ui/AKoAAKoA8ui/8ui/8ui/8ui/8ui/8ui/APL/APL/8ui/8ui/8ui/8ui/AADy6L/y6L/y6L/y6L8A8v8A8v/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AqgAAqgAAqgAAqgDy6L/y6L/y6L/y6L/y6L/y6L8AqgAAqgAAqgAAqgDy6L/y6L/y6L/y6L8AqgAAqgAAqgAAqgDy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AAPLov/Lov/Lov/LovwDy/wDy//Lov/Lov/Lov/Lov/Lov/Lov/Lov/LovwCqAACqAACqAACqAPLov/Lov/Lov/Lov/Lov/LovwCqAACqAACqAACqAPLov/Lov/Lov/LovwCqAACqAACqAACqAPLov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/LovwAA8ui/8ui/APL/APL/AKoAAKoAAPL/APL/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/AKoAAKoA8ui/8ui/8ui/8ui/8ui/8ui/AKoAAKoA8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/AKoAAKoAAKoAAKoA8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/AADy6L/y6L8A8v8A8v8AqgAAqgAA8v8A8v/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AqgAAqgDy6L/y6L/y6L/y6L/y6L/y6L8AqgAAqgDy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AqgAAqgAAqgAAqgDy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AAPLov/Lov/Lov/LovwDy/wDy//Lov/Lov/Lov/Lov/Lov/Lov/Lov/LovwCqAACqAACqAACqAPLov/Lov/Lov/Lov/Lov/LovwCqAACqAACqAACqAPLov/Lov/Lov/Lov/Lov/Lov/Lov/LovwCqAACqAACqAACqAPLov/Lov/Lov/Lov/Lov/LovwAA8ui/8ui/8ui/8ui/APL/APL/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/AKoAAKoAAKoAAKoA8ui/8ui/8ui/8ui/8ui/8ui/AKoAAKoAAKoAAKoA8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/AKoAAKoAAKoAAKoA8ui/8ui/8ui/8ui/8ui/8ui/AADy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AqgAAqgAAqgAAqgDy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AqgAAqgAAqgAAqgDy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AqgAAqgDy6L/y6L/y6L/y6L/y6L/y6L8AAPLov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/LovwCqAACqAACqAACqAPLov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/LovwCqAACqAACqAACqAPLov/Lov/Lov/Lov/Lov/Lov/Lov/LovwCqAACqAPLov/Lov/Lov/Lov/Lov/LovwAA8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/AKoAAKoA8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/AKoAAKoA8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/APL/APL/8ui/8ui/8ui/8ui/8ui/8ui/AADy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AqgAAqgDy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AqgAAqgDy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8A8v8A8v/y6L/y6L/y6L/y6L/y6L/y6L8AAPLov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/LovwDy/wDy//Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/LovwDy/wDy//Lov/Lov/Lov/Lov/Lov/LovwDy/wDy/wCqAACqAADy/wDy//Lov/Lov/Lov/LovwAA8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/APL/APL/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/APL/APL/8ui/8ui/8ui/8ui/8ui/8ui/APL/APL/AKoAAKoAAPL/APL/8ui/8ui/8ui/8ui/AADy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8A8v8A8v8AqgAAqgAA8v8A8v/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8A8v8A8v8AqgAAqgAA8v8A8v/y6L/y6L/y6L/y6L/y6L/y6L8A8v8A8v/y6L/y6L/y6L/y6L/y6L/y6L8AAPLov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/LovwDy/wDy/wCqAACqAADy/wDy//Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/LovwDy/wDy/wCqAACqAADy/wDy//Lov/Lov/Lov/Lov/Lov/LovwDy/wDy//Lov/Lov/Lov/Lov/Lov/LovwAA8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/APL/APL/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/APL/APL/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/AADy6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8A8v8A8v/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8A8v8A8v/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L/y6L8AAPLov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/Lov/LovwAA8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/AAA=");
-    let rooms_image_base64: String = String::from("Qk02DAAAAAAAADYAAAAoAAAAIAAAACAAAAABABgAAAAAAAAMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODgAAAAAAAAAAAAAAAAAAAAAAAA");
-    let houses_image_base64: String = String::from("Qk02DAAAAAAAADYAAAAoAAAAIAAAACAAAAABABgAAAAAAAAMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFWqAFWqAFWqAFWqAAAAAAAAAFWqAFWqAFWqAFWqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFWqAFWqAFWqAFWqAAAAAAAAAFWqAFWqAFWqAFWqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFWqAFWqAFWqAFWqAAAAAAAAAFWqAFWqAFWqAFWqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFWqAFWqAFWqAFWqAAAAAAAAAFWqAFWqAFWqAFWqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACqAACqAACqAACqAFWqAFWqAFWqAFWqAFWqAFWqAACqAACqAACqAACqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACqAACqAACqAACqAFWqAFWqAFWqAFWqAFWqAFWqAACqAACqAACqAACqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACqAACqAACqAACqAACqAACqAACqAACqAACqAACqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACqAACqAACqAACqAACqAACqAACqAACqAACqAACqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACqAACqAACqAACqAACqAACqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACqAACqAACqAACqAACqAACqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFWqAFWqAFWqAFWqAAAAAAAAAFWqAFWqAFWqAFWqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFWqAFWqAFWqAFWqAAAAAAAAAFWqAFWqAFWqAFWqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFWqAFWqAFWqAFWqAAAAAAAAAFWqAFWqAFWqAFWqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFWqAFWqAFWqAFWqAAAAAAAAAFWqAFWqAFWqAFWqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACqAACqAACqAACqAFWqAFWqAFWqAFWqAFWqAFWqAACqAACqAACqAACqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACqAACqAACqAACqAFWqAFWqAFWqAFWqAFWqAFWqAACqAACqAACqAACqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACqAACqAACqAACqAACqAACqAACqAACqAACqAACqAAAAAAAAAAAAAAAAAFWqAFWqAFWqAFWqAAAAAAAAAFWqAFWqAFWqAFWqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACqAACqAACqAACqAACqAACqAACqAACqAACqAACqAAAAAAAAAAAAAAAAAFWqAFWqAFWqAFWqAAAAAAAAAFWqAFWqAFWqAFWqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACqAACqAACqAACqAACqAACqAAAAAAAAAAAAAAAAAAAAAAAAAFWqAFWqAFWqAFWqAAAAAAAAAFWqAFWqAFWqAFWqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACqAACqAACqAACqAACqAACqAAAAAAAAAAAAAAAAAAAAAAAAAFWqAFWqAFWqAFWqAAAAAAAAAFWqAFWqAFWqAFWqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACqAACqAACqAACqAFWqAFWqAFWqAFWqAFWqAFWqAACqAACqAACqAACqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACqAACqAACqAACqAFWqAFWqAFWqAFWqAFWqAFWqAACqAACqAACqAACqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACqAACqAACqAACqAACqAACqAACqAACqAACqAACqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACqAACqAACqAACqAACqAACqAACqAACqAACqAACqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACqAACqAACqAACqAACqAACqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACqAACqAACqAACqAACqAACqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
+    let is_reflection_permitted: bool;
+    let is_rotation_permitted: bool;
+    let is_periodic: bool;
+    let image_base64: String;
+    let contains_ground: bool;
+
     let plant_image_base64: String = String::from("Qk2uBgAAAAAAADYAAAAoAAAAFwAAABcAAAABABgAAAAAAHgGAAAAAAAAAAAAAAAAAAAAAAAAV3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5AAAAV3q5V3q5V3q5V3q5V3q5V3q5V3q5V3q5AKoAV3q5V3q5V3q5V3q5V3q5V3q5V3q5AKoAV3q5V3q5V3q5V3q5V3q5V3q5AAAA8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/AKoA8ui/8ui/8ui/8ui/8ui/8ui/8ui/AKoA8ui/8ui/8ui/8ui/8ui/8ui/AAAA8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/AKoA8ui/8ui/8ui/8ui/8ui/8ui/8ui/AKoA8ui/8ui/8ui/8ui/8ui/8ui/AAAA8ui/8ui/8ui/8ui/8ui/8ui/8ui/AKoAAKoAAKoA8ui/8ui/8ui/8ui/8ui/AKoAAKoAAKoA8ui/8ui/8ui/8ui/8ui/AAAA8ui/8ui/8ui/8ui/8ui/8ui/8ui/AKoA8ui/AKoAAKoA8ui/8ui/8ui/8ui/AKoA8ui/AKoAAKoA8ui/8ui/8ui/8ui/AAAA8ui/8ui/8ui/8ui/8ui/8ui/AKoAAKoA8ui/8ui/AKoAAKoA8ui/8ui/8ui/APL/8ui/8ui/AKoAAKoA8ui/8ui/8ui/AAAA8ui/8ui/8ui/8ui/8ui/AKoAAKoA8ui/8ui/8ui/8ui/AKoA8ui/8ui/APL/AKoAAPL/8ui/8ui/AKoA8ui/8ui/8ui/AAAA8ui/8ui/8ui/8ui/AKoAAKoA8ui/8ui/8ui/8ui/AKoAAKoAAKoA8ui/8ui/APL/8ui/8ui/8ui/AKoA8ui/8ui/8ui/AAAA8ui/8ui/8ui/8ui/AKoA8ui/8ui/8ui/8ui/8ui/AKoA8ui/AKoAAKoA8ui/8ui/8ui/8ui/AKoAAKoAAKoA8ui/8ui/AAAA8ui/8ui/8ui/AKoAAKoAAKoA8ui/8ui/8ui/8ui/AKoA8ui/8ui/AKoAAKoA8ui/8ui/AKoAAKoA8ui/AKoA8ui/8ui/AAAA8ui/8ui/8ui/AKoA8ui/AKoAAKoA8ui/8ui/8ui/APL/8ui/8ui/8ui/AKoA8ui/8ui/AKoA8ui/8ui/APL/8ui/8ui/AAAA8ui/8ui/AKoAAKoA8ui/8ui/AKoAAKoA8ui/APL/AKoAAPL/8ui/8ui/AKoA8ui/AKoAAKoA8ui/APL/AKoAAPL/8ui/AAAA8ui/8ui/AKoA8ui/8ui/8ui/8ui/AKoA8ui/8ui/APL/8ui/8ui/AKoAAKoA8ui/AKoA8ui/8ui/8ui/APL/8ui/8ui/AAAA8ui/8ui/APL/8ui/8ui/8ui/8ui/AKoAAKoA8ui/8ui/8ui/AKoAAKoA8ui/8ui/AKoAAKoA8ui/8ui/8ui/8ui/8ui/AAAA8ui/APL/AKoAAPL/8ui/8ui/8ui/8ui/AKoA8ui/8ui/8ui/AKoA8ui/8ui/8ui/8ui/AKoAAKoA8ui/8ui/8ui/8ui/AAAA8ui/8ui/APL/8ui/8ui/8ui/8ui/AKoAAKoA8ui/8ui/8ui/AKoAAKoA8ui/8ui/8ui/8ui/AKoAAKoA8ui/8ui/8ui/AAAA8ui/8ui/8ui/8ui/8ui/8ui/AKoAAKoA8ui/8ui/8ui/8ui/8ui/AKoAAKoA8ui/8ui/8ui/8ui/AKoA8ui/8ui/8ui/AAAA8ui/8ui/8ui/8ui/8ui/8ui/AKoA8ui/8ui/8ui/8ui/8ui/8ui/8ui/AKoA8ui/8ui/8ui/8ui/APL/8ui/8ui/8ui/AAAA8ui/8ui/8ui/8ui/8ui/8ui/APL/8ui/8ui/8ui/8ui/8ui/8ui/8ui/APL/8ui/8ui/8ui/APL/AKoAAPL/8ui/8ui/AAAA8ui/8ui/8ui/8ui/8ui/APL/AKoAAPL/8ui/8ui/8ui/8ui/8ui/APL/AKoAAPL/8ui/8ui/8ui/APL/8ui/8ui/8ui/AAAA8ui/8ui/8ui/8ui/8ui/8ui/APL/8ui/8ui/8ui/8ui/8ui/8ui/8ui/APL/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/AAAA8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/8ui/AAAA");
     let rooms_image_base64: String = String::from("Qk02AwAAAAAAADYAAAAoAAAAEAAAABAAAAABABgAAAAAAAADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODgAAAAAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAA4ODgAAAAAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAA4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAA4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAA4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODgAAAAAAAAAAAAAAAAAAAAAAAA4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODgAAAAAAAAAAAAAAAAAAAAAAAA4ODgAAAAAAAAAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAA4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODgAAAA4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAA4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAA4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAA4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAA4ODgAAAAAAAAAAAAAAAAAAAA4ODg4ODg4ODg4ODg4ODg4ODgAAAAAAAAAAAAAAAA4ODgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA4ODgAAAAAAAAAAAA");
     let houses_image_base64: String = String::from("Qk02AwAAAAAAADYAAAAoAAAAEAAAABAAAAABABgAAAAAAAADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFWqAFWqAAAAAFWqAFWqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFWqAFWqAAAAAFWqAFWqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACqAACqAFWqAFWqAFWqAACqAACqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACqAACqAACqAACqAACqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACqAACqAACqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFWqAFWqAAAAAFWqAFWqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFWqAFWqAAAAAFWqAFWqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACqAACqAFWqAFWqAFWqAACqAACqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACqAACqAACqAACqAACqAAAAAAAAAFWqAFWqAAAAAFWqAFWqAAAAAAAAAAAAAAAAAAAAAACqAACqAACqAAAAAAAAAAAAAFWqAFWqAAAAAFWqAFWqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACqAACqAFWqAFWqAFWqAACqAACqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACqAACqAACqAACqAACqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACqAACqAACqAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
 
-    let image_base64 = houses_image_base64;
+    //================================================
+    // NOTE: This can be change for different examples
+    let chosen_image = Image::Rooms;
+    let draw_each_frame: bool = false;
+    //================================================
+
+    match chosen_image {
+        Image::Plant => {
+            is_reflection_permitted = true;
+            is_rotation_permitted = false;
+            is_periodic = false;
+            image_base64 = plant_image_base64;
+            contains_ground = true;
+        },
+        Image::Rooms => {
+            is_reflection_permitted = true;
+            is_rotation_permitted = true;
+            is_periodic = true;
+            image_base64 = rooms_image_base64;
+            contains_ground = false;
+        },
+        Image::Houses => {
+            is_reflection_permitted = false;
+            is_rotation_permitted = false;
+            is_periodic = true;
+            image_base64 = houses_image_base64;
+            contains_ground = false;
+        }
+    }
+
     let mut file = tempfile::NamedTempFile::new().unwrap();
     let bytes = base64::decode(image_base64).unwrap();
-    println!("Image bytes: {}", bytes.len());
     file.write(bytes.as_slice()).unwrap();
     let file_path: &str = file.path().to_str().unwrap();
 
     let canvas = Canvas::new(60, 60);
     let fragment_width: u32 = 3;
     let fragment_height: u32 = 3;
-    let wave_function = canvas.get_wave_function(file_path, fragment_width, fragment_height);
+    let wave_function = canvas.get_wave_function(file_path, fragment_width, fragment_height, is_reflection_permitted, is_rotation_permitted, is_periodic, contains_ground);
 
     file.close().unwrap();
 
     wave_function.validate().unwrap();
-
-    println!("validated");
 
     let mut rng = rand::thread_rng();
     let random_seed = Some(rng.gen::<u64>());
@@ -383,20 +493,23 @@ fn main() {
     let mut collapsable_wave_function = wave_function.get_collapsable_wave_function::<EntropicCollapsableWaveFunction<ImageFragment>>(random_seed);
     
     let start = Instant::now();
+    let duration: Duration;
 
-    // TODO uncomment once the algorithm works consistently
-    //let collapsed_wave_function = collapsable_wave_function.collapse().unwrap();
+    if draw_each_frame {
+        let collapsed_node_states = collapsable_wave_function.collapse_into_steps().unwrap();
+        duration = start.elapsed();
 
-    // TODO remove once the algorithm works consistently
-    let collapsed_node_states = collapsable_wave_function.collapse_into_steps().unwrap();
+        for step_index in 0..collapsed_node_states.len() {
+            canvas.print_step(&collapsed_node_states, step_index);
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+    }
+    else {
+        let collapsed_wave_function = collapsable_wave_function.collapse().unwrap();
+        duration = start.elapsed();
 
-    for step_index in 0..collapsed_node_states.len() {
-        canvas.print_step(&collapsed_node_states, step_index);
+        canvas.print(collapsed_wave_function, fragment_width, fragment_height);
     }
 
-    // pull out the root pixels from every node's image fragment along with the right and bottom walls
-    // TODO uncomment once the algorithm works consistently
-    //canvas.print(collapsed_wave_function, fragment_width, fragment_height);
-    let duration = start.elapsed();
     println!("Duration: {:?}", duration);
 }

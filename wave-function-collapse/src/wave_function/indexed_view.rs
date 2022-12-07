@@ -355,7 +355,6 @@ impl<TNodeState: Clone + Eq + Hash + Debug> IndexedView<TNodeState> {
                 }
             }
             self.entropy = Some(weights_total.ln() - weights_times_log_weights_total / weights_total);
-            println!("entropy after checking {:?}: {:?}", checked_total, self.entropy);
         }
         self.entropy.unwrap()
     }
