@@ -445,7 +445,7 @@ fn main() {
 
     //================================================
     // NOTE: This can be change for different examples
-    let chosen_image = Image::Rooms;
+    let chosen_image = Image::Plant;
     let draw_each_frame: bool = false;
     //================================================
 
