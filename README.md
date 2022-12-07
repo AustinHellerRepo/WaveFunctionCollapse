@@ -1,4 +1,4 @@
-# WaveFunctionCollapse
+# Wave Function Collapse
 Converts nodes and their constraints upon other nodes into a fully collapsed node state based on the selected algorithm. This can be used to solve any degree of complexity from dense node graphs to Sudoku to procedurally-generated game elements and more.
 
 ## Features
@@ -10,6 +10,7 @@ Converts nodes and their constraints upon other nodes into a fully collapsed nod
   - A full sequential search of all possible solutions when it is known that very few, one, or no solutions are possible
     - Can determine if the wave function is not collapsable
   - A random search for more heterogenious solutions when many solutions are possible, but may never complete given certain circumstances
+  - An entropic propagating search that makes for interesting images based on model image data
 - Different probabilities per state per node can be suggested to allow for either faster results or different random results (based on the algorithm used)
 - Examples showing how different constraint problems can be solved via the different algorithms
 - The wave function can be saved and loaded from file
@@ -21,9 +22,11 @@ To use this framework, you will first want to determine the following:
   - An enum because there are only specific states?
   - A UUID String because it may be unknown at compile time?
   - A u64 because it is a reference to an identifier in a database?
+  - An image fragment struct which contains overlapping image pixel data?
 - What does your graph of nodes look like?
   - Is it a flat grid like a checkerboard?
   - Is it a 3D grid like a voxel game (ex: Minecraft)?
+  - A binary directed tree?
 - What node states, for any specific node, would permit which other node states for its neighbor nodes?
   - Can direct neighbors of nodes not have the same state as the current node?
   - Are only certain states possible when the node is in this special state?
@@ -31,6 +34,13 @@ To use this framework, you will first want to determine the following:
 Once these are answered, you can construct the vector of nodes and the vector of node state collections that those nodes reference for their permissive relationships. Please examine a relevant example to see how the construction of nodes and node state collections occurs.
 
 ## Examples
+
+_Image example_
+
+This example demonstrates the same functionality showcased in https://github.com/mxgmn/WaveFunctionCollapse.
+```shell
+cargo run --release --example image
+```
 
 _Sudoku example_
 
