@@ -2,7 +2,7 @@ use std::{collections::HashMap, time::Instant};
 use wave_function_collapse::wave_function::{
     Node,
     NodeStateCollection,
-    WaveFunction, NodeStateProbability, collapsable_wave_function::{sequential_collapsable_wave_function::SequentialCollapsableWaveFunction, collapsable_wave_function::CollapsableWaveFunction}
+    WaveFunction, NodeStateProbability, collapsable_wave_function::{sequential_collapsable_wave_function::SequentialCollapsableWaveFunction, collapsable_wave_function::CollapsableWaveFunction, entropic_collapsable_wave_function::EntropicCollapsableWaveFunction}
 };
 
 /// This struct represents a Sudoku puzzle.
@@ -39,7 +39,7 @@ impl SudokuPuzzle {
         }
         println!("-------------------");
     }
-    fn get_solution(&self) -> Result<SudokuPuzzle, String> {
+    fn get_solution(&self, print_steps: bool) -> Result<SudokuPuzzle, String> {
         // setup nodes and node state collections
         let mut node_id_per_y_per_x: HashMap<usize, HashMap<usize, String>> = HashMap::new();
         for (x_index, number_per_row) in self.number_per_row_per_column.iter().enumerate() {
@@ -202,8 +202,13 @@ impl SudokuPuzzle {
                     }
                 }
                 let mut node_state_ids: Vec<String> = Vec::new();
-                for number in 1u8..10 {
-                    node_state_ids.push(format!("state_{number}"));
+                if let Some(from_number) = from_number_option {
+                    node_state_ids.push(format!("state_{from_number}"));
+                }
+                else {
+                    for number in 1u8..10 {
+                        node_state_ids.push(format!("state_{number}"));
+                    }
                 }
                 let node = Node::new(
                     node_id_per_y_per_x.get(&from_x_index).unwrap().get(&from_y_index).unwrap().clone(),
@@ -217,9 +222,11 @@ impl SudokuPuzzle {
         let wave_function = WaveFunction::new(nodes, node_state_collection_per_id.values().cloned().collect());
         wave_function.validate().unwrap();
 
-        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse();
+        let mut collapsable_wave_function = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None);
 
-        if let Ok(collapsed_wave_function) = collapsed_wave_function_result {
+        if print_steps {
+            let collapsed_node_states = collapsable_wave_function.collapse_into_steps().unwrap();
+
             let mut state_per_row_per_column: Vec<Vec<Option<u8>>> = Vec::new();
             for index in 1u8..10 {
                 state_per_row_per_column.push(Vec::new());
@@ -227,13 +234,35 @@ impl SudokuPuzzle {
                     state_per_row_per_column[(index as usize) - 1].push(None);
                 }
             }
-            for (node, node_state) in collapsed_wave_function.node_state_per_node.iter() {
-                let node_string_split = node.split("_").collect::<Vec<&str>>();
+
+            for collapsed_node_state in collapsed_node_states.iter() {
+                let node_string_split = collapsed_node_state.node_id.split("_").collect::<Vec<&str>>();
                 let x_index = node_string_split[2].parse::<u8>().unwrap();
                 let y_index = node_string_split[1].parse::<u8>().unwrap();
-                let node_state_string_split = node_state.split("_").collect::<Vec<&str>>();
-                let state = node_state_string_split[1].parse::<u8>().unwrap();
-                state_per_row_per_column[y_index as usize][x_index as usize] = Some(state);
+                if let Some(node_state) = &collapsed_node_state.node_state_id {
+                    let node_state_string_split = node_state.split("_").collect::<Vec<&str>>();
+                    let state = node_state_string_split[1].parse::<u8>().unwrap();
+                    state_per_row_per_column[y_index as usize][x_index as usize] = Some(state);
+                }
+                else {
+                    state_per_row_per_column[y_index as usize][x_index as usize] = None;
+                }
+
+                for (_, number_per_column) in state_per_row_per_column.iter().enumerate() {
+                    println!("-------------------");
+                    print!("|");
+                    for (_, number_option) in number_per_column.iter().enumerate() {
+                        if let Some(number) = number_option {
+                            print!("{number}");
+                        }
+                        else {
+                            print!(" ");
+                        }
+                        print!("|");
+                    }
+                    println!("");
+                }
+                println!("-------------------");
             }
 
             let solved_puzzle = SudokuPuzzle {
@@ -242,7 +271,33 @@ impl SudokuPuzzle {
             Ok(solved_puzzle)
         }
         else {
-            Err(collapsed_wave_function_result.err().unwrap())
+            let collapsed_wave_function_result = collapsable_wave_function.collapse();
+
+            if let Ok(collapsed_wave_function) = collapsed_wave_function_result {
+                let mut state_per_row_per_column: Vec<Vec<Option<u8>>> = Vec::new();
+                for index in 1u8..10 {
+                    state_per_row_per_column.push(Vec::new());
+                    for _ in 1u8..10 {
+                        state_per_row_per_column[(index as usize) - 1].push(None);
+                    }
+                }
+                for (node, node_state) in collapsed_wave_function.node_state_per_node.iter() {
+                    let node_string_split = node.split("_").collect::<Vec<&str>>();
+                    let x_index = node_string_split[2].parse::<u8>().unwrap();
+                    let y_index = node_string_split[1].parse::<u8>().unwrap();
+                    let node_state_string_split = node_state.split("_").collect::<Vec<&str>>();
+                    let state = node_state_string_split[1].parse::<u8>().unwrap();
+                    state_per_row_per_column[y_index as usize][x_index as usize] = Some(state);
+                }
+
+                let solved_puzzle = SudokuPuzzle {
+                    number_per_row_per_column: state_per_row_per_column
+                };
+                Ok(solved_puzzle)
+            }
+            else {
+                Err(collapsed_wave_function_result.err().unwrap())
+            }
         }
     }
 }
@@ -266,7 +321,12 @@ fn main() {
     };
     puzzle.print();
 
-    let solution_result = puzzle.get_solution();
+    //=========================================================================
+    // NOTE: This can be changed to show the steps taken to get to the solution
+    let print_steps: bool = false;
+    //=========================================================================
+
+    let solution_result = puzzle.get_solution(print_steps);
 
     if let Ok(solution) = solution_result {
         solution.print();
