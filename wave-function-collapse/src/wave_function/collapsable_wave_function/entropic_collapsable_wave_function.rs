@@ -25,7 +25,6 @@ pub struct EntropicCollapsableWaveFunction<'a, TNodeState: Eq + Hash + Clone + s
     great_neighbors_from_popped_neighbor: Vec<&'a str>,
     great_neighbors_from_popped_neighbor_length: usize,
     explored_great_neighbor_node_index: Option<usize>,
-    collected_masks_for_each_possible_state_for_currently_explored_neighbor: Vec<BitVec>,
     calculated_flattened_mask: Option<BitVec>,
     node_state_type: PhantomData<TNodeState>
 }
@@ -146,8 +145,8 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> EntropicCollapsa
             self.explored_great_neighbor_node_index = Some(0);
         }
     }
-    fn collect_masks_for_each_possible_state_of_popped_neighbor_for_currently_explored_great_neighbor(&mut self) {
-        self.collected_masks_for_each_possible_state_for_currently_explored_neighbor.clear();
+    fn collect_and_flatten_masks_for_each_possible_state_of_popped_neighbor_for_currently_explored_great_neighbor(&mut self) {
+        let mut flattened_mask: Option<BitVec> = None;
         let popped_neighbor_node_id: &str = self.popped_neighbor_node_id.as_ref().unwrap();
         let wrapped_popped_neighbor_collapsable_node = self.collapsable_node_per_id.get(popped_neighbor_node_id).unwrap();
         let popped_neighbor_collapsable_node = wrapped_popped_neighbor_collapsable_node.borrow();
@@ -157,26 +156,17 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> EntropicCollapsa
                 let mask_per_neighbor = popped_neighbor_collapsable_node.mask_per_neighbor_per_state.get(possible_state).unwrap();
                 if mask_per_neighbor.contains_key(explored_great_neighbor_node_id) {
                     let mask = mask_per_neighbor.get(explored_great_neighbor_node_id).unwrap();
-                    self.collected_masks_for_each_possible_state_for_currently_explored_neighbor.push(mask.clone());
+                    if let Some(flattened_mask_value) = flattened_mask {
+                        let bitwise_or_mask = flattened_mask_value.bitor(mask);
+                        flattened_mask = Some(bitwise_or_mask);
+                    }
+                    else {
+                        flattened_mask = Some(mask.clone());
+                    }
                 }
             }
         }
-    }
-    fn calculate_flattened_mask(&mut self) {
-        // TODO compress "collect_masks_for_each_possible_state_of_popped_neighbor_for_currently_explored_great_neighbor", "calculate_flattened_mask", and "is_flattened_mask_restrictive_to_explored_neighbor" into one function
-        if !self.collected_masks_for_each_possible_state_for_currently_explored_neighbor.is_empty() {
-            let mut flattened_mask: Option<BitVec> = None;
-            for mask in self.collected_masks_for_each_possible_state_for_currently_explored_neighbor.iter() {
-                if let Some(flattened_mask_value) = flattened_mask {
-                    let bitwise_or_mask = flattened_mask_value.bitor(mask);
-                    flattened_mask = Some(bitwise_or_mask);
-                }
-                else {
-                    flattened_mask = Some(mask.clone());
-                }
-            }
-            self.calculated_flattened_mask = flattened_mask;
-        }
+        self.calculated_flattened_mask = flattened_mask;
     }
     fn is_flattened_mask_restrictive_to_explored_neighbor(&self) -> bool {
         if let Some(flattened_mask_value) = self.calculated_flattened_mask.as_ref() {
@@ -242,7 +232,6 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveF
             great_neighbors_from_popped_neighbor: Vec::new(),
             great_neighbors_from_popped_neighbor_length: 0,
             explored_great_neighbor_node_index: None,
-            collected_masks_for_each_possible_state_for_currently_explored_neighbor: Vec::new(),
             calculated_flattened_mask: None,
             node_state_type: PhantomData
         };
@@ -305,10 +294,8 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveF
                         while !self.is_every_great_neighbor_explored() {
                             debug!("incrementing to next great neighbor node");
                             self.explore_next_great_neighbor_node();
-                            debug!("collecting masks");
-                            self.collect_masks_for_each_possible_state_of_popped_neighbor_for_currently_explored_great_neighbor();
-                            debug!("calculate flattened mask");
-                            self.calculate_flattened_mask();
+                            debug!("collecting and flattening masks");
+                            self.collect_and_flatten_masks_for_each_possible_state_of_popped_neighbor_for_currently_explored_great_neighbor();
                             let is_restrictive = self.is_flattened_mask_restrictive_to_explored_neighbor();
                             if is_restrictive {
                                 debug!("is restrictive");
@@ -359,10 +346,8 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveF
                         while !self.is_every_great_neighbor_explored() {
                             debug!("incrementing to next great neighbor node");
                             self.explore_next_great_neighbor_node();
-                            debug!("collecting masks");
-                            self.collect_masks_for_each_possible_state_of_popped_neighbor_for_currently_explored_great_neighbor();
-                            debug!("calculate flattened mask");
-                            self.calculate_flattened_mask();
+                            debug!("collecting and flattening masks");
+                            self.collect_and_flatten_masks_for_each_possible_state_of_popped_neighbor_for_currently_explored_great_neighbor();
                             let is_restrictive = self.is_flattened_mask_restrictive_to_explored_neighbor();
                             if is_restrictive {
                                 debug!("is restrictive");
