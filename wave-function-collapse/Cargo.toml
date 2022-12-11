@@ -31,3 +31,4 @@ tempfile = { version = "3.3.0" }
 colored = { version = "2.0.0" }
 image = { version = "0.24.5" }
 base64 = { version = "0.13.1" }
+austinhellerrepo-common-rust = { version = "0.2.1" }
