@@ -1304,7 +1304,7 @@ checksum = "1c38c045535d93ec4f0b4defec448e4291638ee608530863b1e2ba115d4fff7f"
 
 [[package]]
 name = "wave-function-collapse"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "async-std",
  "austinhellerrepo-common-rust",

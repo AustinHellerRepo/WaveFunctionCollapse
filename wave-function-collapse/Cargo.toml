@@ -1,6 +1,6 @@
 [package]
 name = "wave-function-collapse"
-version = "0.1.2"
+version = "0.2.0"
 edition = "2021"
 authors = ["Austin Heller"]
 description = "Converts nodes and their restrictions into a collapsed node state based on the selected algorithm."
