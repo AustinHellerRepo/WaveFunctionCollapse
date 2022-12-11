@@ -51,7 +51,7 @@ impl SudokuPuzzle {
             node_id_per_y_per_x.insert(x_index, node_id_per_y);
         }
 
-        let mut exclusive_node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+        let mut exclusive_node_state_collections: Vec<NodeStateCollection<String, String>> = Vec::new();
         for number in 1u8..10 {
             let mut node_state_ids: Vec<String> = Vec::new();
             for other_number in 1u8..10 {
@@ -68,7 +68,7 @@ impl SudokuPuzzle {
         }
 
         // all other node states are possible expect for "number"
-        let mut possible_node_state_collection_per_number: HashMap<u8, NodeStateCollection<String>> = HashMap::new();
+        let mut possible_node_state_collection_per_number: HashMap<u8, NodeStateCollection<String, String>> = HashMap::new();
         for number in 1u8..10 {
             let mut node_state_ids: Vec<String> = Vec::new();
             for state in 1u8..10 {
@@ -85,7 +85,7 @@ impl SudokuPuzzle {
         }
 
         // no node states are possible if "number"
-        let mut impossible_node_state_collection_per_number: HashMap<u8, NodeStateCollection<String>> = HashMap::new();
+        let mut impossible_node_state_collection_per_number: HashMap<u8, NodeStateCollection<String, String>> = HashMap::new();
         for number in 1u8..10 {
             let node_state_collection = NodeStateCollection::new(
                 format!("specific_{number}_impossible"),
@@ -96,10 +96,10 @@ impl SudokuPuzzle {
         }
 
         // when from node is "from number" only "destination state" is possible for neighbor
-        let mut always_node_state_collection_per_to_number_per_from_number: HashMap<u8, HashMap<u8, NodeStateCollection<String>>> = HashMap::new();
+        let mut always_node_state_collection_per_to_number_per_from_number: HashMap<u8, HashMap<u8, NodeStateCollection<String, String>>> = HashMap::new();
         for from_number in 1u8..10 {
             let from_number_node_state_id = format!("state_{from_number}");
-            let mut always_node_state_collection_per_to_number: HashMap<u8, NodeStateCollection<String>> = HashMap::new();
+            let mut always_node_state_collection_per_to_number: HashMap<u8, NodeStateCollection<String, String>> = HashMap::new();
             for to_number in 1u8..10 {
                 let to_number_node_state_id = format!("state_{to_number}");
 
@@ -114,8 +114,8 @@ impl SudokuPuzzle {
             always_node_state_collection_per_to_number_per_from_number.insert(from_number, always_node_state_collection_per_to_number);
         }
 
-        let mut node_state_collection_per_id: HashMap<String, NodeStateCollection<String>> = HashMap::new();
-        let mut nodes: Vec<Node<String>> = Vec::new();
+        let mut node_state_collection_per_id: HashMap<String, NodeStateCollection<String, String>> = HashMap::new();
+        let mut nodes: Vec<Node<String, String>> = Vec::new();
         for (from_x_index, from_number_per_row) in self.number_per_row_per_column.iter().enumerate() {
             for (from_y_index, from_number_option) in from_number_per_row.iter().enumerate() {
                 let mut node_state_collection_ids_per_neighbor_node_id: HashMap<String, Vec<String>> = HashMap::new();
@@ -139,7 +139,7 @@ impl SudokuPuzzle {
                                     // else when "from" is in any other state, permit nothing
                                     
                                     for possible_from_number in 1u8..10 {
-                                        let node_state_collection: &NodeStateCollection<String>;
+                                        let node_state_collection: &NodeStateCollection<String, String>;
                                         if possible_from_number == *from_number {
                                             node_state_collection = always_node_state_collection_per_to_number_per_from_number.get(&possible_from_number).unwrap().get(&to_number).unwrap();
                                         }
@@ -157,7 +157,7 @@ impl SudokuPuzzle {
                                     // else when "from" is in any other state, permit nothing
 
                                     for possible_from_number in 1u8..10 {
-                                        let node_state_collection: &NodeStateCollection<String>;
+                                        let node_state_collection: &NodeStateCollection<String, String>;
                                         if possible_from_number == *from_number {
                                             node_state_collection = possible_node_state_collection_per_number.get(&possible_from_number).unwrap();
                                         }
@@ -222,7 +222,7 @@ impl SudokuPuzzle {
         let wave_function = WaveFunction::new(nodes, node_state_collection_per_id.values().cloned().collect());
         wave_function.validate().unwrap();
 
-        let mut collapsable_wave_function = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None);
+        let mut collapsable_wave_function = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String, String>>(None);
 
         if print_steps {
             let collapsed_node_states = collapsable_wave_function.collapse_into_steps().unwrap();

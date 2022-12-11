@@ -7,25 +7,25 @@ use rand::seq::SliceRandom;
 use super::collapsable_wave_function::{CollapsableWaveFunction, CollapsableNode, CollapsedNodeState, CollapsedWaveFunction};
 
 /// This struct represents a CollapsableWaveFunction that picks a random node, tries to get each parent to accommodate to the current state of the random node, repeating until all nodes are unrestricted. This is best for finding solutions when the condition problem has many possible solutions and you want a more random solution. If there are very few solutions, the wave function is uncollapsable by design, or there are certain types of cycles in the graph, this algorithm with perform poorly or never complete.
-pub struct AccommodatingCollapsableWaveFunction<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> {
-    collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a, TNodeState>>>>,
-    collapsable_node_per_id: HashMap<&'a str, Rc<RefCell<CollapsableNode<'a, TNodeState>>>>,
-    accommodate_node_ids: Vec<&'a str>,
+pub struct AccommodatingCollapsableWaveFunction<'a, TIdentifier: Eq + Hash + Clone + std::fmt::Debug + Ord, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> {
+    collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a, TIdentifier, TNodeState>>>>,
+    collapsable_node_per_id: HashMap<&'a TIdentifier, Rc<RefCell<CollapsableNode<'a, TIdentifier, TNodeState>>>>,
+    accommodate_node_ids: Vec<&'a TIdentifier>,
     accommodate_node_ids_length: usize,
     accommodate_node_ids_index: usize,
     accommodated_total: usize,
-    impacted_node_ids: HashSet<&'a str>,
+    impacted_node_ids: HashSet<&'a TIdentifier>,
     node_state_type: PhantomData<TNodeState>
 }
 
-impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingCollapsableWaveFunction<'a, TNodeState> {
-    fn initialize_nodes(&mut self) -> Result<Vec<CollapsedNodeState<TNodeState>>, String> {
+impl<'a, TIdentifier: Eq + Hash + Clone + std::fmt::Debug + Ord, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingCollapsableWaveFunction<'a, TIdentifier, TNodeState> {
+    fn initialize_nodes(&mut self) -> Result<Vec<CollapsedNodeState<TIdentifier, TNodeState>>, String> {
 
         // initialize each collapsable node to its first (random) state, storing them for the return
         // alter masks for every collapsable node to its neighbors
         // initialize the collapsable_nodes vector
 
-        let mut initial_node_states: Vec<CollapsedNodeState<TNodeState>> = Vec::new();
+        let mut initial_node_states: Vec<CollapsedNodeState<TIdentifier, TNodeState>> = Vec::new();
         for wrapped_collapsable_node in self.collapsable_nodes.iter() {
             let mut collapsable_node = wrapped_collapsable_node.borrow_mut();
             if !collapsable_node.node_state_indexed_view.try_move_next() {
@@ -34,8 +34,8 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingCol
             
             self.accommodate_node_ids.push(collapsable_node.id);
             let node_state = collapsable_node.node_state_indexed_view.get().unwrap();
-            let collapsed_node_state: CollapsedNodeState<TNodeState> = CollapsedNodeState {
-                node_id: String::from(collapsable_node.id),
+            let collapsed_node_state: CollapsedNodeState<TIdentifier, TNodeState> = CollapsedNodeState {
+                node_id: collapsable_node.id.clone(),
                 node_state_id: Some((*node_state).clone())
             };
             initial_node_states.push(collapsed_node_state);
@@ -46,8 +46,8 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingCol
         for wrapped_collapsable_node in self.collapsable_nodes.iter() {
             let collapsable_node = wrapped_collapsable_node.borrow();
             let node_state = collapsable_node.node_state_indexed_view.get().unwrap();
-            let neighbor_node_ids: &Vec<&str> = &collapsable_node.neighbor_node_ids;
-            let mask_per_neighbor_per_state: &HashMap<&TNodeState, HashMap<&str, BitVec>> = &collapsable_node.mask_per_neighbor_per_state;
+            let neighbor_node_ids: &Vec<&TIdentifier> = &collapsable_node.neighbor_node_ids;
+            let mask_per_neighbor_per_state: &HashMap<&TNodeState, HashMap<&TIdentifier, BitVec>> = &collapsable_node.mask_per_neighbor_per_state;
             if let Some(mask_per_neighbor) = mask_per_neighbor_per_state.get(node_state) {
                 for neighbor_node_id in neighbor_node_ids.iter() {
                     if mask_per_neighbor.contains_key(neighbor_node_id) {
@@ -96,7 +96,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingCol
         // returns if the current state of the current node is restricted and not yet impacted
         // increment pointer if false
 
-        let current_collapsable_node_id: &str = self.accommodate_node_ids[self.accommodate_node_ids_index];
+        let current_collapsable_node_id: &TIdentifier = self.accommodate_node_ids[self.accommodate_node_ids_index];
         let wrapped_current_collapsable_node = self.collapsable_node_per_id.get(current_collapsable_node_id).unwrap();
         let current_collapsable_node = wrapped_current_collapsable_node.borrow();
         let mut is_current_collapsable_node_in_conflict = current_collapsable_node.node_state_indexed_view.is_current_state_restricted();
@@ -123,7 +123,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingCol
 
         is_current_collapsable_node_in_conflict
     }
-    fn accommodate_current_node(&mut self) -> Vec<CollapsedNodeState<TNodeState>> {
+    fn accommodate_current_node(&mut self) -> Vec<CollapsedNodeState<TIdentifier, TNodeState>> {
 
         // accommodate this collapsable node, storing the node states for the return
         // alter mask for neighbors
@@ -131,12 +131,12 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingCol
 
         // NOTE: resetting the indexed_view for each accommodating parent significantly reduces the performance of this algorithm
 
-        let mut changed_parent_node_states: Vec<CollapsedNodeState<TNodeState>> = Vec::new();
-        let mut to_node_state_and_from_node_state_tuple_per_parent_node_id: HashMap<&str, (&TNodeState, &TNodeState)> = HashMap::new();
+        let mut changed_parent_node_states: Vec<CollapsedNodeState<TIdentifier, TNodeState>> = Vec::new();
+        let mut to_node_state_and_from_node_state_tuple_per_parent_node_id: HashMap<&TIdentifier, (&TNodeState, &TNodeState)> = HashMap::new();
 
         // try to get each parent neighbor node to accommodate the current node
         {
-            let current_collapsable_node_id: &str = self.accommodate_node_ids[self.accommodate_node_ids_index];
+            let current_collapsable_node_id: &TIdentifier = self.accommodate_node_ids[self.accommodate_node_ids_index];
             let wrapped_current_collapsable_node = self.collapsable_node_per_id.get(current_collapsable_node_id).unwrap();
             let current_collapsable_node = wrapped_current_collapsable_node.borrow();
 
@@ -170,7 +170,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingCol
 
                             // store the changed node state
                             changed_parent_node_states.push(CollapsedNodeState {
-                                node_id: String::from(*parent_neighbor_node_id),
+                                node_id: (*parent_neighbor_node_id).clone(),
                                 node_state_id: Some(current_node_state.clone())
                             });
                             
@@ -201,8 +201,8 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingCol
                 let parent_neighbor_node = wrapped_parent_neighbor_node.borrow();
                 
                 // inform the impacted neighbors
-                let neighbor_node_ids: &Vec<&str> = &parent_neighbor_node.neighbor_node_ids;
-                let mask_per_neighbor_per_state: &HashMap<&TNodeState, HashMap<&str, BitVec>> = &parent_neighbor_node.mask_per_neighbor_per_state;
+                let neighbor_node_ids: &Vec<&TIdentifier> = &parent_neighbor_node.neighbor_node_ids;
+                let mask_per_neighbor_per_state: &HashMap<&TNodeState, HashMap<&TIdentifier, BitVec>> = &parent_neighbor_node.mask_per_neighbor_per_state;
                 if let Some(mask_per_neighbor) = mask_per_neighbor_per_state.get(original_node_state) {
                     for neighbor_node_id in neighbor_node_ids.iter() {
                         if mask_per_neighbor.contains_key(neighbor_node_id) {
@@ -236,13 +236,13 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingCol
 
         changed_parent_node_states
     }
-    fn get_collapsed_wave_function(&self) -> CollapsedWaveFunction<TNodeState> {
-        let mut node_state_per_node: HashMap<String, TNodeState> = HashMap::new();
+    fn get_collapsed_wave_function(&self) -> CollapsedWaveFunction<TIdentifier, TNodeState> {
+        let mut node_state_per_node: HashMap<TIdentifier, TNodeState> = HashMap::new();
         for wrapped_collapsable_node in self.collapsable_nodes.iter() {
             let collapsable_node = wrapped_collapsable_node.borrow();
             let node_state: TNodeState = (*collapsable_node.node_state_indexed_view.get().unwrap()).clone();
-            let node: String = String::from(collapsable_node.id);
-            debug!("established node {node} in state {:?}.", node_state);
+            let node: TIdentifier = collapsable_node.id.clone();
+            debug!("established node {:?} in state {:?}.", node, node_state);
             node_state_per_node.insert(node, node_state);
         }
         CollapsedWaveFunction {
@@ -251,8 +251,8 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingCol
     }
 }
 
-impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveFunction<'a, TNodeState> for AccommodatingCollapsableWaveFunction<'a, TNodeState> {
-    fn new(collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a, TNodeState>>>>, collapsable_node_per_id: HashMap<&'a str, Rc<RefCell<CollapsableNode<'a, TNodeState>>>>) -> Self {
+impl<'a, TIdentifier: Eq + Hash + Clone + std::fmt::Debug + Ord, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveFunction<'a, TIdentifier, TNodeState> for AccommodatingCollapsableWaveFunction<'a, TIdentifier, TNodeState> {
+    fn new(collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a, TIdentifier, TNodeState>>>>, collapsable_node_per_id: HashMap<&'a TIdentifier, Rc<RefCell<CollapsableNode<'a, TIdentifier, TNodeState>>>>) -> Self {
         AccommodatingCollapsableWaveFunction {
             collapsable_nodes: collapsable_nodes,
             collapsable_node_per_id: collapsable_node_per_id,
@@ -264,7 +264,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveF
             node_state_type: PhantomData
         }
     }
-    fn collapse(&'a mut self) -> Result<CollapsedWaveFunction<TNodeState>, String> {
+    fn collapse(&'a mut self) -> Result<CollapsedWaveFunction<TIdentifier, TNodeState>, String> {
         let initialize_result = self.initialize_nodes();
         if initialize_result.is_err() {
             return Err(initialize_result.err().unwrap());
@@ -290,7 +290,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveF
 
         Ok(self.get_collapsed_wave_function())
     }
-    fn collapse_into_steps(&'a mut self) -> Result<Vec<CollapsedNodeState<TNodeState>>, String> {
+    fn collapse_into_steps(&'a mut self) -> Result<Vec<CollapsedNodeState<TIdentifier, TNodeState>>, String> {
 
         // initialize each collapsable node to its first (random) state
         // alter masks for every collapsable node to its neighbors
@@ -307,7 +307,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveF
         //
         // NOTE: this could cause an infinite loop for the AB<-->CD unit test
 
-        let mut collapsed_node_states: Vec<CollapsedNodeState<TNodeState>> = Vec::new();
+        let mut collapsed_node_states: Vec<CollapsedNodeState<TIdentifier, TNodeState>> = Vec::new();
 
         let initialized_node_states_result = self.initialize_nodes();
         if initialized_node_states_result.is_err() {

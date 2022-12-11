@@ -48,9 +48,9 @@ impl Sparse {
             distance: distance
         }
     }
-    fn get_wave_function(&self) -> WaveFunction<SparseElement> {
+    fn get_wave_function(&self) -> WaveFunction<String, SparseElement> {
 
-        let mut node_state_collections: Vec<NodeStateCollection<SparseElement>> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection<String, SparseElement>> = Vec::new();
 
         node_state_collections.push(NodeStateCollection::new(
             Uuid::new_v4().to_string(),
@@ -75,7 +75,7 @@ impl Sparse {
         }
 
         debug!("connecting nodes");
-        let mut nodes: Vec<Node<SparseElement>> = Vec::new();
+        let mut nodes: Vec<Node<String, SparseElement>> = Vec::new();
         for from_height_index in 0..self.height {
             for from_width_index in 0..self.width {
                 debug!("setup ({from_width_index}, {from_height_index})");
@@ -131,7 +131,7 @@ fn main() {
 
     let start = Instant::now();
 
-    let collapsed_wave_function = wave_function.get_collapsable_wave_function::<AccommodatingCollapsableWaveFunction<SparseElement>>(random_seed).collapse().unwrap();
+    let collapsed_wave_function = wave_function.get_collapsable_wave_function::<AccommodatingCollapsableWaveFunction<String, SparseElement>>(random_seed).collapse().unwrap();
 
     let mut node_state_per_y_per_x: Vec<Vec<Option<SparseElement>>> = Vec::new();
     for _ in 0..width {

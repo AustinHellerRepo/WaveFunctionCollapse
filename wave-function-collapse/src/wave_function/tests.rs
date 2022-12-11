@@ -696,8 +696,8 @@ mod wave_function_unit_tests {
     fn initialize() {
         init();
 
-        let nodes: Vec<Node<String>> = Vec::new();
-        let node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+        let nodes: Vec<Node<String, String>> = Vec::new();
+        let node_state_collections: Vec<NodeStateCollection<String, String>> = Vec::new();
         let wave_function = WaveFunction::new(nodes, node_state_collections);
         debug!("Succeeded to initialize WaveFunction instance.");
     }
@@ -706,8 +706,8 @@ mod wave_function_unit_tests {
     fn no_nodes() {
         init();
 
-        let nodes: Vec<Node<String>> = Vec::new();
-        let node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+        let nodes: Vec<Node<String, String>> = Vec::new();
+        let node_state_collections: Vec<NodeStateCollection<String, String>> = Vec::new();
         let wave_function = WaveFunction::new(nodes, node_state_collections);
         let validation_result = wave_function.validate();
 
@@ -718,8 +718,8 @@ mod wave_function_unit_tests {
     fn one_node_no_states_sequential() {
         init();
 
-        let mut nodes: Vec<Node<String>> = Vec::new();
-        let node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+        let mut nodes: Vec<Node<String, String>> = Vec::new();
+        let node_state_collections: Vec<NodeStateCollection<String, String>> = Vec::new();
 
         nodes.push(Node::new(
             Uuid::new_v4().to_string(),
@@ -729,7 +729,7 @@ mod wave_function_unit_tests {
 
         let wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
-        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse();
+        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String, String>>(None).collapse();
 
         assert_eq!("Cannot collapse wave function.", collapsed_wave_function_result.err().unwrap());
     }
@@ -738,8 +738,8 @@ mod wave_function_unit_tests {
     fn one_node_no_states_accommodating() {
         init();
 
-        let mut nodes: Vec<Node<String>> = Vec::new();
-        let node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+        let mut nodes: Vec<Node<String, String>> = Vec::new();
+        let node_state_collections: Vec<NodeStateCollection<String, String>> = Vec::new();
 
         nodes.push(Node::new(
             Uuid::new_v4().to_string(),
@@ -749,7 +749,7 @@ mod wave_function_unit_tests {
 
         let wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
-        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<AccommodatingCollapsableWaveFunction<String>>(None).collapse();
+        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<AccommodatingCollapsableWaveFunction<String, String>>(None).collapse();
 
         assert_eq!("Cannot collapse wave function.", collapsed_wave_function_result.err().unwrap());
     }
@@ -758,8 +758,8 @@ mod wave_function_unit_tests {
     fn one_node_no_states_acc_seq() {
         init();
 
-        let mut nodes: Vec<Node<String>> = Vec::new();
-        let node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+        let mut nodes: Vec<Node<String, String>> = Vec::new();
+        let node_state_collections: Vec<NodeStateCollection<String, String>> = Vec::new();
 
         nodes.push(Node::new(
             Uuid::new_v4().to_string(),
@@ -769,7 +769,7 @@ mod wave_function_unit_tests {
 
         let wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
-        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<AccommodatingSequentialCollapsableWaveFunction<String>>(None).collapse();
+        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<AccommodatingSequentialCollapsableWaveFunction<String, String>>(None).collapse();
 
         assert_eq!("Cannot collapse wave function.", collapsed_wave_function_result.err().unwrap());
     }
@@ -778,8 +778,8 @@ mod wave_function_unit_tests {
     fn one_node_one_state_sequential() {
         init();
 
-        let mut nodes: Vec<Node<String>> = Vec::new();
-        let node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+        let mut nodes: Vec<Node<String, String>> = Vec::new();
+        let node_state_collections: Vec<NodeStateCollection<String, String>> = Vec::new();
 
         let node_id: String = Uuid::new_v4().to_string();
         let node_state_id: String = Uuid::new_v4().to_string();
@@ -792,7 +792,7 @@ mod wave_function_unit_tests {
 
         let wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
-        let collapsed_wave_function = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse().unwrap();
+        let collapsed_wave_function = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String, String>>(None).collapse().unwrap();
         
         assert_eq!(1, collapsed_wave_function.node_state_per_node.keys().len());
         assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&node_id).unwrap());
@@ -802,8 +802,8 @@ mod wave_function_unit_tests {
     fn one_node_one_state_accommodating() {
         init();
 
-        let mut nodes: Vec<Node<String>> = Vec::new();
-        let node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+        let mut nodes: Vec<Node<String, String>> = Vec::new();
+        let node_state_collections: Vec<NodeStateCollection<String, String>> = Vec::new();
 
         let node_id: String = Uuid::new_v4().to_string();
         let node_state_id: String = Uuid::new_v4().to_string();
@@ -816,7 +816,7 @@ mod wave_function_unit_tests {
 
         let wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
-        let collapsed_wave_function = wave_function.get_collapsable_wave_function::<AccommodatingCollapsableWaveFunction<String>>(None).collapse().unwrap();
+        let collapsed_wave_function = wave_function.get_collapsable_wave_function::<AccommodatingCollapsableWaveFunction<String, String>>(None).collapse().unwrap();
         
         assert_eq!(1, collapsed_wave_function.node_state_per_node.keys().len());
         assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&node_id).unwrap());
@@ -826,8 +826,8 @@ mod wave_function_unit_tests {
     fn one_node_one_state_acc_seq() {
         init();
 
-        let mut nodes: Vec<Node<String>> = Vec::new();
-        let node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+        let mut nodes: Vec<Node<String, String>> = Vec::new();
+        let node_state_collections: Vec<NodeStateCollection<String, String>> = Vec::new();
 
         let node_id: String = Uuid::new_v4().to_string();
         let node_state_id: String = Uuid::new_v4().to_string();
@@ -840,7 +840,7 @@ mod wave_function_unit_tests {
 
         let wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
-        let collapsed_wave_function = wave_function.get_collapsable_wave_function::<AccommodatingSequentialCollapsableWaveFunction<String>>(None).collapse().unwrap();
+        let collapsed_wave_function = wave_function.get_collapsable_wave_function::<AccommodatingSequentialCollapsableWaveFunction<String, String>>(None).collapse().unwrap();
         
         assert_eq!(1, collapsed_wave_function.node_state_per_node.keys().len());
         assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&node_id).unwrap());
@@ -850,8 +850,8 @@ mod wave_function_unit_tests {
     fn one_node_randomly_two_states_sequential() {
         init();
 
-        let mut nodes: Vec<Node<String>> = Vec::new();
-        let node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+        let mut nodes: Vec<Node<String, String>> = Vec::new();
+        let node_state_collections: Vec<NodeStateCollection<String, String>> = Vec::new();
 
         let one_node_state_id: String = Uuid::new_v4().to_string();
         let two_node_state_id: String = Uuid::new_v4().to_string();
@@ -874,7 +874,7 @@ mod wave_function_unit_tests {
 
         for _ in 0..100000 {
             let random_seed = Some(rng.next_u64());
-            let collapsed_wave_function = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(random_seed).collapse().unwrap();
+            let collapsed_wave_function = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String, String>>(random_seed).collapse().unwrap();
 
             let node_state_id: &str = collapsed_wave_function.node_state_per_node.get(&node_id).unwrap();
             *count_per_node_state_id.get_mut(node_state_id).unwrap() += 1;
@@ -889,8 +889,8 @@ mod wave_function_unit_tests {
     fn one_node_randomly_two_states_accommodating() {
         init();
 
-        let mut nodes: Vec<Node<String>> = Vec::new();
-        let node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+        let mut nodes: Vec<Node<String, String>> = Vec::new();
+        let node_state_collections: Vec<NodeStateCollection<String, String>> = Vec::new();
 
         let one_node_state_id: String = Uuid::new_v4().to_string();
         let two_node_state_id: String = Uuid::new_v4().to_string();
@@ -913,7 +913,7 @@ mod wave_function_unit_tests {
 
         for _ in 0..100000 {
             let random_seed = Some(rng.next_u64());
-            let collapsed_wave_function = wave_function.get_collapsable_wave_function::<AccommodatingCollapsableWaveFunction<String>>(random_seed).collapse().unwrap();
+            let collapsed_wave_function = wave_function.get_collapsable_wave_function::<AccommodatingCollapsableWaveFunction<String, String>>(random_seed).collapse().unwrap();
 
             let node_state_id: &str = collapsed_wave_function.node_state_per_node.get(&node_id).unwrap();
             *count_per_node_state_id.get_mut(node_state_id).unwrap() += 1;
@@ -928,8 +928,8 @@ mod wave_function_unit_tests {
     fn one_node_randomly_two_states_acc_seq() {
         init();
 
-        let mut nodes: Vec<Node<String>> = Vec::new();
-        let node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+        let mut nodes: Vec<Node<String, String>> = Vec::new();
+        let node_state_collections: Vec<NodeStateCollection<String, String>> = Vec::new();
 
         let one_node_state_id: String = Uuid::new_v4().to_string();
         let two_node_state_id: String = Uuid::new_v4().to_string();
@@ -952,7 +952,7 @@ mod wave_function_unit_tests {
 
         for _ in 0..100000 {
             let random_seed = Some(rng.next_u64());
-            let collapsed_wave_function = wave_function.get_collapsable_wave_function::<AccommodatingSequentialCollapsableWaveFunction<String>>(random_seed).collapse().unwrap();
+            let collapsed_wave_function = wave_function.get_collapsable_wave_function::<AccommodatingSequentialCollapsableWaveFunction<String, String>>(random_seed).collapse().unwrap();
 
             let node_state_id: &str = collapsed_wave_function.node_state_per_node.get(&node_id).unwrap();
             *count_per_node_state_id.get_mut(node_state_id).unwrap() += 1;
@@ -967,8 +967,8 @@ mod wave_function_unit_tests {
     fn two_nodes_without_neighbors() {
         init();
 
-        let mut nodes: Vec<Node<String>> = Vec::new();
-        let node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+        let mut nodes: Vec<Node<String, String>> = Vec::new();
+        let node_state_collections: Vec<NodeStateCollection<String, String>> = Vec::new();
 
         nodes.push(Node::new(
             Uuid::new_v4().to_string(),
@@ -990,8 +990,8 @@ mod wave_function_unit_tests {
     fn two_nodes_with_only_one_is_a_neighbor_restriction_ignored_sequential() {
         init();
 
-        let mut nodes: Vec<Node<String>> = Vec::new();
-        let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+        let mut nodes: Vec<Node<String, String>> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection<String, String>> = Vec::new();
 
         let unrestricted_node_state_id: String = String::from("unrestricted");
         let from_restrictive_node_state_id: String = String::from("from_restrictive");
@@ -1026,7 +1026,7 @@ mod wave_function_unit_tests {
         let mut wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
-        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse();
+        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String, String>>(None).collapse();
         let collapsed_wave_function = collapsed_wave_function_result.unwrap();
 
         assert_eq!(&unrestricted_node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
@@ -1037,8 +1037,8 @@ mod wave_function_unit_tests {
     fn two_nodes_with_only_one_is_a_neighbor_restriction_ignored_accommodating() {
         init();
 
-        let mut nodes: Vec<Node<String>> = Vec::new();
-        let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+        let mut nodes: Vec<Node<String, String>> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection<String, String>> = Vec::new();
 
         let unrestricted_node_state_id: String = String::from("unrestricted");
         let from_restrictive_node_state_id: String = String::from("from_restrictive");
@@ -1073,7 +1073,7 @@ mod wave_function_unit_tests {
         let mut wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
-        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<AccommodatingCollapsableWaveFunction<String>>(None).collapse();
+        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<AccommodatingCollapsableWaveFunction<String, String>>(None).collapse();
         let collapsed_wave_function = collapsed_wave_function_result.unwrap();
 
         assert_eq!(&unrestricted_node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
@@ -1084,8 +1084,8 @@ mod wave_function_unit_tests {
     fn two_nodes_with_only_one_is_a_neighbor_restriction_ignored_acc_seq() {
         init();
 
-        let mut nodes: Vec<Node<String>> = Vec::new();
-        let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+        let mut nodes: Vec<Node<String, String>> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection<String, String>> = Vec::new();
 
         let unrestricted_node_state_id: String = String::from("unrestricted");
         let from_restrictive_node_state_id: String = String::from("from_restrictive");
@@ -1120,7 +1120,7 @@ mod wave_function_unit_tests {
         let mut wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
-        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<AccommodatingSequentialCollapsableWaveFunction<String>>(None).collapse();
+        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<AccommodatingSequentialCollapsableWaveFunction<String, String>>(None).collapse();
         let collapsed_wave_function = collapsed_wave_function_result.unwrap();
 
         assert_eq!(&unrestricted_node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
@@ -1131,8 +1131,8 @@ mod wave_function_unit_tests {
     fn two_nodes_with_parent_unrestricted_and_child_only_one_state_restricted_sequential() {
         init();
 
-        let mut nodes: Vec<Node<String>> = Vec::new();
-        let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+        let mut nodes: Vec<Node<String, String>> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection<String, String>> = Vec::new();
 
         let restricting_node_state_id: String = String::from("restricting");
         let restricted_node_state_id: String = String::from("restricted");
@@ -1176,7 +1176,7 @@ mod wave_function_unit_tests {
         let mut wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
-        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse();
+        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String, String>>(None).collapse();
         let collapsed_wave_function = collapsed_wave_function_result.unwrap();
 
         assert_eq!(&permitting_node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
@@ -1187,8 +1187,8 @@ mod wave_function_unit_tests {
     fn two_nodes_with_parent_unrestricted_and_child_only_one_state_restricted_acc_seq() {
         init();
 
-        let mut nodes: Vec<Node<String>> = Vec::new();
-        let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+        let mut nodes: Vec<Node<String, String>> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection<String, String>> = Vec::new();
 
         let restricting_node_state_id: String = String::from("restricting");
         let restricted_node_state_id: String = String::from("restricted");
@@ -1232,7 +1232,7 @@ mod wave_function_unit_tests {
         let mut wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
-        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<AccommodatingSequentialCollapsableWaveFunction<String>>(None).collapse();
+        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<AccommodatingSequentialCollapsableWaveFunction<String, String>>(None).collapse();
         let collapsed_wave_function = collapsed_wave_function_result.unwrap();
 
         assert_eq!(&permitting_node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
@@ -1243,8 +1243,8 @@ mod wave_function_unit_tests {
     fn two_nodes_with_child_two_states_restricted_and_parent_one_state_unrestricted_sequential() {
         init();
 
-        let mut nodes: Vec<Node<String>> = Vec::new();
-        let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+        let mut nodes: Vec<Node<String, String>> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection<String, String>> = Vec::new();
 
         let restricting_node_state_id: String = String::from("restricting");
         let restricted_node_state_id: String = String::from("restricted");
@@ -1279,7 +1279,7 @@ mod wave_function_unit_tests {
         let mut wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
-        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse();
+        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String, String>>(None).collapse();
         let collapsed_wave_function = collapsed_wave_function_result.unwrap();
 
         assert_eq!(&restricting_node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
@@ -1290,8 +1290,8 @@ mod wave_function_unit_tests {
     fn two_nodes_with_child_two_states_restricted_and_parent_one_state_unrestricted_acc_seq() {
         init();
 
-        let mut nodes: Vec<Node<String>> = Vec::new();
-        let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+        let mut nodes: Vec<Node<String, String>> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection<String, String>> = Vec::new();
 
         let restricting_node_state_id: String = String::from("restricting");
         let restricted_node_state_id: String = String::from("restricted");
@@ -1326,7 +1326,7 @@ mod wave_function_unit_tests {
         let mut wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
-        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<AccommodatingSequentialCollapsableWaveFunction<String>>(None).collapse();
+        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<AccommodatingSequentialCollapsableWaveFunction<String, String>>(None).collapse();
         let collapsed_wave_function = collapsed_wave_function_result.unwrap();
 
         assert_eq!(&restricting_node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
@@ -1337,8 +1337,8 @@ mod wave_function_unit_tests {
     fn two_nodes_with_only_one_is_a_neighbor_ordered() {
         init();
 
-        let mut nodes: Vec<Node<String>> = Vec::new();
-        let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+        let mut nodes: Vec<Node<String, String>> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection<String, String>> = Vec::new();
 
         let node_state_id: String = Uuid::new_v4().to_string();
 
@@ -1377,7 +1377,7 @@ mod wave_function_unit_tests {
         let mut wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
-        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse();
+        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String, String>>(None).collapse();
         let collapsed_wave_function = collapsed_wave_function_result.unwrap();
 
         assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
@@ -1388,8 +1388,8 @@ mod wave_function_unit_tests {
     fn two_nodes_with_only_one_is_a_neighbor_disordered() {
         init();
 
-        let mut nodes: Vec<Node<String>> = Vec::new();
-        let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+        let mut nodes: Vec<Node<String, String>> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection<String, String>> = Vec::new();
 
         let node_state_id: String = Uuid::new_v4().to_string();
 
@@ -1428,7 +1428,7 @@ mod wave_function_unit_tests {
         let mut wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
-        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse();
+        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String, String>>(None).collapse();
         let collapsed_wave_function = collapsed_wave_function_result.unwrap();
 
         assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
@@ -1439,8 +1439,8 @@ mod wave_function_unit_tests {
     fn two_nodes_both_as_neighbors_only_ordered() {
         init();
 
-        let mut nodes: Vec<Node<String>> = Vec::new();
-        let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+        let mut nodes: Vec<Node<String, String>> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection<String, String>> = Vec::new();
 
         let node_state_id: String = String::from("state_A");
 
@@ -1482,7 +1482,7 @@ mod wave_function_unit_tests {
         let mut wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
-        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse();
+        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String, String>>(None).collapse();
 
         if let Err(error_message) = collapsed_wave_function_result {
             panic!("Error: {error_message}");
@@ -1498,8 +1498,8 @@ mod wave_function_unit_tests {
     fn two_nodes_both_as_neighbors_only_disordered() {
         init();
 
-        let mut nodes: Vec<Node<String>> = Vec::new();
-        let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+        let mut nodes: Vec<Node<String, String>> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection<String, String>> = Vec::new();
 
         let node_state_id: String = String::from("state_A");
 
@@ -1541,7 +1541,7 @@ mod wave_function_unit_tests {
         let mut wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
-        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse();
+        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String, String>>(None).collapse();
 
         if let Err(error_message) = collapsed_wave_function_result {
             panic!("Error: {error_message}");
@@ -1557,8 +1557,8 @@ mod wave_function_unit_tests {
     fn two_nodes_both_as_neighbors_and_different_states_with_one_run() {
         init();
 
-        let mut nodes: Vec<Node<String>> = Vec::new();
-        let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+        let mut nodes: Vec<Node<String, String>> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection<String, String>> = Vec::new();
 
         let one_node_state_id: String = Uuid::new_v4().to_string();
         let two_node_state_id: String = Uuid::new_v4().to_string();
@@ -1605,7 +1605,7 @@ mod wave_function_unit_tests {
         let mut wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
-        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse();
+        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String, String>>(None).collapse();
 
         if let Err(error_message) = collapsed_wave_function_result {
             panic!("Error: {error_message}");
@@ -1627,8 +1627,8 @@ mod wave_function_unit_tests {
         let mut rng = rand::thread_rng();
 
         for _ in 0..10 {
-            let mut nodes: Vec<Node<String>> = Vec::new();
-            let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+            let mut nodes: Vec<Node<String, String>> = Vec::new();
+            let mut node_state_collections: Vec<NodeStateCollection<String, String>> = Vec::new();
 
             let one_node_state_id: String = Uuid::new_v4().to_string();
             let two_node_state_id: String = Uuid::new_v4().to_string();
@@ -1675,7 +1675,7 @@ mod wave_function_unit_tests {
             wave_function.validate().unwrap();
             let random_seed = Some(rng.gen::<u64>());
 
-            let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(random_seed).collapse();
+            let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String, String>>(random_seed).collapse();
 
             if let Err(error_message) = collapsed_wave_function_result {
                 panic!("Error: {error_message}");
@@ -1694,8 +1694,8 @@ mod wave_function_unit_tests {
         let mut rng = rand::thread_rng();
 
         for _ in 0..10 {
-            let mut nodes: Vec<Node<String>> = Vec::new();
-            let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+            let mut nodes: Vec<Node<String, String>> = Vec::new();
+            let mut node_state_collections: Vec<NodeStateCollection<String, String>> = Vec::new();
 
             let one_node_state_id: String = String::from("state_A");
             let two_node_state_id: String = String::from("state_B");
@@ -1796,7 +1796,7 @@ mod wave_function_unit_tests {
             wave_function.validate().unwrap();
             let random_seed = Some(rng.gen::<u64>());
 
-            let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(random_seed).collapse();
+            let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String, String>>(random_seed).collapse();
 
             assert_eq!("Cannot collapse wave function.", collapsed_wave_function_result.err().unwrap());
         }
@@ -1806,8 +1806,8 @@ mod wave_function_unit_tests {
     fn three_nodes_as_neighbors_all_same_state() {
         init();
 
-        let mut nodes: Vec<Node<String>> = Vec::new();
-        let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+        let mut nodes: Vec<Node<String, String>> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection<String, String>> = Vec::new();
 
         let node_state_id: String = String::from("state_A");
 
@@ -1851,7 +1851,7 @@ mod wave_function_unit_tests {
         let mut wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
-        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse();
+        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String, String>>(None).collapse();
 
         if let Err(error_message) = collapsed_wave_function_result {
             panic!("Error: {error_message}");
@@ -1868,8 +1868,8 @@ mod wave_function_unit_tests {
     fn three_nodes_as_dense_neighbors_all_different_states_sequential() {
         init();
 
-        let mut nodes: Vec<Node<String>> = Vec::new();
-        let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+        let mut nodes: Vec<Node<String, String>> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection<String, String>> = Vec::new();
 
         let first_node_state_id: String = String::from("state_A");
         let second_node_state_id: String = String::from("state_B");
@@ -1949,7 +1949,7 @@ mod wave_function_unit_tests {
         let mut wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
-        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse();
+        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String, String>>(None).collapse();
 
         if let Err(error_message) = collapsed_wave_function_result {
             panic!("Error: {error_message}");
@@ -1971,8 +1971,8 @@ mod wave_function_unit_tests {
     fn three_nodes_as_dense_neighbors_all_different_states_accommodating() {
         init();
 
-        let mut nodes: Vec<Node<String>> = Vec::new();
-        let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+        let mut nodes: Vec<Node<String, String>> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection<String, String>> = Vec::new();
 
         let first_node_state_id: String = String::from("state_A");
         let second_node_state_id: String = String::from("state_B");
@@ -2052,7 +2052,7 @@ mod wave_function_unit_tests {
         let mut wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
-        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<AccommodatingCollapsableWaveFunction<String>>(None).collapse();
+        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<AccommodatingCollapsableWaveFunction<String, String>>(None).collapse();
 
         if let Err(error_message) = collapsed_wave_function_result {
             panic!("Error: {error_message}");
@@ -2074,8 +2074,8 @@ mod wave_function_unit_tests {
     fn three_nodes_as_dense_neighbors_all_different_states_acc_seq() {
         init();
 
-        let mut nodes: Vec<Node<String>> = Vec::new();
-        let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+        let mut nodes: Vec<Node<String, String>> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection<String, String>> = Vec::new();
 
         let first_node_state_id: String = String::from("state_A");
         let second_node_state_id: String = String::from("state_B");
@@ -2155,7 +2155,7 @@ mod wave_function_unit_tests {
         let mut wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
-        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<AccommodatingSequentialCollapsableWaveFunction<String>>(None).collapse();
+        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<AccommodatingSequentialCollapsableWaveFunction<String, String>>(None).collapse();
 
         if let Err(error_message) = collapsed_wave_function_result {
             panic!("Error: {error_message}");
@@ -2181,8 +2181,8 @@ mod wave_function_unit_tests {
 
         for _ in 0..10 {
             
-            let mut nodes: Vec<Node<String>> = Vec::new();
-            let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+            let mut nodes: Vec<Node<String, String>> = Vec::new();
+            let mut node_state_collections: Vec<NodeStateCollection<String, String>> = Vec::new();
 
             let first_node_state_id: String = String::from("state_A");
             let second_node_state_id: String = String::from("state_B");
@@ -2263,7 +2263,7 @@ mod wave_function_unit_tests {
             wave_function.validate().unwrap();
             let random_seed = Some(rng.next_u64());
 
-            let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(random_seed).collapse();
+            let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String, String>>(random_seed).collapse();
             
             if let Err(error_message) = collapsed_wave_function_result {
                 panic!("Error: {error_message}");
@@ -2289,9 +2289,9 @@ mod wave_function_unit_tests {
 
         let nodes_total = 50;
 
-        let mut nodes: Vec<Node<String>> = Vec::new();
+        let mut nodes: Vec<Node<String, String>> = Vec::new();
         let mut node_ids: Vec<String> = Vec::new();
-        let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection<String, String>> = Vec::new();
         let mut node_state_ids: Vec<String> = Vec::new();
         let mut node_state_collection_ids: Vec<String> = Vec::new();
 
@@ -2336,15 +2336,15 @@ mod wave_function_unit_tests {
             }
         }
 
-        let mut wave_function: WaveFunction<String>;
+        let mut wave_function: WaveFunction<String, String>;
 
         wave_function = WaveFunction::new(nodes, node_state_collections);
 
         wave_function.validate().unwrap();
 
-        let collapsed_wave_function_result: Result<CollapsedWaveFunction<String>, String>;
+        let collapsed_wave_function_result: Result<CollapsedWaveFunction<String, String>, String>;
 
-        collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse();
+        collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String, String>>(None).collapse();
 
         if let Err(error_message) = collapsed_wave_function_result {
             panic!("Error: {error_message}");
@@ -2374,9 +2374,9 @@ mod wave_function_unit_tests {
 
         let nodes_total = 50;
 
-        let mut nodes: Vec<Node<String>> = Vec::new();
+        let mut nodes: Vec<Node<String, String>> = Vec::new();
         let mut node_ids: Vec<String> = Vec::new();
-        let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection<String, String>> = Vec::new();
         let mut node_state_ids: Vec<String> = Vec::new();
         let mut node_state_collection_ids: Vec<String> = Vec::new();
 
@@ -2421,15 +2421,15 @@ mod wave_function_unit_tests {
             }
         }
 
-        let mut wave_function: WaveFunction<String>;
+        let mut wave_function: WaveFunction<String, String>;
 
         wave_function = WaveFunction::new(nodes, node_state_collections);
 
         wave_function.validate().unwrap();
 
-        let collapsed_wave_function_result: Result<CollapsedWaveFunction<String>, String>;
+        let collapsed_wave_function_result: Result<CollapsedWaveFunction<String, String>, String>;
 
-        collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<AccommodatingCollapsableWaveFunction<String>>(None).collapse();
+        collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<AccommodatingCollapsableWaveFunction<String, String>>(None).collapse();
 
         if let Err(error_message) = collapsed_wave_function_result {
             panic!("Error: {error_message}");
@@ -2459,9 +2459,9 @@ mod wave_function_unit_tests {
 
         let nodes_total = 50;
 
-        let mut nodes: Vec<Node<String>> = Vec::new();
+        let mut nodes: Vec<Node<String, String>> = Vec::new();
         let mut node_ids: Vec<String> = Vec::new();
-        let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection<String, String>> = Vec::new();
         let mut node_state_ids: Vec<String> = Vec::new();
         let mut node_state_collection_ids: Vec<String> = Vec::new();
 
@@ -2506,15 +2506,15 @@ mod wave_function_unit_tests {
             }
         }
 
-        let mut wave_function: WaveFunction<String>;
+        let mut wave_function: WaveFunction<String, String>;
 
         wave_function = WaveFunction::new(nodes, node_state_collections);
 
         wave_function.validate().unwrap();
 
-        let collapsed_wave_function_result: Result<CollapsedWaveFunction<String>, String>;
+        let collapsed_wave_function_result: Result<CollapsedWaveFunction<String, String>, String>;
 
-        collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<AccommodatingSequentialCollapsableWaveFunction<String>>(None).collapse();
+        collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<AccommodatingSequentialCollapsableWaveFunction<String, String>>(None).collapse();
 
         if let Err(error_message) = collapsed_wave_function_result {
             panic!("Error: {error_message}");
@@ -2548,9 +2548,9 @@ mod wave_function_unit_tests {
 
             let nodes_total = 20;
 
-            let mut nodes: Vec<Node<String>> = Vec::new();
+            let mut nodes: Vec<Node<String, String>> = Vec::new();
             let mut node_ids: Vec<String> = Vec::new();
-            let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+            let mut node_state_collections: Vec<NodeStateCollection<String, String>> = Vec::new();
             let mut node_state_ids: Vec<String> = Vec::new();
             let mut node_state_collection_ids: Vec<String> = Vec::new();
 
@@ -2595,16 +2595,16 @@ mod wave_function_unit_tests {
                 }
             }
 
-            let mut wave_function: WaveFunction<String>;
+            let mut wave_function: WaveFunction<String, String>;
 
             wave_function = WaveFunction::new(nodes, node_state_collections);
 
             wave_function.validate().unwrap();
 
-            let collapsed_wave_function_result: Result<CollapsedWaveFunction<String>, String>;
+            let collapsed_wave_function_result: Result<CollapsedWaveFunction<String, String>, String>;
             
             let random_seed = Some(rng.next_u64());
-            collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(random_seed).collapse();
+            collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String, String>>(random_seed).collapse();
 
             if let Err(error_message) = collapsed_wave_function_result {
                 panic!("Error: {error_message}");
@@ -2633,9 +2633,9 @@ mod wave_function_unit_tests {
         let nodes_total = nodes_height * nodes_width * nodes_depth;
         let node_states_total = 12;
 
-        let mut nodes: Vec<Node<String>> = Vec::new();
+        let mut nodes: Vec<Node<String, String>> = Vec::new();
         let mut node_ids: Vec<String> = Vec::new();
-        let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection<String, String>> = Vec::new();
         let mut node_state_ids: Vec<String> = Vec::new();
         let mut node_state_collection_ids: Vec<String> = Vec::new();
 
@@ -2690,15 +2690,15 @@ mod wave_function_unit_tests {
             //debug!("neighbors: {neighbors_total}.");
         }
 
-        let mut wave_function: WaveFunction<String>;
+        let mut wave_function: WaveFunction<String, String>;
 
         wave_function = WaveFunction::new(nodes, node_state_collections);
 
         wave_function.validate().unwrap();
 
-        let collapsed_wave_function_result: Result<CollapsedWaveFunction<String>, String>;
+        let collapsed_wave_function_result: Result<CollapsedWaveFunction<String, String>, String>;
         
-        collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse();
+        collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String, String>>(None).collapse();
 
         if let Err(error_message) = collapsed_wave_function_result {
             panic!("Error: {error_message}");
@@ -2732,9 +2732,9 @@ mod wave_function_unit_tests {
         let nodes_total = nodes_height * nodes_width * nodes_depth;
         let node_states_total = 12;
 
-        let mut nodes: Vec<Node<String>> = Vec::new();
+        let mut nodes: Vec<Node<String, String>> = Vec::new();
         let mut node_ids: Vec<String> = Vec::new();
-        let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection<String, String>> = Vec::new();
         let mut node_state_ids: Vec<String> = Vec::new();
         let mut node_state_collection_ids: Vec<String> = Vec::new();
 
@@ -2789,15 +2789,15 @@ mod wave_function_unit_tests {
             //debug!("neighbors: {neighbors_total}.");
         }
 
-        let mut wave_function: WaveFunction<String>;
+        let mut wave_function: WaveFunction<String, String>;
 
         wave_function = WaveFunction::new(nodes, node_state_collections);
 
         wave_function.validate().unwrap();
 
-        let collapsed_wave_function_result: Result<CollapsedWaveFunction<String>, String>;
+        let collapsed_wave_function_result: Result<CollapsedWaveFunction<String, String>, String>;
         
-        collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<AccommodatingCollapsableWaveFunction<String>>(None).collapse();
+        collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<AccommodatingCollapsableWaveFunction<String, String>>(None).collapse();
 
         if let Err(error_message) = collapsed_wave_function_result {
             panic!("Error: {error_message}");
@@ -2831,9 +2831,9 @@ mod wave_function_unit_tests {
         let nodes_total = nodes_height * nodes_width * nodes_depth;
         let node_states_total = 8;
 
-        let mut nodes: Vec<Node<String>> = Vec::new();
+        let mut nodes: Vec<Node<String, String>> = Vec::new();
         let mut node_ids: Vec<String> = Vec::new();
-        let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection<String, String>> = Vec::new();
         let mut node_state_ids: Vec<String> = Vec::new();
         let mut node_state_collection_ids: Vec<String> = Vec::new();
 
@@ -2888,15 +2888,15 @@ mod wave_function_unit_tests {
             //debug!("neighbors: {neighbors_total}.");
         }
 
-        let mut wave_function: WaveFunction<String>;
+        let mut wave_function: WaveFunction<String, String>;
 
         wave_function = WaveFunction::new(nodes, node_state_collections);
 
         wave_function.validate().unwrap();
 
-        let collapsed_wave_function_result: Result<CollapsedWaveFunction<String>, String>;
+        let collapsed_wave_function_result: Result<CollapsedWaveFunction<String, String>, String>;
         
-        collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<AccommodatingSequentialCollapsableWaveFunction<String>>(None).collapse();
+        collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<AccommodatingSequentialCollapsableWaveFunction<String, String>>(None).collapse();
 
         if let Err(error_message) = collapsed_wave_function_result {
             panic!("Error: {error_message}");
@@ -2940,9 +2940,9 @@ mod wave_function_unit_tests {
             let nodes_total = nodes_height * nodes_width * nodes_depth;
             let node_states_total = 8;
 
-            let mut nodes: Vec<Node<String>> = Vec::new();
+            let mut nodes: Vec<Node<String, String>> = Vec::new();
             let mut node_ids: Vec<String> = Vec::new();
-            let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+            let mut node_state_collections: Vec<NodeStateCollection<String, String>> = Vec::new();
             let mut node_state_ids: Vec<String> = Vec::new();
             let mut node_state_collection_ids: Vec<String> = Vec::new();
 
@@ -2998,16 +2998,16 @@ mod wave_function_unit_tests {
                 //debug!("neighbors: {neighbors_total}.");
             }
 
-            let mut wave_function: WaveFunction<String>;
+            let mut wave_function: WaveFunction<String, String>;
 
             wave_function = WaveFunction::new(nodes, node_state_collections);
 
             wave_function.validate().unwrap();
 
-            let collapsed_wave_function_result: Result<CollapsedWaveFunction<String>, String>;
+            let collapsed_wave_function_result: Result<CollapsedWaveFunction<String, String>, String>;
             
             //let random_seed = Some(rng.gen::<u64>());  // TODO uncomment after fixing
-            collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(random_seed).collapse();
+            collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String, String>>(random_seed).collapse();
 
             if let Err(error_message) = collapsed_wave_function_result {
                 println!("tried random seed: {:?}.", random_seed);
@@ -3054,9 +3054,9 @@ mod wave_function_unit_tests {
             let nodes_total = nodes_height * nodes_width * nodes_depth;
             let node_states_total = 8;
 
-            let mut nodes: Vec<Node<String>> = Vec::new();
+            let mut nodes: Vec<Node<String, String>> = Vec::new();
             let mut node_ids: Vec<String> = Vec::new();
-            let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+            let mut node_state_collections: Vec<NodeStateCollection<String, String>> = Vec::new();
             let mut node_state_ids: Vec<String> = Vec::new();
             let mut node_state_collection_ids: Vec<String> = Vec::new();
 
@@ -3112,16 +3112,16 @@ mod wave_function_unit_tests {
                 //debug!("neighbors: {neighbors_total}.");
             }
 
-            let mut wave_function: WaveFunction<String>;
+            let mut wave_function: WaveFunction<String, String>;
 
             wave_function = WaveFunction::new(nodes, node_state_collections);
 
             wave_function.validate().unwrap();
 
-            let collapsed_node_states_result: Result<Vec<CollapsedNodeState<String>>, String>;
+            let collapsed_node_states_result: Result<Vec<CollapsedNodeState<String, String>>, String>;
             
             //let random_seed = Some(rng.gen::<u64>());  // TODO uncomment after fixing
-            collapsed_node_states_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(random_seed).collapse_into_steps();
+            collapsed_node_states_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String, String>>(random_seed).collapse_into_steps();
 
             if let Err(error_message) = collapsed_node_states_result {
                 println!("tried random seed: {:?}.", random_seed);
@@ -3141,8 +3141,8 @@ mod wave_function_unit_tests {
     fn write_and_read_wave_function_from_tempfile() {
         init();
 
-        let mut nodes: Vec<Node<String>> = Vec::new();
-        let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+        let mut nodes: Vec<Node<String, String>> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection<String, String>> = Vec::new();
 
         let node_state_id: String = Uuid::new_v4().to_string();
 
@@ -3182,13 +3182,13 @@ mod wave_function_unit_tests {
         debug!("Saving wave function to {:?}", file_path);
         wave_function.save_to_file(file_path);
 
-        let loaded_wave_function: WaveFunction<String> = WaveFunction::load_from_file(file_path);
+        let loaded_wave_function: WaveFunction<String, String> = WaveFunction::load_from_file(file_path);
         loaded_wave_function.validate().unwrap();
 
         file.close().unwrap();
 
-        let collapsed_wave_function = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse().unwrap();
-        let loaded_collapsed_wave_function = loaded_wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse().unwrap();
+        let collapsed_wave_function = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String, String>>(None).collapse().unwrap();
+        let loaded_collapsed_wave_function = loaded_wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String, String>>(None).collapse().unwrap();
 
         assert_eq!(collapsed_wave_function.node_state_per_node, loaded_collapsed_wave_function.node_state_per_node);
     }
@@ -3203,8 +3203,8 @@ mod wave_function_unit_tests {
 
             let random_seed = Some(rng.next_u64());
 
-            let mut nodes: Vec<Node<String>> = Vec::new();
-            let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+            let mut nodes: Vec<Node<String, String>> = Vec::new();
+            let mut node_state_collections: Vec<NodeStateCollection<String, String>> = Vec::new();
 
             let one_node_state_id: String = String::from("state_A");
             let two_node_state_id: String = String::from("state_B");
@@ -3258,7 +3258,7 @@ mod wave_function_unit_tests {
             let mut wave_function = WaveFunction::new(nodes, node_state_collections);
             wave_function.validate().unwrap();
 
-            let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(random_seed).collapse();
+            let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String, String>>(random_seed).collapse();
 
             if let Err(error_message) = collapsed_wave_function_result {
                 panic!("Error: {error_message}");
@@ -3291,8 +3291,8 @@ mod wave_function_unit_tests {
 
             let random_seed = Some(rng.next_u64());
 
-            let mut nodes: Vec<Node<String>> = Vec::new();
-            let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+            let mut nodes: Vec<Node<String, String>> = Vec::new();
+            let mut node_state_collections: Vec<NodeStateCollection<String, String>> = Vec::new();
 
             let one_node_state_id: String = String::from("state_A");
             let two_node_state_id: String = String::from("state_B");
@@ -3346,7 +3346,7 @@ mod wave_function_unit_tests {
             let mut wave_function = WaveFunction::new(nodes, node_state_collections);
             wave_function.validate().unwrap();
 
-            let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(random_seed).collapse();
+            let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String, String>>(random_seed).collapse();
 
             if let Err(error_message) = collapsed_wave_function_result {
                 panic!("Error: {error_message}");
@@ -3379,8 +3379,8 @@ mod wave_function_unit_tests {
 
             let random_seed = Some(rng.next_u64());
 
-            let mut nodes: Vec<Node<String>> = Vec::new();
-            let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+            let mut nodes: Vec<Node<String, String>> = Vec::new();
+            let mut node_state_collections: Vec<NodeStateCollection<String, String>> = Vec::new();
 
             let one_node_state_id: String = String::from("state_A");
             let two_node_state_id: String = String::from("state_B");
@@ -3468,7 +3468,7 @@ mod wave_function_unit_tests {
             let mut wave_function = WaveFunction::new(nodes, node_state_collections);
             wave_function.validate().unwrap();
 
-            let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(random_seed).collapse();
+            let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String, String>>(random_seed).collapse();
 
             if let Err(error_message) = collapsed_wave_function_result {
                 panic!("Error: {error_message}");
@@ -3514,8 +3514,8 @@ mod wave_function_unit_tests {
 
             let random_seed = Some(rng.next_u64());
 
-            let mut nodes: Vec<Node<String>> = Vec::new();
-            let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+            let mut nodes: Vec<Node<String, String>> = Vec::new();
+            let mut node_state_collections: Vec<NodeStateCollection<String, String>> = Vec::new();
 
             let one_node_state_id: String = String::from("state_A");
             let two_node_state_id: String = String::from("state_B");
@@ -3603,7 +3603,7 @@ mod wave_function_unit_tests {
             let mut wave_function = WaveFunction::new(nodes, node_state_collections);
             wave_function.validate().unwrap();
 
-            let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<AccommodatingSequentialCollapsableWaveFunction<String>>(random_seed).collapse();
+            let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<AccommodatingSequentialCollapsableWaveFunction<String, String>>(random_seed).collapse();
 
             if let Err(error_message) = collapsed_wave_function_result {
                 panic!("Error: {error_message}");
@@ -3645,8 +3645,8 @@ mod wave_function_unit_tests {
 
         // TODO add randomization
 
-        let mut nodes: Vec<Node<String>> = Vec::new();
-        let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+        let mut nodes: Vec<Node<String, String>> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection<String, String>> = Vec::new();
 
         let one_node_id: String = String::from("node_1");
         let two_node_id: String = String::from("node_2");
@@ -3732,7 +3732,7 @@ mod wave_function_unit_tests {
         let mut wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
-        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse();
+        let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String, String>>(None).collapse();
 
         if let Err(error_message) = collapsed_wave_function_result {
             panic!("Error: {error_message}");

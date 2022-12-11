@@ -7,7 +7,7 @@ use wave_function_collapse::wave_function::{
     NodeStateCollection,
     WaveFunction,
     NodeStateProbability,
-    collapsable_wave_function::{sequential_collapsable_wave_function::SequentialCollapsableWaveFunction, collapsable_wave_function::{CollapsedWaveFunction, CollapsableWaveFunction}}
+    collapsable_wave_function::{sequential_collapsable_wave_function::SequentialCollapsableWaveFunction, collapsable_wave_function::{CollapsedWaveFunction, CollapsableWaveFunction}}, AnonymousNodeStateCollection
 };
 
 /// This enum represents the different criteria that each person has unique to itself.
@@ -456,13 +456,6 @@ impl Dependency {
     }
 }
 
-/// This struct represents a hashable key for ensuring that only unique NodeStateCollection instances are created.
-#[derive(PartialEq, Eq, Hash, Clone, Debug)]
-struct NodeStateCollectionKey {
-    from_node_state_id: String,
-    to_node_state_ids: Vec<String>
-}
-
 /// This struct represents the constraints between different person information relationships.
 struct ZebraPuzzle {
     dependencies: Vec<Dependency>
@@ -477,10 +470,10 @@ impl ZebraPuzzle {
     fn insert_dependency(&mut self, dependency: Dependency) {
         self.dependencies.push(dependency);
     }
-    fn get_wave_function(&self) -> WaveFunction<String> {
+    fn get_wave_function(&self) -> WaveFunction<String, String> {
         
-        let mut nodes: Vec<Node<String>> = Vec::new();
-        let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
+        let mut nodes: Vec<Node<String, String>> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection<String, String>> = Vec::new();
 
         let mut all_node_ids: Vec<String> = Vec::new();
         let mut node_id_per_information_type_per_house_index: Vec<HashMap<InformationType, &str>> = Vec::new();
@@ -705,18 +698,18 @@ impl ZebraPuzzle {
 
         // create nodes, using either all possible node states or the specific previously determined state
         // set the possible node states per node given its information type
-        let mut node_state_collection_id_per_node_state_collection_key: HashMap<NodeStateCollectionKey, String> = HashMap::new();
+        let mut node_state_collection_id_per_node_state_collection_key: HashMap<AnonymousNodeStateCollection<String>, String> = HashMap::new();
         let mut node_index: usize = 0;
         for house_index in 0..5 as usize {
             for information_type in InformationType::iter() {
                 let node_id: &str = all_node_ids.get(node_index).unwrap();
-                let mut node_state_ids: Vec<String> = Vec::new();
+                let mut node_states: Vec<String> = Vec::new();
                 if existing_node_state_id_per_information_type_per_house_index.contains_key(&house_index) && existing_node_state_id_per_information_type_per_house_index.get(&house_index).unwrap().contains_key(information_type) {
-                    let node_state_id = existing_node_state_id_per_information_type_per_house_index.get(&house_index).unwrap().get(information_type).unwrap();
-                    node_state_ids.push(node_state_id.clone());
+                    let node_state = existing_node_state_id_per_information_type_per_house_index.get(&house_index).unwrap().get(information_type).unwrap();
+                    node_states.push(node_state.clone());
                 }
                 else {
-                    node_state_ids.extend(information_type.get_node_state_ids());
+                    node_states.extend(information_type.get_node_state_ids());
                 }
 
                 // tie this node to all other neighbors of the same information type
@@ -727,25 +720,24 @@ impl ZebraPuzzle {
                         let neighbor_node_id: &str = all_node_ids.get(neighbor_node_index).unwrap();
                         if node_index != neighbor_node_index {
                             if information_type == neighbor_information_type {
-                                for from_node_state_id in information_type.get_node_state_ids().into_iter() {
+                                for from_node_state in information_type.get_node_state_ids().into_iter() {
                                     if overriding_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.contains_key(node_id) &&
                                         overriding_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get(node_id).unwrap().contains_key(neighbor_node_id) &&
-                                        overriding_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get(node_id).unwrap().get(neighbor_node_id).unwrap().contains_key(&from_node_state_id) {
+                                        overriding_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get(node_id).unwrap().get(neighbor_node_id).unwrap().contains_key(&from_node_state) {
 
-                                        let to_node_state_ids = overriding_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get(node_id).unwrap().get(neighbor_node_id).unwrap().get(&from_node_state_id).unwrap();
+                                        let to_node_states = overriding_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get(node_id).unwrap().get(neighbor_node_id).unwrap().get(&from_node_state).unwrap();
 
-                                        let node_state_collection_key = NodeStateCollectionKey {
-                                            from_node_state_id: from_node_state_id.clone(),
-                                            to_node_state_ids: to_node_state_ids.clone()
+                                        let node_state_collection_key = AnonymousNodeStateCollection {
+                                            when_node_state: from_node_state.clone(),
+                                            then_node_states: to_node_states.clone()
                                         };
                                         debug!("overriding {house_index} {:?} to {neighbor_house_index} {:?} via {:?}", information_type, neighbor_information_type, node_state_collection_key);
                                         if !node_state_collection_id_per_node_state_collection_key.contains_key(&node_state_collection_key) {
                                             let cloned_node_state_collection_key = node_state_collection_key.clone();
                                             let node_state_collection_id: String = Uuid::new_v4().to_string();
-                                            let node_state_collection = NodeStateCollection::new(
+                                            let node_state_collection = NodeStateCollection::new_from_anonymous(
                                                 node_state_collection_id.clone(),
-                                                cloned_node_state_collection_key.from_node_state_id.clone(),
-                                                cloned_node_state_collection_key.to_node_state_ids.clone()
+                                                cloned_node_state_collection_key.clone()
                                             );
                                             node_state_collections.push(node_state_collection);
                                             node_state_collection_id_per_node_state_collection_key.insert(cloned_node_state_collection_key, node_state_collection_id);
@@ -757,27 +749,26 @@ impl ZebraPuzzle {
                                         node_state_collection_ids_per_neighbor_node_id.get_mut(neighbor_node_id).unwrap().push(node_state_collection_id);
                                     }
                                     else {
-                                        let mut permitted_node_state_ids = neighbor_information_type.get_node_state_ids();
+                                        let mut permitted_node_states = neighbor_information_type.get_node_state_ids();
                                         if restricted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.contains_key(node_id) &&
                                             restricted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get(node_id).unwrap().contains_key(neighbor_node_id) &&
-                                            restricted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get(node_id).unwrap().get(neighbor_node_id).unwrap().contains_key(&from_node_state_id) {
+                                            restricted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get(node_id).unwrap().get(neighbor_node_id).unwrap().contains_key(&from_node_state) {
 
-                                            let restricted_node_state_ids = restricted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get(node_id).unwrap().get(neighbor_node_id).unwrap().get(&from_node_state_id).unwrap();
-                                            permitted_node_state_ids.retain(|node_state_id| !restricted_node_state_ids.contains(node_state_id));
+                                            let restricted_node_state_ids = restricted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get(node_id).unwrap().get(neighbor_node_id).unwrap().get(&from_node_state).unwrap();
+                                            permitted_node_states.retain(|node_state_id| !restricted_node_state_ids.contains(node_state_id));
                                         }
-                                        permitted_node_state_ids.retain(|node_state_id| node_state_id != &from_node_state_id);
-                                        let node_state_collection_key = NodeStateCollectionKey {
-                                            from_node_state_id: from_node_state_id,
-                                            to_node_state_ids: permitted_node_state_ids
+                                        permitted_node_states.retain(|node_state_id| node_state_id != &from_node_state);
+                                        let node_state_collection_key = AnonymousNodeStateCollection {
+                                            when_node_state: from_node_state,
+                                            then_node_states: permitted_node_states
                                         };
                                         debug!("allowing {house_index} {:?} to {neighbor_house_index} {:?} via {:?}.", information_type, neighbor_information_type, node_state_collection_key);
                                         if !node_state_collection_id_per_node_state_collection_key.contains_key(&node_state_collection_key) {
                                             let cloned_node_state_collection_key = node_state_collection_key.clone();
                                             let node_state_collection_id: String = Uuid::new_v4().to_string();
-                                            let node_state_collection = NodeStateCollection::new(
+                                            let node_state_collection = NodeStateCollection::new_from_anonymous(
                                                 node_state_collection_id.clone(),
-                                                cloned_node_state_collection_key.from_node_state_id.clone(),
-                                                cloned_node_state_collection_key.to_node_state_ids.clone()
+                                                cloned_node_state_collection_key.clone()
                                             );
                                             node_state_collections.push(node_state_collection);
                                             node_state_collection_id_per_node_state_collection_key.insert(cloned_node_state_collection_key, node_state_collection_id);
@@ -791,25 +782,24 @@ impl ZebraPuzzle {
                                 }
                             }
                             else {
-                                for from_node_state_id in information_type.get_node_state_ids().into_iter() {
+                                for from_node_state in information_type.get_node_state_ids().into_iter() {
                                     if overriding_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.contains_key(node_id) &&
                                         overriding_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get(node_id).unwrap().contains_key(neighbor_node_id) &&
-                                        overriding_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get(node_id).unwrap().get(neighbor_node_id).unwrap().contains_key(&from_node_state_id) {
+                                        overriding_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get(node_id).unwrap().get(neighbor_node_id).unwrap().contains_key(&from_node_state) {
 
-                                        let to_node_state_ids = overriding_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get(node_id).unwrap().get(neighbor_node_id).unwrap().get(&from_node_state_id).unwrap();
+                                        let to_node_states = overriding_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get(node_id).unwrap().get(neighbor_node_id).unwrap().get(&from_node_state).unwrap();
 
-                                        let node_state_collection_key = NodeStateCollectionKey {
-                                            from_node_state_id: from_node_state_id.clone(),
-                                            to_node_state_ids: to_node_state_ids.clone()
+                                        let node_state_collection_key = AnonymousNodeStateCollection {
+                                            when_node_state: from_node_state.clone(),
+                                            then_node_states: to_node_states.clone()
                                         };
                                         debug!("overriding {house_index} {:?} to {neighbor_house_index} {:?} via {:?}", information_type, neighbor_information_type, node_state_collection_key);
                                         if !node_state_collection_id_per_node_state_collection_key.contains_key(&node_state_collection_key) {
                                             let cloned_node_state_collection_key = node_state_collection_key.clone();
                                             let node_state_collection_id: String = Uuid::new_v4().to_string();
-                                            let node_state_collection = NodeStateCollection::new(
+                                            let node_state_collection = NodeStateCollection::new_from_anonymous(
                                                 node_state_collection_id.clone(),
-                                                cloned_node_state_collection_key.from_node_state_id.clone(),
-                                                cloned_node_state_collection_key.to_node_state_ids.clone()
+                                                cloned_node_state_collection_key.clone()
                                             );
                                             node_state_collections.push(node_state_collection);
                                             node_state_collection_id_per_node_state_collection_key.insert(cloned_node_state_collection_key, node_state_collection_id);
@@ -821,27 +811,26 @@ impl ZebraPuzzle {
                                         node_state_collection_ids_per_neighbor_node_id.get_mut(neighbor_node_id).unwrap().push(node_state_collection_id);
                                     }
                                     else {
-                                        let mut permitted_node_state_ids = neighbor_information_type.get_node_state_ids();
+                                        let mut permitted_node_states = neighbor_information_type.get_node_state_ids();
                                         if restricted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.contains_key(node_id) &&
                                             restricted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get(node_id).unwrap().contains_key(neighbor_node_id) &&
-                                            restricted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get(node_id).unwrap().get(neighbor_node_id).unwrap().contains_key(&from_node_state_id) {
+                                            restricted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get(node_id).unwrap().get(neighbor_node_id).unwrap().contains_key(&from_node_state) {
 
-                                            let restricted_node_state_ids = restricted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get(node_id).unwrap().get(neighbor_node_id).unwrap().get(&from_node_state_id).unwrap();
-                                            permitted_node_state_ids.retain(|node_state_id| !restricted_node_state_ids.contains(node_state_id));
+                                            let restricted_node_state_ids = restricted_to_node_state_ids_per_from_node_state_id_per_to_node_id_per_from_node_id.get(node_id).unwrap().get(neighbor_node_id).unwrap().get(&from_node_state).unwrap();
+                                            permitted_node_states.retain(|node_state_id| !restricted_node_state_ids.contains(node_state_id));
                                         }
-                                        permitted_node_state_ids.retain(|node_state_id| node_state_id != &from_node_state_id);
-                                        let node_state_collection_key = NodeStateCollectionKey {
-                                            from_node_state_id: from_node_state_id,
-                                            to_node_state_ids: permitted_node_state_ids
+                                        permitted_node_states.retain(|node_state_id| node_state_id != &from_node_state);
+                                        let node_state_collection_key = AnonymousNodeStateCollection {
+                                            when_node_state: from_node_state,
+                                            then_node_states: permitted_node_states
                                         };
                                         debug!("allowing {house_index} {:?} to {neighbor_house_index} {:?} via {:?}.", information_type, neighbor_information_type, node_state_collection_key);
                                         if !node_state_collection_id_per_node_state_collection_key.contains_key(&node_state_collection_key) {
                                             let cloned_node_state_collection_key = node_state_collection_key.clone();
                                             let node_state_collection_id: String = Uuid::new_v4().to_string();
-                                            let node_state_collection = NodeStateCollection::new(
+                                            let node_state_collection = NodeStateCollection::new_from_anonymous(
                                                 node_state_collection_id.clone(),
-                                                cloned_node_state_collection_key.from_node_state_id.clone(),
-                                                cloned_node_state_collection_key.to_node_state_ids.clone()
+                                                cloned_node_state_collection_key.clone()
                                             );
                                             node_state_collections.push(node_state_collection);
                                             node_state_collection_id_per_node_state_collection_key.insert(cloned_node_state_collection_key, node_state_collection_id);
@@ -861,7 +850,7 @@ impl ZebraPuzzle {
 
                 let node = Node::new(
                     String::from(node_id),
-                    NodeStateProbability::get_equal_probability(node_state_ids),
+                    NodeStateProbability::get_equal_probability(node_states),
                     node_state_collection_ids_per_neighbor_node_id
                 );
                 nodes.push(node);
@@ -875,7 +864,7 @@ impl ZebraPuzzle {
 
 /// This struct represents a solution to the puzzle.
 struct ZebraSolution {
-    collapsed_wave_function: CollapsedWaveFunction<String>
+    collapsed_wave_function: CollapsedWaveFunction<String, String>
 }
 
 impl ZebraSolution {
@@ -1005,10 +994,10 @@ fn main() {
         Some(Information::new_house_color(HouseColor::Blue))
     ));
 
-    let wave_function: WaveFunction<String> = puzzle.get_wave_function();
+    let wave_function: WaveFunction<String, String> = puzzle.get_wave_function();
     wave_function.validate().unwrap();
 
-    let solution_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse();
+    let solution_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String, String>>(None).collapse();
 
     if let Ok(solution) = solution_result {
         // print the result

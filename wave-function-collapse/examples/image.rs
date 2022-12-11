@@ -127,7 +127,7 @@ impl Canvas {
             height: height
         }
     }
-    fn get_wave_function(&self, source_image_file_path: &str, fragment_width: u32, fragment_height: u32, is_reflection_permitted: bool, is_rotation_permitted: bool, is_periodic: bool, contains_ground: bool) -> WaveFunction<ImageFragment> {
+    fn get_wave_function(&self, source_image_file_path: &str, fragment_width: u32, fragment_height: u32, is_reflection_permitted: bool, is_rotation_permitted: bool, is_periodic: bool, contains_ground: bool) -> WaveFunction<String, ImageFragment> {
 
         // get all of the possible image fragments from the original image
         let mut image_reader = ImageReader::open(source_image_file_path).expect("The source image file should exist at the provided file path.");
@@ -196,7 +196,7 @@ impl Canvas {
         }
 
         // construct node state collections such that only those image fragments that overlap can be next to each other
-        let mut node_state_collections: Vec<NodeStateCollection<ImageFragment>> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection<String, ImageFragment>> = Vec::new();
 
         // starting from the top-left, only permit those image fragments that would overlap in the remaining eight pixels
         // root         pixel 1     pixel 2
@@ -243,7 +243,7 @@ impl Canvas {
                         node_state_collection_ids_per_height_offset_per_width_offset.get_mut(&width_offset).unwrap().insert(height_offset, Vec::new());
                     }
                     let node_state_collection_id = Uuid::new_v4().to_string();
-                    let node_state_collection: NodeStateCollection<ImageFragment> = NodeStateCollection::new(node_state_collection_id.clone(), from_node_state.clone(), permitted_node_states);
+                    let node_state_collection: NodeStateCollection<String, ImageFragment> = NodeStateCollection::new(node_state_collection_id.clone(), from_node_state.clone(), permitted_node_states);
                     node_state_collection_ids_per_height_offset_per_width_offset.get_mut(&width_offset).unwrap().get_mut(&height_offset).unwrap().push(node_state_collection_id);
                     node_state_collections.push(node_state_collection);
                 }
@@ -251,7 +251,7 @@ impl Canvas {
         }
 
         // construct nodes
-        let mut nodes: Vec<Node<ImageFragment>> = Vec::new();
+        let mut nodes: Vec<Node<String, ImageFragment>> = Vec::new();
 
         // create grid of node IDs cooresponding to each image fragment's top-left corner
         let mut node_id_per_height_index_per_width_index: HashMap<usize, HashMap<usize, String>> = HashMap::new();
@@ -323,14 +323,14 @@ impl Canvas {
                     node_state_ratio_per_node_state_id = image_fragment_duplicates_total_per_image_fragment.clone();
                 }
 
-                let node: Node<ImageFragment> = Node::new(node_id.clone(), node_state_ratio_per_node_state_id, node_state_collection_ids_per_neighbor_node_id);
+                let node: Node<String, ImageFragment> = Node::new(node_id.clone(), node_state_ratio_per_node_state_id, node_state_collection_ids_per_neighbor_node_id);
                 nodes.push(node);
             }
         }
 
         WaveFunction::new(nodes, node_state_collections)
     }
-    fn print(&self, collapsed_wave_function: CollapsedWaveFunction<ImageFragment>, fragment_width: u32, fragment_height: u32) {
+    fn print(&self, collapsed_wave_function: CollapsedWaveFunction<String, ImageFragment>, fragment_width: u32, fragment_height: u32) {
         let mut node_state_per_height_index_per_width_index: HashMap<usize, HashMap<usize, Option<ImageFragment>>> = HashMap::new();
         for width_index in 0..self.width as usize {
             let mut node_state_per_height_index: HashMap<usize, Option<ImageFragment>> = HashMap::new();
@@ -381,7 +381,7 @@ impl Canvas {
             println!("");
         }
     }
-    fn print_step(&self, collapsed_node_states: &Vec<CollapsedNodeState<ImageFragment>>, step_index: usize) {
+    fn print_step(&self, collapsed_node_states: &Vec<CollapsedNodeState<String, ImageFragment>>, step_index: usize) {
         let mut pixels: Vec<Vec<[u8; 4]>> = Vec::new();
         for _ in 0..self.width {
             let mut vec = Vec::new();
@@ -490,7 +490,7 @@ fn main() {
     let mut rng = rand::thread_rng();
     let random_seed = Some(rng.gen::<u64>());
 
-    let mut collapsable_wave_function = wave_function.get_collapsable_wave_function::<EntropicCollapsableWaveFunction<ImageFragment>>(random_seed);
+    let mut collapsable_wave_function = wave_function.get_collapsable_wave_function::<EntropicCollapsableWaveFunction<String, ImageFragment>>(random_seed);
     
     let start = Instant::now();
     let duration: Duration;

@@ -1,4 +1,4 @@
-use std::{collections::{HashMap, HashSet}, cell::{RefCell}, rc::Rc, hash::Hash, fs::File, io::BufReader};
+use std::{collections::{HashMap, HashSet}, cell::{RefCell}, rc::Rc, hash::Hash, fs::File, io::BufReader, marker::PhantomData};
 use serde::{Serialize, Deserialize, de::DeserializeOwned};
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
@@ -15,11 +15,13 @@ pub mod collapsable_wave_function;
 mod tests;
 
 /// This struct makes for housing convenient utility functions.
-pub struct NodeStateProbability;
+pub struct NodeStateProbability<TIdentifier: Eq + Hash + Clone + std::fmt::Debug + Ord> {
+    phantom_identifier: PhantomData<TIdentifier>
+}
 
-impl NodeStateProbability {
-    pub fn get_equal_probability(node_state_ids: Vec<String>) -> HashMap<String, f32> {
-        let mut node_state_probability_per_node_state_id: HashMap<String, f32> = HashMap::new();
+impl<TIdentifier: Eq + Hash + Clone + std::fmt::Debug + Ord> NodeStateProbability<TIdentifier> {
+    pub fn get_equal_probability(node_state_ids: Vec<TIdentifier>) -> HashMap<TIdentifier, f32> {
+        let mut node_state_probability_per_node_state_id: HashMap<TIdentifier, f32> = HashMap::new();
 
         for node_state_id in node_state_ids.into_iter() {
             node_state_probability_per_node_state_id.insert(node_state_id, 1.0);
@@ -31,39 +33,39 @@ impl NodeStateProbability {
 
 /// This is a node in the graph of the wave function. It can be in any of the provided node states, trying to achieve the cooresponding probability, connected to other nodes as described by the node state collections.
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct Node<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> {
-    pub id: String,
-    pub node_state_collection_ids_per_neighbor_node_id: HashMap<String, Vec<String>>,
-    pub node_state_ids: Vec<TNodeState>,
+pub struct Node<TIdentifier: Eq + Hash + Clone + std::fmt::Debug + Ord, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> {
+    pub id: TIdentifier,
+    pub node_state_collection_ids_per_neighbor_node_id: HashMap<TIdentifier, Vec<TIdentifier>>,
+    pub node_states: Vec<TNodeState>,
     pub node_state_ratios: Vec<f32>
 }
 
-impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> Node<TNodeState> {
-    pub fn new(id: String, node_state_ratio_per_node_state_id: HashMap<TNodeState, f32>, node_state_collection_ids_per_neighbor_node_id: HashMap<String, Vec<String>>) -> Self {
-        let mut node_state_ids: Vec<TNodeState> = Vec::new();
+impl<TIdentifier: Eq + Hash + Clone + std::fmt::Debug + Ord, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> Node<TIdentifier, TNodeState> {
+    pub fn new(id: TIdentifier, node_state_ratio_per_node_state: HashMap<TNodeState, f32>, node_state_collection_ids_per_neighbor_node_id: HashMap<TIdentifier, Vec<TIdentifier>>) -> Self {
+        let mut node_states: Vec<TNodeState> = Vec::new();
         let mut node_state_ratios: Vec<f32> = Vec::new();
-        for (node_state_id, node_state_ratio) in node_state_ratio_per_node_state_id.iter() {
-            node_state_ids.push(node_state_id.clone());
+        for (node_state, node_state_ratio) in node_state_ratio_per_node_state.iter() {
+            node_states.push(node_state.clone());
             node_state_ratios.push(*node_state_ratio);
         }
         
         // sort the node_state_ids and node_state_probabilities
-        let mut sort_permutation = permutation::sort(&node_state_ids);
-        sort_permutation.apply_slice_in_place(&mut node_state_ids);
+        let mut sort_permutation = permutation::sort(&node_states);
+        sort_permutation.apply_slice_in_place(&mut node_states);
         sort_permutation.apply_slice_in_place(&mut node_state_ratios);
 
         Node {
             id: id,
             node_state_collection_ids_per_neighbor_node_id: node_state_collection_ids_per_neighbor_node_id,
-            node_state_ids: node_state_ids,
+            node_states: node_states,
             node_state_ratios: node_state_ratios
         }
     }
-    pub fn get_id(&self) -> String {
+    pub fn get_id(&self) -> TIdentifier {
         self.id.clone()
     }
-    pub fn get_neighbor_node_ids(&self) -> Vec<String> {
-        let mut neighbor_node_ids: Vec<String> = Vec::new();
+    pub fn get_neighbor_node_ids(&self) -> Vec<TIdentifier> {
+        let mut neighbor_node_ids: Vec<TIdentifier> = Vec::new();
         for (neighbor_node_id, _) in self.node_state_collection_ids_per_neighbor_node_id.iter() {
             neighbor_node_ids.push(neighbor_node_id.clone());
         }
@@ -71,57 +73,70 @@ impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> Node<TNodeState> {
     }
 }
 
-/// This struct represents a relationship between the state of one "original" node to another "neighbor" node, permitting only those node states for the connected neighbor if the original node is in the specific state. This defines the constraints between nodes.
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct NodeStateCollection<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> {
-    pub id: String,
-    pub node_state_id: TNodeState,
-    pub node_state_ids: Vec<TNodeState>
+#[derive(Debug, Serialize, Deserialize, Clone, Hash, PartialEq, Eq)]
+pub struct AnonymousNodeStateCollection<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> {
+    pub when_node_state: TNodeState,
+    pub then_node_states: Vec<TNodeState>
 }
 
-impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> NodeStateCollection<TNodeState> {
-    pub fn new(id: String, node_state_id: TNodeState, node_state_ids: Vec<TNodeState>) -> Self {
+/// This struct represents a relationship between the state of one "original" node to another "neighbor" node, permitting only those node states for the connected neighbor if the original node is in the specific state. This defines the constraints between nodes.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct NodeStateCollection<TIdentifier: Eq + Hash + Clone + std::fmt::Debug + Ord, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> {
+    pub id: TIdentifier,
+    pub when_node_state: TNodeState,
+    pub then_node_states: Vec<TNodeState>
+}
+
+impl<TIdentifier: Eq + Hash + Clone + std::fmt::Debug + Ord, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> NodeStateCollection<TIdentifier, TNodeState> {
+    pub fn new(id: TIdentifier, when_node_state: TNodeState, then_node_states: Vec<TNodeState>) -> Self {
         NodeStateCollection {
             id: id,
-            node_state_id: node_state_id,
-            node_state_ids: node_state_ids
+            when_node_state: when_node_state,
+            then_node_states: then_node_states
+        }
+    }
+    pub fn new_from_anonymous(id: TIdentifier, anonymous_node_state_collection: AnonymousNodeStateCollection<TNodeState>) -> Self {
+        NodeStateCollection {
+            id: id,
+            when_node_state: anonymous_node_state_collection.when_node_state,
+            then_node_states: anonymous_node_state_collection.then_node_states
         }
     }
 }
 
 /// This struct represents the uncollapsed definition of nodes and their relationships to other nodes.
 #[derive(Serialize, Clone, Deserialize)]
-pub struct WaveFunction<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> {
-    nodes: Vec<Node<TNodeState>>,
-    node_state_collections: Vec<NodeStateCollection<TNodeState>>
+pub struct WaveFunction<TIdentifier: Eq + Hash + Clone + std::fmt::Debug + Ord, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> {
+    nodes: Vec<Node<TIdentifier, TNodeState>>,
+    node_state_collections: Vec<NodeStateCollection<TIdentifier, TNodeState>>
 }
 
-impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord + Serialize + DeserializeOwned> WaveFunction<TNodeState> {
-    pub fn new(nodes: Vec<Node<TNodeState>>, node_state_collections: Vec<NodeStateCollection<TNodeState>>) -> Self {
+impl<TIdentifier: Eq + Hash + Clone + std::fmt::Debug + Ord + Serialize + DeserializeOwned, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord + Serialize + DeserializeOwned> WaveFunction<TIdentifier, TNodeState> {
+    pub fn new(nodes: Vec<Node<TIdentifier, TNodeState>>, node_state_collections: Vec<NodeStateCollection<TIdentifier, TNodeState>>) -> Self {
         WaveFunction {
             nodes: nodes,
             node_state_collections: node_state_collections
         }
     }
 
-    pub fn get_nodes(&self) -> Vec<Node<TNodeState>> {
+    pub fn get_nodes(&self) -> Vec<Node<TIdentifier, TNodeState>> {
         self.nodes.clone()
     }
 
-    pub fn get_node_state_collections(&self) -> Vec<NodeStateCollection<TNodeState>> {
+    pub fn get_node_state_collections(&self) -> Vec<NodeStateCollection<TIdentifier, TNodeState>> {
         self.node_state_collections.clone()
     }
 
     pub fn validate(&self) -> Result<(), String> {
         let nodes_length: usize = self.nodes.len();
 
-        let mut node_per_id: HashMap<&str, &Node<TNodeState>> = HashMap::new();
-        let mut node_ids: HashSet<&str> = HashSet::new();
-        self.nodes.iter().for_each(|node: &Node<TNodeState>| {
+        let mut node_per_id: HashMap<&TIdentifier, &Node<TIdentifier, TNodeState>> = HashMap::new();
+        let mut node_ids: HashSet<&TIdentifier> = HashSet::new();
+        self.nodes.iter().for_each(|node: &Node<TIdentifier, TNodeState>| {
             node_per_id.insert(&node.id, node);
             node_ids.insert(&node.id);
         });
-        let mut node_state_collection_per_id: HashMap<&str, &NodeStateCollection<TNodeState>> = HashMap::new();
+        let mut node_state_collection_per_id: HashMap<&TIdentifier, &NodeStateCollection<TIdentifier, TNodeState>> = HashMap::new();
         self.node_state_collections.iter().for_each(|node_state_collection| {
             node_state_collection_per_id.insert(&node_state_collection.id, node_state_collection);
         });
@@ -131,9 +146,9 @@ impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord + Serialize + Deseria
         // ensure that references neighbors are actually nodes
         for (_, node) in node_per_id.iter() {
             for (neighbor_node_id_string, _) in node.node_state_collection_ids_per_neighbor_node_id.iter() {
-                let neighbor_node_id: &str = neighbor_node_id_string;
+                let neighbor_node_id: &TIdentifier = neighbor_node_id_string;
                 if !node_ids.contains(neighbor_node_id) {
-                    error_message = Some(format!("Neighbor node {neighbor_node_id} does not exist in main list of nodes."));
+                    error_message = Some(format!("Neighbor node {:?} does not exist in main list of nodes.", neighbor_node_id));
                     break;
                 }
             }
@@ -146,8 +161,8 @@ impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord + Serialize + Deseria
             let mut at_least_one_node_connects_to_all_other_nodes: bool = false;
             for node in self.nodes.iter() {
                 // ensure that all nodes connect to all other nodes
-                let mut all_traversed_node_ids: HashSet<&str> = HashSet::new();
-                let mut potential_node_ids: Vec<&str> = Vec::new();
+                let mut all_traversed_node_ids: HashSet<&TIdentifier> = HashSet::new();
+                let mut potential_node_ids: Vec<&TIdentifier> = Vec::new();
 
                 potential_node_ids.push(&node.id);
 
@@ -155,7 +170,7 @@ impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord + Serialize + Deseria
                     let node_id = potential_node_ids.pop().unwrap();
                     let node = node_per_id.get(node_id).unwrap();
                     for neighbor_node_id_string in node.node_state_collection_ids_per_neighbor_node_id.keys() {
-                        let neighbor_node_id: &str = neighbor_node_id_string;
+                        let neighbor_node_id: &TIdentifier = neighbor_node_id_string;
                         if !all_traversed_node_ids.contains(neighbor_node_id) && !potential_node_ids.contains(&neighbor_node_id) {
                             potential_node_ids.push(neighbor_node_id);
                         }
@@ -187,12 +202,12 @@ impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord + Serialize + Deseria
         }
     }
 
-    pub fn get_collapsable_wave_function<'a, TCollapsableWaveFunction: CollapsableWaveFunction<'a, TNodeState>>(&'a self, random_seed: Option<u64>) -> TCollapsableWaveFunction {
-        let mut node_per_id: HashMap<&str, &Node<TNodeState>> = HashMap::new();
-        self.nodes.iter().for_each(|node: &Node<TNodeState>| {
+    pub fn get_collapsable_wave_function<'a, TCollapsableWaveFunction: CollapsableWaveFunction<'a, TIdentifier, TNodeState>>(&'a self, random_seed: Option<u64>) -> TCollapsableWaveFunction {
+        let mut node_per_id: HashMap<&TIdentifier, &Node<TIdentifier, TNodeState>> = HashMap::new();
+        self.nodes.iter().for_each(|node: &Node<TIdentifier, TNodeState>| {
             node_per_id.insert(&node.id, node);
         });
-        let mut node_state_collection_per_id: HashMap<&str, &NodeStateCollection<TNodeState>> = HashMap::new();
+        let mut node_state_collection_per_id: HashMap<&TIdentifier, &NodeStateCollection<TIdentifier, TNodeState>> = HashMap::new();
         self.node_state_collections.iter().for_each(|node_state_collection| {
             node_state_collection_per_id.insert(&node_state_collection.id, node_state_collection);
         });
@@ -206,15 +221,15 @@ impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord + Serialize + Deseria
         //          push bit vector into hashmap of mask per node state per neighbor node
 
         // neighbor_mask_mapped_view_per_node_id is equivalent to mask_per_child_neighbor_per_state_per_node
-        let mut neighbor_mask_mapped_view_per_node_id: HashMap<&str, HashMap<&TNodeState, HashMap<&str, BitVec>>> = HashMap::new();
+        let mut neighbor_mask_mapped_view_per_node_id: HashMap<&TIdentifier, HashMap<&TNodeState, HashMap<&TIdentifier, BitVec>>> = HashMap::new();
 
         // create, per parent neighbor, a mask for each node (as child of parent neighbor)
-        let mut mask_per_parent_state_per_parent_neighbor_per_node: HashMap<&str, HashMap<&str, HashMap<&TNodeState, BitVec>>> = HashMap::new();
+        let mut mask_per_parent_state_per_parent_neighbor_per_node: HashMap<&TIdentifier, HashMap<&TIdentifier, HashMap<&TNodeState, BitVec>>> = HashMap::new();
 
         // for each node
         for child_node in self.nodes.iter() {
 
-            let mut mask_per_parent_state_per_parent_neighbor: HashMap<&str, HashMap<&TNodeState, BitVec>> = HashMap::new();
+            let mut mask_per_parent_state_per_parent_neighbor: HashMap<&TIdentifier, HashMap<&TNodeState, BitVec>> = HashMap::new();
 
             // look for each parent neighbor node
             for parent_neighbor_node in self.nodes.iter() {
@@ -226,15 +241,15 @@ impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord + Serialize + Deseria
                     let mut mask_per_parent_state: HashMap<&TNodeState, BitVec> = HashMap::new();
 
                     // get the node state collections that this parent neighbor node forces upon this node
-                    let node_state_collection_ids: &Vec<String> = parent_neighbor_node.node_state_collection_ids_per_neighbor_node_id.get(&child_node.id).unwrap();
+                    let node_state_collection_ids: &Vec<TIdentifier> = parent_neighbor_node.node_state_collection_ids_per_neighbor_node_id.get(&child_node.id).unwrap();
                     for node_state_collection_id in node_state_collection_ids.iter() {
-                        let node_state_collection_id: &str = node_state_collection_id;
+                        let node_state_collection_id: &TIdentifier = node_state_collection_id;
                         let node_state_collection = node_state_collection_per_id.get(node_state_collection_id).unwrap();
                         // construct a mask for this parent neighbor's node state collection and node state for this child node
                         let mut mask: BitVec = BitVec::new();
-                        for node_state_id in child_node.node_state_ids.iter() {
+                        for node_state in child_node.node_states.iter() {
                             // if the node state for the child is permitted by the parent neighbor node state collection
-                            if node_state_collection.node_state_ids.contains(node_state_id) {
+                            if node_state_collection.then_node_states.contains(node_state) {
                                 mask.push(true);
                             }
                             else {
@@ -242,7 +257,7 @@ impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord + Serialize + Deseria
                             }
                         }
                         // store the mask for this child node
-                        mask_per_parent_state.insert(&node_state_collection.node_state_id, mask);
+                        mask_per_parent_state.insert(&node_state_collection.when_node_state, mask);
                     }
 
                     mask_per_parent_state_per_parent_neighbor.insert(&parent_neighbor_node.id, mask_per_parent_state);
@@ -257,37 +272,37 @@ impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord + Serialize + Deseria
         for node in self.nodes.iter() {
 
             // for this node, find all child neighbors
-            let node_id: &str = &node.id;
+            let node_id: &TIdentifier = &node.id;
 
-            let mut mask_per_neighbor_per_state: HashMap<&TNodeState, HashMap<&str, BitVec>> = HashMap::new();
+            let mut mask_per_neighbor_per_state: HashMap<&TNodeState, HashMap<&TIdentifier, BitVec>> = HashMap::new();
 
             for (neighbor_node_id, _) in node.node_state_collection_ids_per_neighbor_node_id.iter() {
-                let neighbor_node_id: &str = neighbor_node_id;
+                let neighbor_node_id: &TIdentifier = neighbor_node_id;
 
                 // get the inverse hashmap of this node to its child neighbor
                 let mask_per_parent_state_per_parent_neighbor = mask_per_parent_state_per_parent_neighbor_per_node.get(neighbor_node_id).unwrap();
                 let mask_per_parent_state = mask_per_parent_state_per_parent_neighbor.get(node_id).unwrap();
 
-                for (node_state_id, mask) in mask_per_parent_state.iter() {
-                    if !mask_per_neighbor_per_state.contains_key(node_state_id) {
-                        mask_per_neighbor_per_state.insert(node_state_id, HashMap::new());
+                for (node_state, mask) in mask_per_parent_state.iter() {
+                    if !mask_per_neighbor_per_state.contains_key(node_state) {
+                        mask_per_neighbor_per_state.insert(node_state, HashMap::new());
                     }
-                    mask_per_neighbor_per_state.get_mut(node_state_id).unwrap().insert(neighbor_node_id, mask.clone());
+                    mask_per_neighbor_per_state.get_mut(node_state).unwrap().insert(neighbor_node_id, mask.clone());
                 }
             }
 
             neighbor_mask_mapped_view_per_node_id.insert(node_id, mask_per_neighbor_per_state);
         }
 
-        let mut node_state_indexed_view_per_node_id: HashMap<&str, IndexedView<&TNodeState>> = HashMap::new();
+        let mut node_state_indexed_view_per_node_id: HashMap<&TIdentifier, IndexedView<&TNodeState>> = HashMap::new();
 
         // store all of the masks that my neighbors will be orienting so that this node can check for restrictions
         for node in self.nodes.iter() {
-            let node_id: &str = &node.id;
+            let node_id: &TIdentifier = &node.id;
 
             //debug!("storing for node {node_id} restrictive masks into node state indexed view.");
 
-            let referenced_node_state_ids: Vec<&TNodeState> = node.node_state_ids.iter().collect();
+            let referenced_node_state_ids: Vec<&TNodeState> = node.node_states.iter().collect();
             let cloned_node_state_ratios: Vec<f32> = node.node_state_ratios.clone();
 
             let node_state_indexed_view = IndexedView::new(referenced_node_state_ids, cloned_node_state_ratios);
@@ -295,11 +310,11 @@ impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord + Serialize + Deseria
             node_state_indexed_view_per_node_id.insert(node_id, node_state_indexed_view);
         }
 
-        let mut collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<TNodeState>>>> = Vec::new();
-        let mut collapsable_node_per_id: HashMap<&str, Rc<RefCell<CollapsableNode<TNodeState>>>> = HashMap::new();
+        let mut collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<TIdentifier, TNodeState>>>> = Vec::new();
+        let mut collapsable_node_per_id: HashMap<&TIdentifier, Rc<RefCell<CollapsableNode<TIdentifier, TNodeState>>>> = HashMap::new();
         // contains the mask to apply to the neighbor when this node is in a specific state
         for (node_index, node) in self.nodes.iter().enumerate() {
-            let node_id: &str = &node.id;
+            let node_id: &TIdentifier = &node.id;
 
             let node_state_indexed_view: IndexedView<&TNodeState> = node_state_indexed_view_per_node_id.remove(node_id).unwrap();
             let mask_per_neighbor_per_state = neighbor_mask_mapped_view_per_node_id.remove(node_id).unwrap();
@@ -322,7 +337,7 @@ impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord + Serialize + Deseria
 
         for wrapped_collapsable_node in collapsable_nodes.iter() {
             let mut collapsable_node = wrapped_collapsable_node.borrow_mut();
-            let collapsable_node_id: &str = collapsable_node.id;
+            let collapsable_node_id: &TIdentifier = collapsable_node.id;
 
             if mask_per_parent_state_per_parent_neighbor_per_node.contains_key(collapsable_node_id) {
                 let mask_per_parent_state_per_parent_neighbor = mask_per_parent_state_per_parent_neighbor_per_node.get(collapsable_node_id).unwrap();
@@ -343,7 +358,7 @@ impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord + Serialize + Deseria
     pub fn load_from_file(file_path: &str) -> Self {
         let file = File::open(file_path).unwrap();
         let reader = BufReader::new(file);
-        let deserialized_self: WaveFunction<TNodeState> = serde_json::from_reader(reader).unwrap();
+        let deserialized_self: WaveFunction<TIdentifier, TNodeState> = serde_json::from_reader(reader).unwrap();
         deserialized_self
     }
 }

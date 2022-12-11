@@ -86,9 +86,9 @@ impl Landscape {
             height: height
         }
     }
-    fn get_wave_function(&self) -> WaveFunction<LandscapeElement> {
+    fn get_wave_function(&self) -> WaveFunction<String, LandscapeElement> {
 
-        let mut node_state_collections: Vec<NodeStateCollection<LandscapeElement>> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection<String, LandscapeElement>> = Vec::new();
         // water
         node_state_collections.push(NodeStateCollection::new(
             Uuid::new_v4().to_string(),
@@ -149,7 +149,7 @@ impl Landscape {
         }
 
         debug!("connecting nodes");
-        let mut nodes: Vec<Node<LandscapeElement>> = Vec::new();
+        let mut nodes: Vec<Node<String, LandscapeElement>> = Vec::new();
         for from_height_index in 0..self.height {
             for from_width_index in 0..self.width {
                 debug!("setup ({from_width_index}, {from_height_index})");
@@ -254,7 +254,7 @@ fn main() {
     let mut rng = rand::thread_rng();
     let random_seed = Some(rng.gen::<u64>());
 
-    let collapsed_wave_function = wave_function.get_collapsable_wave_function::<AccommodatingCollapsableWaveFunction<LandscapeElement>>(random_seed).collapse().unwrap();
+    let collapsed_wave_function = wave_function.get_collapsable_wave_function::<AccommodatingCollapsableWaveFunction<String, LandscapeElement>>(random_seed).collapse().unwrap();
 
     let mut node_state_per_y_per_x: Vec<Vec<Option<LandscapeElement>>> = Vec::new();
     for _ in 0..width {

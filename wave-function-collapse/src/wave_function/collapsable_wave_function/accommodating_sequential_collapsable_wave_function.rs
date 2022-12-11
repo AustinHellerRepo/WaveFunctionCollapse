@@ -5,18 +5,18 @@ use rand::seq::SliceRandom;
 use crate::wave_function::indexed_view::IndexedViewMaskState;
 use super::collapsable_wave_function::{CollapsableNode, CollapsedNodeState, CollapsedWaveFunction, CollapsableWaveFunction};
 
-pub struct AccommodatingSequentialCollapsableWaveFunction<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> {
-    collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a, TNodeState>>>>,
-    collapsable_node_per_id: HashMap<&'a str, Rc<RefCell<CollapsableNode<'a, TNodeState>>>>,
-    spread_node_ids: Vec<&'a str>,
+pub struct AccommodatingSequentialCollapsableWaveFunction<'a, TIdentifier: Eq + Hash + Clone + std::fmt::Debug + Ord, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> {
+    collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a, TIdentifier, TNodeState>>>>,
+    collapsable_node_per_id: HashMap<&'a TIdentifier, Rc<RefCell<CollapsableNode<'a, TIdentifier, TNodeState>>>>,
+    spread_node_ids: Vec<&'a TIdentifier>,
     spread_node_ids_length: usize,
     spread_node_ids_index: usize,
-    impacted_node_ids: HashSet<&'a str>,
-    stash_per_neighbor_node_id: HashMap<&'a str, IndexedViewMaskState>,
-    original_node_state_per_node_id: HashMap<&'a str, &'a TNodeState>,
-    current_neighbor_node_ids: Vec<&'a str>,
-    great_neighbor_node_ids_per_neighbor_node_id: HashMap<&'a str, Vec<&'a str>>,
-    nongreat_neighbor_node_ids_per_neighbor_node_id: HashMap<&'a str, Vec<&'a str>>,
+    impacted_node_ids: HashSet<&'a TIdentifier>,
+    stash_per_neighbor_node_id: HashMap<&'a TIdentifier, IndexedViewMaskState>,
+    original_node_state_per_node_id: HashMap<&'a TIdentifier, &'a TNodeState>,
+    current_neighbor_node_ids: Vec<&'a TIdentifier>,
+    great_neighbor_node_ids_per_neighbor_node_id: HashMap<&'a TIdentifier, Vec<&'a TIdentifier>>,
+    nongreat_neighbor_node_ids_per_neighbor_node_id: HashMap<&'a TIdentifier, Vec<&'a TIdentifier>>,
     current_neighbor_node_ids_index: usize,
     current_neighbor_node_ids_length: usize,
     is_current_neighbor_node_cycle_required: bool,
@@ -24,14 +24,14 @@ pub struct AccommodatingSequentialCollapsableWaveFunction<'a, TNodeState: Eq + H
     node_state_type: PhantomData<TNodeState>
 }
 
-impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingSequentialCollapsableWaveFunction<'a, TNodeState> {
-    fn initialize_nodes(&mut self) -> Result<Vec<CollapsedNodeState<TNodeState>>, String> {
+impl<'a, TIdentifier: Eq + Hash + Clone + std::fmt::Debug + Ord, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingSequentialCollapsableWaveFunction<'a, TIdentifier, TNodeState> {
+    fn initialize_nodes(&mut self) -> Result<Vec<CollapsedNodeState<TIdentifier, TNodeState>>, String> {
 
         // initialize each collapsable node to its first (random) state, storing them for the return
         // alter masks for every collapsable node to its neighbors
         // initialize the collapsable_nodes vector
 
-        let mut initial_node_states: Vec<CollapsedNodeState<TNodeState>> = Vec::new();
+        let mut initial_node_states: Vec<CollapsedNodeState<TIdentifier, TNodeState>> = Vec::new();
         for wrapped_collapsable_node in self.collapsable_nodes.iter() {
             let mut collapsable_node = wrapped_collapsable_node.borrow_mut();
             if !collapsable_node.node_state_indexed_view.try_move_next() {
@@ -40,8 +40,8 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingSeq
             
             self.spread_node_ids.push(collapsable_node.id);
             let node_state = collapsable_node.node_state_indexed_view.get().unwrap();
-            let collapsed_node_state: CollapsedNodeState<TNodeState> = CollapsedNodeState {
-                node_id: String::from(collapsable_node.id),
+            let collapsed_node_state: CollapsedNodeState<TIdentifier, TNodeState> = CollapsedNodeState {
+                node_id: collapsable_node.id.clone(),
                 node_state_id: Some((*node_state).clone())
             };
             debug!("node {:?} is currently in state {:?}", collapsable_node.id, node_state);
@@ -53,8 +53,8 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingSeq
         for wrapped_collapsable_node in self.collapsable_nodes.iter() {
             let collapsable_node = wrapped_collapsable_node.borrow();
             let node_state = collapsable_node.node_state_indexed_view.get().unwrap();
-            let neighbor_node_ids: &Vec<&str> = &collapsable_node.neighbor_node_ids;
-            let mask_per_neighbor_per_state: &HashMap<&TNodeState, HashMap<&str, BitVec>> = &collapsable_node.mask_per_neighbor_per_state;
+            let neighbor_node_ids: &Vec<&TIdentifier> = &collapsable_node.neighbor_node_ids;
+            let mask_per_neighbor_per_state: &HashMap<&TNodeState, HashMap<&TIdentifier, BitVec>> = &collapsable_node.mask_per_neighbor_per_state;
             if let Some(mask_per_neighbor) = mask_per_neighbor_per_state.get(node_state) {
                 for neighbor_node_id in neighbor_node_ids.iter() {
                     if mask_per_neighbor.contains_key(neighbor_node_id) {
@@ -111,14 +111,14 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingSeq
         // returns if current collapsable node is in conflict and not already impacted
 
         if false {
-            let current_collapsable_node_id: &str = self.spread_node_ids[self.spread_node_ids_index];
+            let current_collapsable_node_id: &TIdentifier = self.spread_node_ids[self.spread_node_ids_index];
             let wrapped_current_collapsable_node = self.collapsable_node_per_id.get(current_collapsable_node_id).unwrap();
             let current_collapsable_node = wrapped_current_collapsable_node.borrow();
             debug!("node {:?} is assumed to always be in conflict regardless of it being in state {:?}", current_collapsable_node_id, current_collapsable_node.node_state_indexed_view.get().unwrap());
             return true;
         }
 
-        let current_collapsable_node_id: &str = self.spread_node_ids[self.spread_node_ids_index];
+        let current_collapsable_node_id: &TIdentifier = self.spread_node_ids[self.spread_node_ids_index];
         let wrapped_current_collapsable_node = self.collapsable_node_per_id.get(current_collapsable_node_id).unwrap();
         let current_collapsable_node = wrapped_current_collapsable_node.borrow();
         let mut is_current_collapsable_node_in_conflict = current_collapsable_node.node_state_indexed_view.is_current_state_restricted();
@@ -192,7 +192,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingSeq
         // set current neighbor node cycle not required
         // set neighbors collapse possible true
 
-        let current_collapsable_node_id: &str = self.spread_node_ids[self.spread_node_ids_index];
+        let current_collapsable_node_id: &TIdentifier = self.spread_node_ids[self.spread_node_ids_index];
 
         // cache all relevant neighbor nodes (parents and children together)
         // remove current collapsable node mask from neighbors
@@ -291,10 +291,10 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingSeq
                 let wrapped_neighbor_collapsable_node = self.collapsable_node_per_id.get(neighbor_node_id).unwrap();
                 let neighbor_collapsable_node = wrapped_neighbor_collapsable_node.borrow();
 
-                let mut great_neighbor_node_ids: Vec<&str> = Vec::new();
-                let mut nongreat_neighbor_node_ids: Vec<&str> = Vec::new();
+                let mut great_neighbor_node_ids: Vec<&TIdentifier> = Vec::new();
+                let mut nongreat_neighbor_node_ids: Vec<&TIdentifier> = Vec::new();
 
-                let mut possible_great_neighbor_node_ids: Vec<&str> = Vec::new();
+                let mut possible_great_neighbor_node_ids: Vec<&TIdentifier> = Vec::new();
                 possible_great_neighbor_node_ids.extend(neighbor_collapsable_node.neighbor_node_ids.clone());
                 possible_great_neighbor_node_ids.extend(neighbor_collapsable_node.parent_neighbor_node_ids.clone());
                 possible_great_neighbor_node_ids.sort();
@@ -346,7 +346,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingSeq
             neighbor_collapsable_node.node_state_indexed_view.is_current_state_restricted()
         }
     }
-    fn change_state_of_current_node_neighbor(&mut self) -> Vec<CollapsedNodeState<TNodeState>> {
+    fn change_state_of_current_node_neighbor(&mut self) -> Vec<CollapsedNodeState<TIdentifier, TNodeState>> {
 
         // set current neighbor cycle not required
         // try to cycle the neighbor node state
@@ -363,7 +363,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingSeq
         //         revert to the previous neighbor node so that it can try a different state
         //         set current neighbor node cycle required
 
-        let mut changed_neighbor_node_states: Vec<CollapsedNodeState<TNodeState>> = Vec::new();
+        let mut changed_neighbor_node_states: Vec<CollapsedNodeState<TIdentifier, TNodeState>> = Vec::new();
 
         self.is_current_neighbor_node_cycle_required = false;
 
@@ -378,7 +378,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingSeq
         let neighbor_collapsable_node_state = neighbor_collapsable_node.node_state_indexed_view.get().unwrap();
 
         changed_neighbor_node_states.push(CollapsedNodeState {
-            node_id: String::from(neighbor_node_id),
+            node_id: neighbor_node_id.clone(),
             node_state_id: Some((*neighbor_collapsable_node_state).clone())
         });
         
@@ -388,7 +388,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingSeq
             if neighbor_collapsable_node.mask_per_neighbor_per_state.contains_key(neighbor_collapsable_node_state) {
                 let mask_per_neighbor = neighbor_collapsable_node.mask_per_neighbor_per_state.get(neighbor_node_state).unwrap();
                 let great_neighbor_node_ids = self.great_neighbor_node_ids_per_neighbor_node_id.get(neighbor_node_id).unwrap();
-                let mut masked_great_neighbor_node_ids: Vec<&str> = Vec::new();
+                let mut masked_great_neighbor_node_ids: Vec<&TIdentifier> = Vec::new();
                 let mut is_rollback_required: bool = false;
 
                 for great_neighbor_node_id in great_neighbor_node_ids.iter() {
@@ -482,7 +482,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingSeq
         if neighbor_collapsable_node.mask_per_neighbor_per_state.contains_key(neighbor_node_state) {
             let mask_per_neighbor = neighbor_collapsable_node.mask_per_neighbor_per_state.get(neighbor_node_state).unwrap();
             let great_neighbor_node_ids = self.great_neighbor_node_ids_per_neighbor_node_id.get(neighbor_node_id).unwrap();
-            let mut masked_great_neighbor_node_ids: Vec<&str> = Vec::new();
+            let mut masked_great_neighbor_node_ids: Vec<&TIdentifier> = Vec::new();
             let mut is_rollback_required: bool = false;
             
             for great_neighbor_node_id in great_neighbor_node_ids.iter() {
@@ -536,7 +536,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingSeq
         // clear cache of all relevant neighbor node ids
 
         if self.current_neighbor_node_ids_index == self.current_neighbor_node_ids_length {
-            let current_collapsable_node_id: &str = self.spread_node_ids[self.spread_node_ids_index];
+            let current_collapsable_node_id: &TIdentifier = self.spread_node_ids[self.spread_node_ids_index];
             self.impacted_node_ids.insert(current_collapsable_node_id);
             self.impacted_node_ids.extend(self.current_neighbor_node_ids.clone());
 
@@ -597,13 +597,13 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingSeq
 
         self.spread_node_ids_index += 1;
     }
-    fn get_collapsed_wave_function(&self) -> CollapsedWaveFunction<TNodeState> {
-        let mut node_state_per_node: HashMap<String, TNodeState> = HashMap::new();
+    fn get_collapsed_wave_function(&self) -> CollapsedWaveFunction<TIdentifier, TNodeState> {
+        let mut node_state_per_node: HashMap<TIdentifier, TNodeState> = HashMap::new();
         for wrapped_collapsable_node in self.collapsable_nodes.iter() {
             let collapsable_node = wrapped_collapsable_node.borrow();
             let node_state: TNodeState = (*collapsable_node.node_state_indexed_view.get().unwrap()).clone();
-            let node: String = String::from(collapsable_node.id);
-            debug!("established node {node} in state {:?}.", node_state);
+            let node: TIdentifier = collapsable_node.id.clone();
+            debug!("established node {:?} in state {:?}.", node, node_state);
             node_state_per_node.insert(node, node_state);
         }
         CollapsedWaveFunction {
@@ -612,8 +612,8 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingSeq
     }
 }
 
-impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveFunction<'a, TNodeState> for AccommodatingSequentialCollapsableWaveFunction<'a, TNodeState> {
-    fn new(collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a, TNodeState>>>>, collapsable_node_per_id: HashMap<&'a str, Rc<RefCell<CollapsableNode<'a, TNodeState>>>>) -> Self {
+impl<'a, TIdentifier: Eq + Hash + Clone + std::fmt::Debug + Ord, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveFunction<'a, TIdentifier, TNodeState> for AccommodatingSequentialCollapsableWaveFunction<'a, TIdentifier, TNodeState> {
+    fn new(collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a, TIdentifier, TNodeState>>>>, collapsable_node_per_id: HashMap<&'a TIdentifier, Rc<RefCell<CollapsableNode<'a, TIdentifier, TNodeState>>>>) -> Self {
         AccommodatingSequentialCollapsableWaveFunction {
             collapsable_nodes: collapsable_nodes,
             collapsable_node_per_id: collapsable_node_per_id,
@@ -633,7 +633,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveF
             node_state_type: PhantomData
         }
     }
-    fn collapse(&'a mut self) -> Result<CollapsedWaveFunction<TNodeState>, String> {
+    fn collapse(&'a mut self) -> Result<CollapsedWaveFunction<TIdentifier, TNodeState>, String> {
       
         let mut iterations_total: u32 = 0;
 
@@ -678,7 +678,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveF
 
         Ok(self.get_collapsed_wave_function())
     }
-    fn collapse_into_steps(&'a mut self) -> Result<Vec<CollapsedNodeState<TNodeState>>, String> {
+    fn collapse_into_steps(&'a mut self) -> Result<Vec<CollapsedNodeState<TIdentifier, TNodeState>>, String> {
 
         // initialize each collapsable node to its first (random) state
         // alter masks for every collapsable node to its neighbors
@@ -737,7 +737,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveF
         //
         // NOTE: this could cause an infinite loop for the AB<-->CD unit test
 
-        let mut collapsed_node_states: Vec<CollapsedNodeState<TNodeState>> = Vec::new();
+        let mut collapsed_node_states: Vec<CollapsedNodeState<TIdentifier, TNodeState>> = Vec::new();
 
         let initialized_node_states_result = self.initialize_nodes();
         if initialized_node_states_result.is_err() {

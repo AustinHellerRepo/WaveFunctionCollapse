@@ -193,12 +193,12 @@ impl Level {
             println!("");
         }
     }
-    fn get_wave_function(&self) -> WaveFunction<NodeState> {
+    fn get_wave_function(&self) -> WaveFunction<String, NodeState> {
 
         // begin constructing nodes and node state collections for wave function
 
-        let mut nodes: Vec<Node<NodeState>> = Vec::new();
-        let mut node_state_collections: Vec<NodeStateCollection<NodeState>> = Vec::new();
+        let mut nodes: Vec<Node<String, NodeState>> = Vec::new();
+        let mut node_state_collections: Vec<NodeStateCollection<String, NodeState>> = Vec::new();
 
         // cache useful data
 
@@ -686,6 +686,10 @@ impl Level {
 
         let mut possible_locations_per_wall_adjacent_index: HashMap<usize, HashSet<(usize, usize)>> = HashMap::new();
 
+        {
+
+        }
+
         // collect PlacedPlacableCollection instances representing the floaters
 
         // determine the possible locations of every floater compared to every wall-adjacent
@@ -707,7 +711,7 @@ impl Level {
         let mut rng = rand::thread_rng();
         let random_seed = Some(rng.gen::<u64>());
 
-        let mut collapsable_wave_function = wave_function.get_collapsable_wave_function::<AccommodatingCollapsableWaveFunction<NodeState>>(random_seed);
+        let mut collapsable_wave_function = wave_function.get_collapsable_wave_function::<AccommodatingCollapsableWaveFunction<String, NodeState>>(random_seed);
 
         let collapsed_wave_function = collapsable_wave_function.collapse().unwrap();
 
