@@ -1,10 +1,12 @@
 use std::collections::{VecDeque, HashMap, HashSet};
 use austinhellerrepo_common_rust::segment_container::{Segment, SegmentContainer};
 use colored::Colorize;
+use log::debug;
 use rand::Rng;
 use serde::{Serialize, Deserialize};
 use uuid::Uuid;
 use wave_function_collapse::wave_function::{Node, NodeStateCollection, WaveFunction, collapsable_wave_function::{entropic_collapsable_wave_function::EntropicCollapsableWaveFunction, collapsable_wave_function::CollapsableWaveFunction}};
+use std::iter::zip;
 
 fn print_pixel(color: &[u8; 4]) {
     let character = "\u{2588}";
@@ -130,6 +132,12 @@ impl Level {
         let width: usize = 50;
         let height: usize = 30;
         let mut placed_placables: Vec<PlacedPlacable> = Vec::new();
+        for width_index in ((width as f32 * 0.25) as usize)..((width as f32 * 0.4) as usize) {
+            placed_placables.push(PlacedPlacable::new(Placable::Tile(TileType::Solid), width_index, 0));
+        }
+        for width_index in ((width as f32 * 0.6) as usize)..((width as f32 * 0.75) as usize) {
+            placed_placables.push(PlacedPlacable::new(Placable::Tile(TileType::Solid), width_index, 0));
+        }
         for height_index in 0..height {
             placed_placables.push(PlacedPlacable::new(Placable::Tile(TileType::Solid), 0, height_index));
             placed_placables.push(PlacedPlacable::new(Placable::Tile(TileType::Solid), width - 1, height_index));
@@ -324,85 +332,152 @@ impl Level {
         }*/
 
         // determine possible locations per wall
+        let mut current_wall_index: usize = 0;
         let mut possible_locations_per_wall_index: HashMap<usize, HashSet<(usize, usize)>> = HashMap::new();
         let mut other_wall_possible_locations_per_other_wall_index_per_location_per_wall_index: HashMap<usize, HashMap<(usize, usize), HashMap<usize, Vec<(usize, usize)>>>> = HashMap::new();
         
-        // get the possible locations for the top wall
-        if !top_walls.is_empty() {
+        // get the possible locations for each wall
+        for ((walls, is_horizontal), width_or_height) in zip(zip([top_walls, bottom_walls, left_walls, right_walls], [true, true, false, false]), [0, self.height - 1, 0, self.width - 1]) {
+            debug!("trying walls {:?} which are located at {}", walls, width_or_height);
+            if !walls.is_empty() {
 
-            let mut segments: Vec<Segment<usize>> = Vec::new();
+                let mut segments: Vec<Segment<usize>> = Vec::new();
 
-            for (wall_index, wall) in top_walls.iter().enumerate() {
+                for wall in walls.iter() {
 
-                // ensure that this wall is not stuck to another wall
-                if wall.placed_placables[0].location.0 == 0 {
-                    // the wall is stuck at the corner to the first left wall
-                    let mut possible_locations: HashSet<(usize, usize)> = HashSet::new();
-                    possible_locations.insert((0, 0));
-                    possible_locations_per_wall_index.insert(wall_index, possible_locations);
-                }
-                else if wall.placed_placables[wall.placed_placables.len() - 1].location.0 == self.width - 1 {
-                    // the wall is stuck at the corner to the first right wall
-                    let mut possible_locations: HashSet<(usize, usize)> = HashSet::new();
-                    possible_locations.insert(wall.placed_placables[0].location);
-                    possible_locations_per_wall_index.insert(wall_index, possible_locations);
-                }
-                else {
-                    let wall_start_location = wall.placed_placables[0].location;
-                    let wall_end_location = wall.placed_placables[wall.placed_placables.len() - 1].location;
+                    debug!("examining wall index {} as {:?}", current_wall_index, wall);
 
-                    segments.push(Segment::new(wall_index, wall_end_location.0 - wall_start_location.0));
-                }
-            }
+                    // ensure that this wall is not stuck to another wall
+                    if wall.placed_placables[0].location.0 == 0 && is_horizontal {
+                        // the wall is stuck in the top-left or bottom-left corner
+                        debug!("found wall is either in top-left or bottom-left corner");
 
-            if !segments.is_empty() {
-                // there is at least one open wall segment that does not touch either corner
+                        let mut possible_locations: HashSet<(usize, usize)> = HashSet::new();
+                        possible_locations.insert(wall.placed_placables[0].location);
+                        possible_locations_per_wall_index.insert(current_wall_index, possible_locations);
+                    }
+                    else if wall.placed_placables[0].location.1 == 0 && !is_horizontal {
+                        // the wall is stuck in the top-left or top-right corner
+                        debug!("found wall is either in top-left or top-right corner");
 
-                // get the left-most and right-most a wall can travel based on the existence (or not) of any corner walls
-                let left_most_length: usize;
-                if top_walls[0].placed_placables[0].location.0 == 0 {
-                    left_most_length = top_walls[0].placed_placables[top_walls[0].placed_placables.len() - 1].location.0 + 2;  // +2 spaces away is the next valid location
-                }
-                else {
-                    left_most_length = 1;  // 1 space away from 0 is the next valid location
-                }
-                
-                let right_most_length: usize;
-                if top_walls[top_walls.len() - 1].placed_placables[top_walls[top_walls.len() - 1].placed_placables.len() - 1].location.0 == self.width - 1 {
-                    right_most_length = top_walls[top_walls.len() - 1].placed_placables[0].location.0 - 2;  // -2 spaces away to the left is the next valid location
-                }
-                else {
-                    right_most_length = self.width - 2;  // 1 space to the left of the last index is the next valid location
-                }
+                        let mut possible_locations: HashSet<(usize, usize)> = HashSet::new();
+                        possible_locations.insert(wall.placed_placables[0].location);
+                        possible_locations_per_wall_index.insert(current_wall_index, possible_locations);
+                    }
+                    else if wall.placed_placables[wall.placed_placables.len() - 1].location.0 == self.width - 1 && is_horizontal {
+                        // the wall is stuck in the top-right or bottom-right corner
+                        debug!("found wall is either in top-right or bottom-right corner");
 
-                let left_most_to_right_most_length = right_most_length - left_most_length + 1;
-                
-                let segment_container: SegmentContainer<usize> = SegmentContainer::new(segments);
-                let permutations = segment_container.get_segment_location_permutations_within_bounding_length(left_most_to_right_most_length, 1);
+                        let mut possible_locations: HashSet<(usize, usize)> = HashSet::new();
+                        possible_locations.insert(wall.placed_placables[0].location);
+                        possible_locations_per_wall_index.insert(current_wall_index, possible_locations);
+                    }
+                    else if wall.placed_placables[wall.placed_placables.len() - 1].location.1 == self.height - 1 && !is_horizontal {
+                        // the wall is stuck in the bottom-left or bottom-right corner
+                        debug!("found wall is either in bottom-left or bottom-right corner");
 
-                for permutation in permutations.into_iter() {
-                    for (located_segment_index, located_segment) in permutation.iter().enumerate() {
-                        let location = (located_segment.position, 0 as usize);
+                        let mut possible_locations: HashSet<(usize, usize)> = HashSet::new();
+                        possible_locations.insert(wall.placed_placables[0].location);
+                        possible_locations_per_wall_index.insert(current_wall_index, possible_locations);
+                    }
+                    else {
+                        debug!("found wall unstuck from any corners");
 
-                        if !possible_locations_per_wall_index.contains_key(&located_segment.id) {
-                            possible_locations_per_wall_index.insert(located_segment.id.clone(), HashSet::new());
+                        let wall_start_location = wall.placed_placables[0].location;
+                        let wall_end_location = wall.placed_placables[wall.placed_placables.len() - 1].location;
+
+                        let segment_length: usize;
+                        if is_horizontal {
+                            segment_length = wall_end_location.0 - wall_start_location.0 + 1;
                         }
-                        possible_locations_per_wall_index.get_mut(&located_segment.id).unwrap().insert(location.clone());
+                        else {
+                            segment_length = wall_end_location.1 - wall_start_location.1 + 1;
+                        }
 
-                        for (other_located_segment_index, other_located_segment) in permutation.iter().enumerate() {
-                            if located_segment_index != other_located_segment_index {
-                                let other_location = (other_located_segment.position, 0 as usize);
+                        segments.push(Segment::new(current_wall_index, segment_length));
+                    }
 
-                                if !other_wall_possible_locations_per_other_wall_index_per_location_per_wall_index.contains_key(&located_segment.id) {
-                                    other_wall_possible_locations_per_other_wall_index_per_location_per_wall_index.insert(located_segment.id.clone(), HashMap::new());
+                    current_wall_index += 1;
+                }
+
+                if !segments.is_empty() {
+                    // there is at least one open wall segment that does not touch either corner
+
+                    // get the left-most and right-most a wall can travel based on the existence (or not) of any corner walls
+                    let left_most_length: usize;
+                    if walls[0].placed_placables[0].location.0 == 0 && is_horizontal {
+                        left_most_length = walls[0].placed_placables[walls[0].placed_placables.len() - 1].location.0 + 2;  // +2 spaces away is the next valid location
+                    }
+                    else if walls[0].placed_placables[0].location.1 == 0 && !is_horizontal {
+                        left_most_length = walls[0].placed_placables[walls[0].placed_placables.len() - 1].location.1 + 2;  // +2 spaces away is the next valid location
+                    }
+                    else {
+                        left_most_length = 1;  // 1 space away from 0 is the next valid location
+                    }
+                    
+                    let right_most_length: usize;
+                    if is_horizontal {
+                        if walls[walls.len() - 1].placed_placables[walls[walls.len() - 1].placed_placables.len() - 1].location.0 == self.width - 1 {
+                            right_most_length = walls[walls.len() - 1].placed_placables[0].location.0 - 2;  // -2 spaces away to the left is the next valid location
+                        }
+                        else {
+                            right_most_length = self.width - 2;  // 1 space to the left of the last index is the next valid location
+                        }
+                    }
+                    else {
+                        if walls[walls.len() - 1].placed_placables[walls[walls.len() - 1].placed_placables.len() - 1].location.1 == self.height - 1 {
+                            right_most_length = walls[walls.len() - 1].placed_placables[0].location.1 - 2;  // -2 spaces away to the left is the next valid location
+                        }
+                        else {
+                            right_most_length = self.height - 2;  // 1 space up from the last index is the next valid location
+                        }
+                    }
+
+                    let left_most_to_right_most_length = right_most_length - left_most_length + 1;
+
+                    debug!("left_most_to_right_most_length: {}", left_most_to_right_most_length);
+                    
+                    let segment_container: SegmentContainer<usize> = SegmentContainer::new(segments);
+                    let permutations = segment_container.get_segment_location_permutations_within_bounding_length(left_most_to_right_most_length, 1);
+
+                    for permutation in permutations.into_iter() {
+                        for (located_segment_index, located_segment) in permutation.iter().enumerate() {
+                            let location: (usize, usize);
+                            
+                            if is_horizontal {
+                                location = (located_segment.position + left_most_length, width_or_height);
+                            }
+                            else {
+                                location = (width_or_height, located_segment.position + left_most_length);
+                            }
+
+                            if !possible_locations_per_wall_index.contains_key(&located_segment.id) {
+                                possible_locations_per_wall_index.insert(located_segment.id.clone(), HashSet::new());
+                            }
+                            possible_locations_per_wall_index.get_mut(&located_segment.id).unwrap().insert(location.clone());
+
+                            for (other_located_segment_index, other_located_segment) in permutation.iter().enumerate() {
+                                if located_segment_index != other_located_segment_index {
+                                    let other_location:(usize, usize);
+                                    
+                                    if is_horizontal {
+                                        other_location = (other_located_segment.position + left_most_length, width_or_height);
+                                    }
+                                    else {
+                                        other_location = (width_or_height, other_located_segment.position + left_most_length);
+                                    }
+
+                                    if !other_wall_possible_locations_per_other_wall_index_per_location_per_wall_index.contains_key(&located_segment.id) {
+                                        other_wall_possible_locations_per_other_wall_index_per_location_per_wall_index.insert(located_segment.id.clone(), HashMap::new());
+                                    }
+                                    if !other_wall_possible_locations_per_other_wall_index_per_location_per_wall_index.get(&located_segment.id).unwrap().contains_key(&location) {
+                                        other_wall_possible_locations_per_other_wall_index_per_location_per_wall_index.get_mut(&located_segment.id).unwrap().insert(location.clone(), HashMap::new());
+                                    }
+                                    if !other_wall_possible_locations_per_other_wall_index_per_location_per_wall_index.get(&located_segment.id).unwrap().get(&location).unwrap().contains_key(&other_located_segment.id) {
+                                        other_wall_possible_locations_per_other_wall_index_per_location_per_wall_index.get_mut(&located_segment.id).unwrap().get_mut(&location).unwrap().insert(other_located_segment.id.clone(), Vec::new());
+                                    }
+                                    other_wall_possible_locations_per_other_wall_index_per_location_per_wall_index.get_mut(&located_segment.id).unwrap().get_mut(&location).unwrap().get_mut(&other_located_segment.id).unwrap().push(other_location);
                                 }
-                                if !other_wall_possible_locations_per_other_wall_index_per_location_per_wall_index.get(&located_segment.id).unwrap().contains_key(&location) {
-                                    other_wall_possible_locations_per_other_wall_index_per_location_per_wall_index.get_mut(&located_segment.id).unwrap().insert(location.clone(), HashMap::new());
-                                }
-                                if !other_wall_possible_locations_per_other_wall_index_per_location_per_wall_index.get(&located_segment.id).unwrap().get(&location).unwrap().contains_key(&other_located_segment.id) {
-                                    other_wall_possible_locations_per_other_wall_index_per_location_per_wall_index.get_mut(&located_segment.id).unwrap().get_mut(&location).unwrap().insert(other_located_segment.id.clone(), Vec::new());
-                                }
-                                other_wall_possible_locations_per_other_wall_index_per_location_per_wall_index.get_mut(&located_segment.id).unwrap().get_mut(&location).unwrap().get_mut(&other_located_segment.id).unwrap().push(other_location);
                             }
                         }
                     }
@@ -410,7 +485,8 @@ impl Level {
             }
         }
 
-        // TODO refactor the above code to work for all four wall collections as part of a loop
+        debug!("possible_locations_per_wall_index: {:?}", possible_locations_per_wall_index);
+        debug!("other_wall_possible_locations_per_other_wall_index_per_location_per_wall_index: {:?}", other_wall_possible_locations_per_other_wall_index_per_location_per_wall_index);
 
         // collect PlacedPlacableCollection instances representing the wall-adjacents
 
@@ -494,6 +570,8 @@ impl Level {
 }
 
 fn main() {
+    std::env::set_var("RUST_LOG", "trace");
+    pretty_env_logger::init();
 
     let level = Level::default();
     level.print();
