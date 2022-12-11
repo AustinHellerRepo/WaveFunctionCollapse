@@ -5,7 +5,7 @@ use log::debug;
 use rand::Rng;
 use serde::{Serialize, Deserialize};
 use uuid::Uuid;
-use wave_function_collapse::wave_function::{Node, NodeStateCollection, WaveFunction, collapsable_wave_function::{entropic_collapsable_wave_function::EntropicCollapsableWaveFunction, collapsable_wave_function::CollapsableWaveFunction}};
+use wave_function_collapse::wave_function::{Node, NodeStateCollection, WaveFunction, collapsable_wave_function::{entropic_collapsable_wave_function::EntropicCollapsableWaveFunction, collapsable_wave_function::CollapsableWaveFunction, accommodating_collapsable_wave_function::AccommodatingCollapsableWaveFunction}};
 use std::iter::zip;
 
 fn print_pixel(color: &[u8; 4]) {
@@ -193,136 +193,141 @@ impl Level {
             println!("");
         }
     }
-    pub fn get_similar_level(&self) -> Self {
+    fn get_wave_function(&self) -> WaveFunction<NodeState> {
 
-        let mut placed_placable_per_location: HashMap<(usize, usize), &PlacedPlacable> = HashMap::new();
-        for placed_placable in self.placed_placables.iter() {
-            placed_placable_per_location.insert(placed_placable.location, placed_placable);
-        }
+        // begin constructing nodes and node state collections for wave function
 
         let mut nodes: Vec<Node<NodeState>> = Vec::new();
         let mut node_state_collections: Vec<NodeStateCollection<NodeState>> = Vec::new();
 
+        // cache useful data
+
+        let mut placed_placable_per_location: HashMap<(usize, usize), &PlacedPlacable> = HashMap::new();
+
+        {
+            for placed_placable in self.placed_placables.iter() {
+                placed_placable_per_location.insert(placed_placable.location, placed_placable);
+            }
+        }
+
         // collect PlacedPlacableCollection instances representing the walls
+
         let mut top_walls: Vec<PlacedPlacableCollection> = Vec::new();
         let mut right_walls: Vec<PlacedPlacableCollection> = Vec::new();
         let mut bottom_walls: Vec<PlacedPlacableCollection> = Vec::new();
         let mut left_walls: Vec<PlacedPlacableCollection> = Vec::new();
 
-        let mut placed_placable_per_location: HashMap<(usize, usize), &PlacedPlacable> = HashMap::new();
-        for placed_placable in self.placed_placables.iter() {
-            placed_placable_per_location.insert(placed_placable.location, placed_placable);
-        }
+        {
+            let mut current_wall: Option<PlacedPlacableCollection> = None;
+            let mut is_end_of_wall_found: bool = false;
 
-        let mut current_wall: Option<PlacedPlacableCollection> = None;
-        let mut is_end_of_wall_found: bool = false;
-
-        // search along the top and bottom
-        for height_index in [0, self.height - 1] {
-            for width_index in 0..self.width {
-                let location = (width_index, height_index);
-                if placed_placable_per_location.contains_key(&location) {
-                    let placed_placable: &PlacedPlacable = placed_placable_per_location.get(&location).unwrap();
-                    match placed_placable.placable {
-                        Placable::Tile(_) => {
-                            if current_wall.is_none() {
-                                current_wall = Some(PlacedPlacableCollection::default());
+            // search along the top and bottom
+            for height_index in [0, self.height - 1] {
+                for width_index in 0..self.width {
+                    let location = (width_index, height_index);
+                    if placed_placable_per_location.contains_key(&location) {
+                        let placed_placable: &PlacedPlacable = placed_placable_per_location.get(&location).unwrap();
+                        match placed_placable.placable {
+                            Placable::Tile(_) => {
+                                if current_wall.is_none() {
+                                    current_wall = Some(PlacedPlacableCollection::default());
+                                }
+                                if let Some(ref mut placed_placable_collection) = current_wall {
+                                    placed_placable_collection.placed_placables.push(placed_placable.clone());
+                                }
+                            },
+                            Placable::Element(_) => {
+                                is_end_of_wall_found = true;
                             }
-                            if let Some(ref mut placed_placable_collection) = current_wall {
-                                placed_placable_collection.placed_placables.push(placed_placable.clone());
-                            }
-                        },
-                        Placable::Element(_) => {
-                            is_end_of_wall_found = true;
                         }
                     }
-                }
-                else {
-                    is_end_of_wall_found = true;
+                    else {
+                        is_end_of_wall_found = true;
+                    }
+
+                    if is_end_of_wall_found {
+                        if current_wall.is_some() {
+                            if height_index == 0 {
+                                top_walls.push(current_wall.unwrap());
+                            }
+                            else if height_index == self.height - 1 {
+                                bottom_walls.push(current_wall.unwrap());
+                            }
+                            else {
+                                panic!("Unexpected height when trying to collect walls.");
+                            }
+                            current_wall = None;
+                        }
+                        is_end_of_wall_found = false;
+                    }
                 }
 
-                if is_end_of_wall_found {
-                    if current_wall.is_some() {
-                        if height_index == 0 {
-                            top_walls.push(current_wall.unwrap());
-                        }
-                        else if height_index == self.height - 1 {
-                            bottom_walls.push(current_wall.unwrap());
-                        }
-                        else {
-                            panic!("Unexpected height when trying to collect walls.");
-                        }
-                        current_wall = None;
+                if current_wall.is_some() {
+                    if height_index == 0 {
+                        top_walls.push(current_wall.unwrap());
                     }
-                    is_end_of_wall_found = false;
+                    else if height_index == self.height - 1 {
+                        bottom_walls.push(current_wall.unwrap());
+                    }
+                    else {
+                        panic!("Unexpected height when trying to collect walls.");
+                    }
+                    current_wall = None;
                 }
             }
 
-            if current_wall.is_some() {
-                if height_index == 0 {
-                    top_walls.push(current_wall.unwrap());
-                }
-                else if height_index == self.height - 1 {
-                    bottom_walls.push(current_wall.unwrap());
-                }
-                else {
-                    panic!("Unexpected height when trying to collect walls.");
-                }
-                current_wall = None;
-            }
-        }
+            // search along the left and right
+            for width_index in [0, self.width - 1] {
+                for height_index in 0..self.height {
+                    let location = (width_index, height_index);
+                    if placed_placable_per_location.contains_key(&location) {
+                        let placed_placable: &PlacedPlacable = placed_placable_per_location.get(&location).unwrap();
+                        match placed_placable.placable {
+                            Placable::Tile(_) => {
+                                if current_wall.is_none() {
+                                    current_wall = Some(PlacedPlacableCollection::default());
+                                }
+                                if let Some(ref mut placed_placable_collection) = current_wall {
+                                    placed_placable_collection.placed_placables.push(placed_placable.clone());
+                                }
+                            },
+                            Placable::Element(_) => {
+                                is_end_of_wall_found = true;
+                            }
+                        }
+                    }
+                    else {
+                        is_end_of_wall_found = true;
+                    }
 
-        // search along the left and right
-        for width_index in [0, self.width - 1] {
-            for height_index in 0..self.height {
-                let location = (width_index, height_index);
-                if placed_placable_per_location.contains_key(&location) {
-                    let placed_placable: &PlacedPlacable = placed_placable_per_location.get(&location).unwrap();
-                    match placed_placable.placable {
-                        Placable::Tile(_) => {
-                            if current_wall.is_none() {
-                                current_wall = Some(PlacedPlacableCollection::default());
+                    if is_end_of_wall_found {
+                        if current_wall.is_some() {
+                            if width_index == 0 {
+                                left_walls.push(current_wall.unwrap());
                             }
-                            if let Some(ref mut placed_placable_collection) = current_wall {
-                                placed_placable_collection.placed_placables.push(placed_placable.clone());
+                            else if width_index == self.width - 1 {
+                                right_walls.push(current_wall.unwrap());
                             }
-                        },
-                        Placable::Element(_) => {
-                            is_end_of_wall_found = true;
+                            else {
+                                panic!("Unexpected height when trying to collect walls.");
+                            }
+                            current_wall = None;
                         }
                     }
                 }
-                else {
-                    is_end_of_wall_found = true;
-                }
 
-                if is_end_of_wall_found {
-                    if current_wall.is_some() {
-                        if width_index == 0 {
-                            left_walls.push(current_wall.unwrap());
-                        }
-                        else if width_index == self.width - 1 {
-                            right_walls.push(current_wall.unwrap());
-                        }
-                        else {
-                            panic!("Unexpected height when trying to collect walls.");
-                        }
-                        current_wall = None;
+                if current_wall.is_some() {
+                    if width_index == 0 {
+                        left_walls.push(current_wall.unwrap());
                     }
+                    else if width_index == self.width - 1 {
+                        right_walls.push(current_wall.unwrap());
+                    }
+                    else {
+                        panic!("Unexpected height when trying to collect walls.");
+                    }
+                    current_wall = None;
                 }
-            }
-
-            if current_wall.is_some() {
-                if width_index == 0 {
-                    left_walls.push(current_wall.unwrap());
-                }
-                else if width_index == self.width - 1 {
-                    right_walls.push(current_wall.unwrap());
-                }
-                else {
-                    panic!("Unexpected height when trying to collect walls.");
-                }
-                current_wall = None;
             }
         }
 
@@ -332,167 +337,354 @@ impl Level {
         }*/
 
         // determine possible locations per wall
-        let mut current_wall_index: usize = 0;
+
+        let mut wall_per_index: Vec<PlacedPlacableCollection> = Vec::new();
         let mut possible_locations_per_wall_index: HashMap<usize, HashSet<(usize, usize)>> = HashMap::new();
         let mut other_wall_possible_locations_per_other_wall_index_per_location_per_wall_index: HashMap<usize, HashMap<(usize, usize), HashMap<usize, Vec<(usize, usize)>>>> = HashMap::new();
         
-        // get the possible locations for each wall
-        for ((walls, is_horizontal), width_or_height) in zip(zip([top_walls, bottom_walls, left_walls, right_walls], [true, true, false, false]), [0, self.height - 1, 0, self.width - 1]) {
-            debug!("trying walls {:?} which are located at {}", walls, width_or_height);
-            if !walls.is_empty() {
+        {
+            let mut current_wall_index: usize = 0;
 
-                let mut segments: Vec<Segment<usize>> = Vec::new();
+            // iterate over each wall
+            for ((walls, is_horizontal), width_or_height) in zip(zip([top_walls, bottom_walls, left_walls, right_walls], [true, true, false, false]), [0, self.height - 1, 0, self.width - 1]) {
+                debug!("trying walls {:?} which are located at {}", walls, width_or_height);
+                if !walls.is_empty() {
 
-                for wall in walls.iter() {
+                    let mut segments: Vec<Segment<usize>> = Vec::new();
 
-                    debug!("examining wall index {} as {:?}", current_wall_index, wall);
+                    for wall in walls.iter() {
 
-                    // ensure that this wall is not stuck to another wall
-                    if wall.placed_placables[0].location.0 == 0 && is_horizontal {
-                        // the wall is stuck in the top-left or bottom-left corner
-                        debug!("found wall is either in top-left or bottom-left corner");
+                        debug!("examining wall index {} as {:?}", current_wall_index, wall);
+                        wall_per_index.push(wall.clone());
 
-                        let mut possible_locations: HashSet<(usize, usize)> = HashSet::new();
-                        possible_locations.insert(wall.placed_placables[0].location);
-                        possible_locations_per_wall_index.insert(current_wall_index, possible_locations);
-                    }
-                    else if wall.placed_placables[0].location.1 == 0 && !is_horizontal {
-                        // the wall is stuck in the top-left or top-right corner
-                        debug!("found wall is either in top-left or top-right corner");
+                        // ensure that this wall is not stuck to another wall
+                        if wall.placed_placables[0].location.0 == 0 && is_horizontal {
+                            // the wall is stuck in the top-left or bottom-left corner
+                            debug!("found wall is either in top-left or bottom-left corner");
 
-                        let mut possible_locations: HashSet<(usize, usize)> = HashSet::new();
-                        possible_locations.insert(wall.placed_placables[0].location);
-                        possible_locations_per_wall_index.insert(current_wall_index, possible_locations);
-                    }
-                    else if wall.placed_placables[wall.placed_placables.len() - 1].location.0 == self.width - 1 && is_horizontal {
-                        // the wall is stuck in the top-right or bottom-right corner
-                        debug!("found wall is either in top-right or bottom-right corner");
+                            let mut possible_locations: HashSet<(usize, usize)> = HashSet::new();
+                            possible_locations.insert(wall.placed_placables[0].location);
+                            possible_locations_per_wall_index.insert(current_wall_index, possible_locations);
+                        }
+                        else if wall.placed_placables[0].location.1 == 0 && !is_horizontal {
+                            // the wall is stuck in the top-left or top-right corner
+                            debug!("found wall is either in top-left or top-right corner");
 
-                        let mut possible_locations: HashSet<(usize, usize)> = HashSet::new();
-                        possible_locations.insert(wall.placed_placables[0].location);
-                        possible_locations_per_wall_index.insert(current_wall_index, possible_locations);
-                    }
-                    else if wall.placed_placables[wall.placed_placables.len() - 1].location.1 == self.height - 1 && !is_horizontal {
-                        // the wall is stuck in the bottom-left or bottom-right corner
-                        debug!("found wall is either in bottom-left or bottom-right corner");
+                            let mut possible_locations: HashSet<(usize, usize)> = HashSet::new();
+                            possible_locations.insert(wall.placed_placables[0].location);
+                            possible_locations_per_wall_index.insert(current_wall_index, possible_locations);
+                        }
+                        else if wall.placed_placables[wall.placed_placables.len() - 1].location.0 == self.width - 1 && is_horizontal {
+                            // the wall is stuck in the top-right or bottom-right corner
+                            debug!("found wall is either in top-right or bottom-right corner");
 
-                        let mut possible_locations: HashSet<(usize, usize)> = HashSet::new();
-                        possible_locations.insert(wall.placed_placables[0].location);
-                        possible_locations_per_wall_index.insert(current_wall_index, possible_locations);
-                    }
-                    else {
-                        debug!("found wall unstuck from any corners");
+                            let mut possible_locations: HashSet<(usize, usize)> = HashSet::new();
+                            possible_locations.insert(wall.placed_placables[0].location);
+                            possible_locations_per_wall_index.insert(current_wall_index, possible_locations);
+                        }
+                        else if wall.placed_placables[wall.placed_placables.len() - 1].location.1 == self.height - 1 && !is_horizontal {
+                            // the wall is stuck in the bottom-left or bottom-right corner
+                            debug!("found wall is either in bottom-left or bottom-right corner");
 
-                        let wall_start_location = wall.placed_placables[0].location;
-                        let wall_end_location = wall.placed_placables[wall.placed_placables.len() - 1].location;
-
-                        let segment_length: usize;
-                        if is_horizontal {
-                            segment_length = wall_end_location.0 - wall_start_location.0 + 1;
+                            let mut possible_locations: HashSet<(usize, usize)> = HashSet::new();
+                            possible_locations.insert(wall.placed_placables[0].location);
+                            possible_locations_per_wall_index.insert(current_wall_index, possible_locations);
                         }
                         else {
-                            segment_length = wall_end_location.1 - wall_start_location.1 + 1;
-                        }
+                            debug!("found wall unstuck from any corners");
 
-                        segments.push(Segment::new(current_wall_index, segment_length));
-                    }
+                            let wall_start_location = wall.placed_placables[0].location;
+                            let wall_end_location = wall.placed_placables[wall.placed_placables.len() - 1].location;
 
-                    current_wall_index += 1;
-                }
-
-                if !segments.is_empty() {
-                    // there is at least one open wall segment that does not touch either corner
-
-                    // get the left-most and right-most a wall can travel based on the existence (or not) of any corner walls
-                    let left_most_length: usize;
-                    if walls[0].placed_placables[0].location.0 == 0 && is_horizontal {
-                        left_most_length = walls[0].placed_placables[walls[0].placed_placables.len() - 1].location.0 + 2;  // +2 spaces away is the next valid location
-                    }
-                    else if walls[0].placed_placables[0].location.1 == 0 && !is_horizontal {
-                        left_most_length = walls[0].placed_placables[walls[0].placed_placables.len() - 1].location.1 + 2;  // +2 spaces away is the next valid location
-                    }
-                    else {
-                        left_most_length = 1;  // 1 space away from 0 is the next valid location
-                    }
-                    
-                    let right_most_length: usize;
-                    if is_horizontal {
-                        if walls[walls.len() - 1].placed_placables[walls[walls.len() - 1].placed_placables.len() - 1].location.0 == self.width - 1 {
-                            right_most_length = walls[walls.len() - 1].placed_placables[0].location.0 - 2;  // -2 spaces away to the left is the next valid location
-                        }
-                        else {
-                            right_most_length = self.width - 2;  // 1 space to the left of the last index is the next valid location
-                        }
-                    }
-                    else {
-                        if walls[walls.len() - 1].placed_placables[walls[walls.len() - 1].placed_placables.len() - 1].location.1 == self.height - 1 {
-                            right_most_length = walls[walls.len() - 1].placed_placables[0].location.1 - 2;  // -2 spaces away to the left is the next valid location
-                        }
-                        else {
-                            right_most_length = self.height - 2;  // 1 space up from the last index is the next valid location
-                        }
-                    }
-
-                    let left_most_to_right_most_length = right_most_length - left_most_length + 1;
-
-                    debug!("left_most_to_right_most_length: {}", left_most_to_right_most_length);
-                    
-                    let segment_container: SegmentContainer<usize> = SegmentContainer::new(segments);
-                    let permutations = segment_container.get_segment_location_permutations_within_bounding_length(left_most_to_right_most_length, 1);
-
-                    for permutation in permutations.into_iter() {
-                        for (located_segment_index, located_segment) in permutation.iter().enumerate() {
-                            let location: (usize, usize);
-                            
+                            let segment_length: usize;
                             if is_horizontal {
-                                location = (located_segment.position + left_most_length, width_or_height);
+                                segment_length = wall_end_location.0 - wall_start_location.0 + 1;
                             }
                             else {
-                                location = (width_or_height, located_segment.position + left_most_length);
+                                segment_length = wall_end_location.1 - wall_start_location.1 + 1;
                             }
 
-                            if !possible_locations_per_wall_index.contains_key(&located_segment.id) {
-                                possible_locations_per_wall_index.insert(located_segment.id.clone(), HashSet::new());
+                            segments.push(Segment::new(current_wall_index, segment_length));
+                        }
+
+                        current_wall_index += 1;
+                    }
+
+                    if !segments.is_empty() {
+                        // there is at least one open wall segment that does not touch either corner
+
+                        // get the left-most and right-most a wall can travel based on the existence (or not) of any corner walls
+                        let left_most_length: usize;
+                        if walls[0].placed_placables[0].location.0 == 0 && is_horizontal {
+                            left_most_length = walls[0].placed_placables[walls[0].placed_placables.len() - 1].location.0 + 2;  // +2 spaces away is the next valid location
+                        }
+                        else if walls[0].placed_placables[0].location.1 == 0 && !is_horizontal {
+                            left_most_length = walls[0].placed_placables[walls[0].placed_placables.len() - 1].location.1 + 2;  // +2 spaces away is the next valid location
+                        }
+                        else {
+                            left_most_length = 1;  // 1 space away from 0 is the next valid location
+                        }
+                        
+                        let right_most_length: usize;
+                        if is_horizontal {
+                            if walls[walls.len() - 1].placed_placables[walls[walls.len() - 1].placed_placables.len() - 1].location.0 == self.width - 1 {
+                                right_most_length = walls[walls.len() - 1].placed_placables[0].location.0 - 2;  // -2 spaces away to the left is the next valid location
                             }
-                            possible_locations_per_wall_index.get_mut(&located_segment.id).unwrap().insert(location.clone());
+                            else {
+                                right_most_length = self.width - 2;  // 1 space to the left of the last index is the next valid location
+                            }
+                        }
+                        else {
+                            if walls[walls.len() - 1].placed_placables[walls[walls.len() - 1].placed_placables.len() - 1].location.1 == self.height - 1 {
+                                right_most_length = walls[walls.len() - 1].placed_placables[0].location.1 - 2;  // -2 spaces away to the left is the next valid location
+                            }
+                            else {
+                                right_most_length = self.height - 2;  // 1 space up from the last index is the next valid location
+                            }
+                        }
 
-                            for (other_located_segment_index, other_located_segment) in permutation.iter().enumerate() {
-                                if located_segment_index != other_located_segment_index {
-                                    let other_location:(usize, usize);
-                                    
-                                    if is_horizontal {
-                                        other_location = (other_located_segment.position + left_most_length, width_or_height);
-                                    }
-                                    else {
-                                        other_location = (width_or_height, other_located_segment.position + left_most_length);
-                                    }
+                        let left_most_to_right_most_length = right_most_length - left_most_length + 1;
 
-                                    if !other_wall_possible_locations_per_other_wall_index_per_location_per_wall_index.contains_key(&located_segment.id) {
-                                        other_wall_possible_locations_per_other_wall_index_per_location_per_wall_index.insert(located_segment.id.clone(), HashMap::new());
+                        debug!("left_most_to_right_most_length: {}", left_most_to_right_most_length);
+                        
+                        let segment_container: SegmentContainer<usize> = SegmentContainer::new(segments);
+                        let permutations = segment_container.get_segment_location_permutations_within_bounding_length(left_most_to_right_most_length, 1);
+
+                        for permutation in permutations.into_iter() {
+                            for (located_segment_index, located_segment) in permutation.iter().enumerate() {
+                                let location: (usize, usize);
+                                
+                                if is_horizontal {
+                                    location = (located_segment.position + left_most_length, width_or_height);
+                                }
+                                else {
+                                    location = (width_or_height, located_segment.position + left_most_length);
+                                }
+
+                                if !possible_locations_per_wall_index.contains_key(&located_segment.id) {
+                                    possible_locations_per_wall_index.insert(located_segment.id.clone(), HashSet::new());
+                                }
+                                possible_locations_per_wall_index.get_mut(&located_segment.id).unwrap().insert(location.clone());
+
+                                for (other_located_segment_index, other_located_segment) in permutation.iter().enumerate() {
+                                    if located_segment_index != other_located_segment_index {
+                                        let other_location:(usize, usize);
+                                        
+                                        if is_horizontal {
+                                            other_location = (other_located_segment.position + left_most_length, width_or_height);
+                                        }
+                                        else {
+                                            other_location = (width_or_height, other_located_segment.position + left_most_length);
+                                        }
+
+                                        if !other_wall_possible_locations_per_other_wall_index_per_location_per_wall_index.contains_key(&located_segment.id) {
+                                            other_wall_possible_locations_per_other_wall_index_per_location_per_wall_index.insert(located_segment.id.clone(), HashMap::new());
+                                        }
+                                        if !other_wall_possible_locations_per_other_wall_index_per_location_per_wall_index.get(&located_segment.id).unwrap().contains_key(&location) {
+                                            other_wall_possible_locations_per_other_wall_index_per_location_per_wall_index.get_mut(&located_segment.id).unwrap().insert(location.clone(), HashMap::new());
+                                        }
+                                        if !other_wall_possible_locations_per_other_wall_index_per_location_per_wall_index.get(&located_segment.id).unwrap().get(&location).unwrap().contains_key(&other_located_segment.id) {
+                                            other_wall_possible_locations_per_other_wall_index_per_location_per_wall_index.get_mut(&located_segment.id).unwrap().get_mut(&location).unwrap().insert(other_located_segment.id.clone(), Vec::new());
+                                        }
+                                        other_wall_possible_locations_per_other_wall_index_per_location_per_wall_index.get_mut(&located_segment.id).unwrap().get_mut(&location).unwrap().get_mut(&other_located_segment.id).unwrap().push(other_location);
                                     }
-                                    if !other_wall_possible_locations_per_other_wall_index_per_location_per_wall_index.get(&located_segment.id).unwrap().contains_key(&location) {
-                                        other_wall_possible_locations_per_other_wall_index_per_location_per_wall_index.get_mut(&located_segment.id).unwrap().insert(location.clone(), HashMap::new());
-                                    }
-                                    if !other_wall_possible_locations_per_other_wall_index_per_location_per_wall_index.get(&located_segment.id).unwrap().get(&location).unwrap().contains_key(&other_located_segment.id) {
-                                        other_wall_possible_locations_per_other_wall_index_per_location_per_wall_index.get_mut(&located_segment.id).unwrap().get_mut(&location).unwrap().insert(other_located_segment.id.clone(), Vec::new());
-                                    }
-                                    other_wall_possible_locations_per_other_wall_index_per_location_per_wall_index.get_mut(&located_segment.id).unwrap().get_mut(&location).unwrap().get_mut(&other_located_segment.id).unwrap().push(other_location);
                                 }
                             }
                         }
                     }
                 }
             }
+
+            debug!("possible_locations_per_wall_index: {:?}", possible_locations_per_wall_index);
+            debug!("other_wall_possible_locations_per_other_wall_index_per_location_per_wall_index: {:?}", other_wall_possible_locations_per_other_wall_index_per_location_per_wall_index);
         }
 
-        debug!("possible_locations_per_wall_index: {:?}", possible_locations_per_wall_index);
-        debug!("other_wall_possible_locations_per_other_wall_index_per_location_per_wall_index: {:?}", other_wall_possible_locations_per_other_wall_index_per_location_per_wall_index);
-
         // collect PlacedPlacableCollection instances representing the wall-adjacents
+        
+        let mut wall_adjacents: Vec<PlacedPlacableCollection> = Vec::new();
+
+        {
+            let mut traveled_locations: HashSet<(usize, usize)> = HashSet::new();
+            for height_index in [1, self.height - 2] {
+                for width_index in 1..(self.width - 2) {
+                    let location = (width_index, height_index);
+                    if placed_placable_per_location.contains_key(&location) && !traveled_locations.contains(&location) {
+
+                        let mut wall_adjacent: PlacedPlacableCollection = PlacedPlacableCollection::default();
+                        let mut wall_adjacent_locations: VecDeque<(usize, usize)> = VecDeque::new();
+                        wall_adjacent_locations.push_back(location);
+
+                        while !wall_adjacent_locations.is_empty() {
+                            let location = wall_adjacent_locations.pop_front().unwrap();
+
+                            if location.0 != 1 {
+                                let left_location = (location.0 - 1, location.1);
+                                if placed_placable_per_location.contains_key(&left_location) && !traveled_locations.contains(&left_location) {
+                                    wall_adjacent_locations.push_back(left_location);
+                                }
+                            }
+                            if location.1 != 1 {
+                                let top_location = (location.0, location.1 - 1);
+                                if placed_placable_per_location.contains_key(&top_location) && !traveled_locations.contains(&top_location) {
+                                    wall_adjacent_locations.push_back(top_location);
+                                }
+                            }
+                            if location.0 != self.width - 2 {
+                                let right_location = (location.0 + 1, location.1);
+                                if placed_placable_per_location.contains_key(&right_location) && !traveled_locations.contains(&right_location) {
+                                    wall_adjacent_locations.push_back(right_location);
+                                }
+                            }
+                            if location.1 != self.height - 2 {
+                                let bottom_location = (location.0, location.1 + 1);
+                                if placed_placable_per_location.contains_key(&bottom_location) && !traveled_locations.contains(&bottom_location) {
+                                    wall_adjacent_locations.push_back(bottom_location);
+                                }
+                            }
+
+                            wall_adjacent.placed_placables.push((*placed_placable_per_location.get(&location).unwrap()).clone());
+                            traveled_locations.insert(location);
+                        }
+
+                        wall_adjacents.push(wall_adjacent);
+                    }
+                }
+            }
+            for height_index in 2..(self.height - 3) {
+                for width_index in [1, self.width - 2] {
+                    let location = (width_index, height_index);
+                    if placed_placable_per_location.contains_key(&location) && !traveled_locations.contains(&location) {
+
+                        let mut wall_adjacent: PlacedPlacableCollection = PlacedPlacableCollection::default();
+                        let mut wall_adjacent_locations: VecDeque<(usize, usize)> = VecDeque::new();
+                        wall_adjacent_locations.push_back(location);
+
+                        while !wall_adjacent_locations.is_empty() {
+                            let location = wall_adjacent_locations.pop_front().unwrap();
+
+                            if location.0 != 1 {
+                                let left_location = (location.0 - 1, location.1);
+                                if placed_placable_per_location.contains_key(&left_location) && !traveled_locations.contains(&left_location) {
+                                    wall_adjacent_locations.push_back(left_location);
+                                }
+                            }
+                            if location.1 != 1 {
+                                let top_location = (location.0, location.1 - 1);
+                                if placed_placable_per_location.contains_key(&top_location) && !traveled_locations.contains(&top_location) {
+                                    wall_adjacent_locations.push_back(top_location);
+                                }
+                            }
+                            if location.0 != self.width - 2 {
+                                let right_location = (location.0 + 1, location.1);
+                                if placed_placable_per_location.contains_key(&right_location) && !traveled_locations.contains(&right_location) {
+                                    wall_adjacent_locations.push_back(right_location);
+                                }
+                            }
+                            if location.1 != self.height - 2 {
+                                let bottom_location = (location.0, location.1 + 1);
+                                if placed_placable_per_location.contains_key(&bottom_location) && !traveled_locations.contains(&bottom_location) {
+                                    wall_adjacent_locations.push_back(bottom_location);
+                                }
+                            }
+
+                            wall_adjacent.placed_placables.push((*placed_placable_per_location.get(&location).unwrap()).clone());
+                            traveled_locations.insert(location);
+                        }
+
+                        wall_adjacents.push(wall_adjacent);
+                    }
+                }
+            }
+
+            debug!("wall adjacents: {:?}", wall_adjacents);
+        }
 
         // determine which wall(s) are adjacent to every wall-adjacent
 
+        let mut wall_indexes_per_wall_adjacent_index: HashMap<usize, HashSet<usize>> = HashMap::new();
+
+        {
+            // iterate over every wall-adjacent cell and find each wall it is adjacent to, capturing the wall index
+            for (wall_adjacent_index, wall_adjacent) in wall_adjacents.iter().enumerate() {
+                let mut wall_indexes: HashSet<usize> = HashSet::new();
+                for wall_adjacent_placed_placable in wall_adjacent.placed_placables.iter() {
+                    if wall_adjacent_placed_placable.location.0 == 1 {
+                        'wall_search: {
+                            for (wall_index, wall) in wall_per_index.iter().enumerate() {
+                                for wall_placed_placable in wall.placed_placables.iter() {
+                                    if wall_placed_placable.location.1 == wall_adjacent_placed_placable.location.1 &&
+                                        wall_placed_placable.location.0 == wall_adjacent_placed_placable.location.0 - 1 {
+                                        
+                                        wall_indexes.insert(wall_index);
+
+                                        // no other walls could be to the left of this wall-adjacent cell
+                                        break 'wall_search;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if wall_adjacent_placed_placable.location.1 == 1 {
+                        'wall_search: {
+                            for (wall_index, wall) in wall_per_index.iter().enumerate() {
+                                for wall_placed_placable in wall.placed_placables.iter() {
+                                    if wall_placed_placable.location.0 == wall_adjacent_placed_placable.location.0 &&
+                                        wall_placed_placable.location.1 == wall_adjacent_placed_placable.location.1 - 1 {
+                                        
+                                        wall_indexes.insert(wall_index);
+
+                                        // no other walls could be above this wall-adjacent cell
+                                        break 'wall_search;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if wall_adjacent_placed_placable.location.0 == self.width - 2 {
+                        'wall_search: {
+                            for (wall_index, wall) in wall_per_index.iter().enumerate() {
+                                for wall_placed_placable in wall.placed_placables.iter() {
+                                    if wall_placed_placable.location.1 == wall_adjacent_placed_placable.location.1 &&
+                                        wall_placed_placable.location.0 == wall_adjacent_placed_placable.location.0 + 1 {
+                                        
+                                        wall_indexes.insert(wall_index);
+
+                                        // no other walls could be to the right of this wall-adjacent cell
+                                        break 'wall_search;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if wall_adjacent_placed_placable.location.1 == self.height - 2 {
+                        'wall_search: {
+                            for (wall_index, wall) in wall_per_index.iter().enumerate() {
+                                for wall_placed_placable in wall.placed_placables.iter() {
+                                    if wall_placed_placable.location.0 == wall_adjacent_placed_placable.location.0 &&
+                                        wall_placed_placable.location.1 == wall_adjacent_placed_placable.location.1 + 1 {
+                                        
+                                        wall_indexes.insert(wall_index);
+
+                                        // no other walls could be below this wall-adjacent cell
+                                        break 'wall_search;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                if wall_indexes.is_empty() {
+                    panic!("Failed to find wall adjacent to wall-adjancent at index {}: {:?}", wall_adjacent_index, wall_adjacent);
+                }
+                wall_indexes_per_wall_adjacent_index.insert(wall_adjacent_index, wall_indexes);
+            }
+
+            debug!("wall_indexes_per_wall_adjacent_index: {:?}", wall_indexes_per_wall_adjacent_index);
+        }
+
         // determine the possible locations of every wall-adjectent along with which locations the walls can and cannot be
+
+        let mut possible_locations_per_wall_adjacent_index: HashMap<usize, HashSet<(usize, usize)>> = HashMap::new();
 
         // collect PlacedPlacableCollection instances representing the floaters
 
@@ -506,10 +698,16 @@ impl Level {
 
         wave_function.validate().unwrap();
 
+        wave_function
+    }
+    pub fn get_similar_level(&self) -> Self {
+
+        let wave_function = self.get_wave_function();
+
         let mut rng = rand::thread_rng();
         let random_seed = Some(rng.gen::<u64>());
 
-        let mut collapsable_wave_function = wave_function.get_collapsable_wave_function::<EntropicCollapsableWaveFunction<NodeState>>(random_seed);
+        let mut collapsable_wave_function = wave_function.get_collapsable_wave_function::<AccommodatingCollapsableWaveFunction<NodeState>>(random_seed);
 
         let collapsed_wave_function = collapsable_wave_function.collapse().unwrap();
 
