@@ -19,15 +19,15 @@ pub struct NodeStateProbability<TIdentifier: Eq + Hash + Clone + std::fmt::Debug
     phantom_identifier: PhantomData<TIdentifier>
 }
 
-impl<TIdentifier: Eq + Hash + Clone + std::fmt::Debug + Ord> NodeStateProbability<TIdentifier> {
-    pub fn get_equal_probability(node_state_ids: Vec<TIdentifier>) -> HashMap<TIdentifier, f32> {
-        let mut node_state_probability_per_node_state_id: HashMap<TIdentifier, f32> = HashMap::new();
+impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> NodeStateProbability<TNodeState> {
+    pub fn get_equal_probability(node_states: Vec<TNodeState>) -> HashMap<TNodeState, f32> {
+        let mut node_state_probability_per_node_state: HashMap<TNodeState, f32> = HashMap::new();
 
-        for node_state_id in node_state_ids.into_iter() {
-            node_state_probability_per_node_state_id.insert(node_state_id, 1.0);
+        for node_state in node_states.into_iter() {
+            node_state_probability_per_node_state.insert(node_state, 1.0);
         }
 
-        node_state_probability_per_node_state_id
+        node_state_probability_per_node_state
     }
 }
 
