@@ -136,6 +136,11 @@ impl<TIdentifier: Eq + Hash + Clone + std::fmt::Debug + Ord + Serialize + Deseri
             node_per_id.insert(&node.id, node);
             node_ids.insert(&node.id);
         });
+
+        if nodes_length != node_ids.len() {
+            return Err(String::from("Duplicate node ID found in nodes."));
+        }
+
         let mut node_state_collection_per_id: HashMap<&TIdentifier, &NodeStateCollection<TIdentifier, TNodeState>> = HashMap::new();
         self.node_state_collections.iter().for_each(|node_state_collection| {
             node_state_collection_per_id.insert(&node_state_collection.id, node_state_collection);

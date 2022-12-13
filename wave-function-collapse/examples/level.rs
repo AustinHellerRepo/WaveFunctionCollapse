@@ -338,6 +338,10 @@ impl Level {
 
         // determine possible locations per wall
 
+        let mut top_wall_indexes: Vec<usize> = Vec::new();
+        let mut right_wall_indexes: Vec<usize> = Vec::new();
+        let mut bottom_wall_indexes: Vec<usize> = Vec::new();
+        let mut left_wall_indexes: Vec<usize> = Vec::new();
         let mut wall_per_index: Vec<PlacedPlacableCollection> = Vec::new();
         let mut possible_locations_per_wall_index: HashMap<usize, HashSet<(usize, usize)>> = HashMap::new();
         let mut other_wall_possible_locations_per_other_wall_index_per_location_per_wall_index: HashMap<usize, HashMap<(usize, usize), HashMap<usize, Vec<(usize, usize)>>>> = HashMap::new();
@@ -348,6 +352,24 @@ impl Level {
             // iterate over each wall
             for ((walls, is_horizontal), width_or_height) in zip(zip([top_walls, bottom_walls, left_walls, right_walls], [true, true, false, false]), [0, self.height - 1, 0, self.width - 1]) {
                 debug!("trying walls {:?} which are located at {}", walls, width_or_height);
+
+                if is_horizontal {
+                    if width_or_height == 0 {
+                        top_wall_indexes.push(current_wall_index);
+                    }
+                    else {
+                        bottom_wall_indexes.push(current_wall_index);
+                    }
+                }
+                else {
+                    if width_or_height == 0 {
+                        left_wall_indexes.push(current_wall_index);
+                    }
+                    else {
+                        right_wall_indexes.push(current_wall_index);
+                    }
+                }
+
                 if !walls.is_empty() {
 
                     let mut segments: Vec<Segment<usize>> = Vec::new();
@@ -685,9 +707,135 @@ impl Level {
         // determine the possible locations of every wall-adjectent along with which locations the walls can and cannot be
 
         let mut possible_locations_per_wall_adjacent_index: HashMap<usize, HashSet<(usize, usize)>> = HashMap::new();
+        let mut permitted_wall_locations_per_wall_index_per_wall_adjacent_index: HashMap<usize, HashMap<usize, Vec<(usize, usize)>>> = HashMap::new();
 
         {
+            for (wall_adjacent_index, wall_adjacent) in wall_adjacents.iter().enumerate() {
+                let mut is_top: bool = false;
+                let mut is_bottom: bool = false;
+                let mut is_left: bool = false;
+                let mut is_right: bool = false;
+                let mut top_left_location: (usize, usize) = (self.width, self.height);
+                let mut bottom_right_location: (usize, usize) = (0, 0);
 
+                for placed_placable in wall_adjacent.placed_placables.iter() {
+                    if placed_placable.location.0 == 1 {
+                        is_left = true;
+                    }
+                    if placed_placable.location.0 == self.width - 2 {
+                        is_right = true;
+                    }
+                    if placed_placable.location.1 == 1 {
+                        is_top = true;
+                    }
+                    if placed_placable.location.1 == self.height - 2 {
+                        is_bottom = true;
+                    }
+
+                    if placed_placable.location.0 < top_left_location.0 {
+                        top_left_location.0 = placed_placable.location.0;
+                    }
+                    if placed_placable.location.1 < top_left_location.1 {
+                        top_left_location.1 = placed_placable.location.1;
+                    }
+                    if placed_placable.location.0 > bottom_right_location.0 {
+                        bottom_right_location.0 = placed_placable.location.0;
+                    }
+                    if placed_placable.location.1 > bottom_right_location.1 {
+                        bottom_right_location.1 = placed_placable.location.1;
+                    }
+                }
+
+                if is_left && !is_right && !is_top && !is_bottom ||
+                    !is_left && is_right && !is_top && !is_bottom ||
+                    !is_left && !is_right && is_top && !is_bottom ||
+                    !is_left && !is_right && !is_top && is_bottom {
+
+                    let first_side_wall_indexes: &Vec<usize>;
+                    let main_wall_indexes: &Vec<usize>;
+                    let second_side_wall_indexes: &Vec<usize>;
+                    let location_delta: (usize, usize);
+                    let main_wall_delta: (i8, i8);
+                    let origin: (usize, usize);
+                    let first_contact_corner: (usize, usize);
+                    let second_contact_corner: (usize, usize);
+
+                    // single-walled wall-adjacent
+                    if is_left {
+                        first_side_wall_indexes = &top_wall_indexes;
+                        main_wall_indexes = &left_wall_indexes;
+                        second_side_wall_indexes = &bottom_wall_indexes;
+                        location_delta = (0, 1);
+                        main_wall_delta = (-1, 0);
+                        origin = (1, 1);
+                        first_contact_corner = (1, 1);
+                        second_contact_corner = (1, self.height - 2);
+                    }
+                    else if is_right {
+                        first_side_wall_indexes = &top_wall_indexes;
+                        main_wall_indexes = &right_wall_indexes;
+                        second_side_wall_indexes = &bottom_wall_indexes;
+                        location_delta = (0, 1);
+                        main_wall_delta = (1, 0);
+                        origin = (self.width - 2 - (bottom_right_location.0 - top_left_location.0), 1);
+                        first_contact_corner = (self.width - 2, 1);
+                        second_contact_corner = (self.width - 2, self.height - 2);
+                    }
+                    else if is_top {
+                        first_side_wall_indexes = &left_wall_indexes;
+                        main_wall_indexes = &top_wall_indexes;
+                        second_side_wall_indexes = &right_wall_indexes;
+                        location_delta = (1, 0);
+                        main_wall_delta = (0, -1);
+                        origin = (1, 1);
+                        first_contact_corner = (1, 1);
+                        second_contact_corner = (self.width - 2, 1);
+                    }
+                    else if is_bottom {
+                        first_side_wall_indexes = &left_wall_indexes;
+                        main_wall_indexes = &bottom_wall_indexes;
+                        second_side_wall_indexes = &right_wall_indexes;
+                        location_delta = (1, 0);
+                        main_wall_delta = (0, 1);
+                        origin = (1, self.height - 2 - (bottom_right_location.1 - top_left_location.1));
+                        first_contact_corner = (1, self.height - 2);
+                        second_contact_corner = (self.width - 2, self.height - 2);
+                    }
+                    else {
+                        panic!("Unexpected lack of walls for wall-adjacent at index {}: {:?}", wall_adjacent_index, wall_adjacent);
+                    }
+                    
+                    // first keep the wall adjacent in contact with the first_side_wall and main_wall
+                    //      iterate over every possible location for each wall in the first_side_wall and main_wall
+                    // begin iterating over every location from second to near-last along main_wall
+                    //      iterate over every possible location for each wall in the main_wall
+                    // last keep the wall adjacent in contact with the second_side_wall and main_wall
+                    //      iterate over every possible location for each wall in the second_side_wall and main_wall
+
+                    let mut current_possible_wall_location_index_per_wall_index: HashMap<usize, usize> = HashMap::new();
+
+                    for wall_index in first_side_wall_indexes.iter().chain(main_wall_indexes.iter().chain(second_side_wall_indexes.iter())) {
+                        current_possible_wall_location_index_per_wall_index.insert(wall_index.to_owned(), 0);
+                    }
+
+                    // collect the placed_placable locations that would overlap with a wall
+                    let mut applicable_wall_adjacent_detection_locations: Vec<(usize, usize)> = Vec::new();
+                    for placed_placable in wall_adjacent.placed_placables.iter() {
+                        let calculated_placed_placable_location: (usize, usize) = (placed_placable.location.0 - top_left_location.0 + 1, placed_placable.location.1 - top_left_location.1 + 1);
+
+                        if calculated_placed_placable_location.0 == first_contact_corner.0 {
+                            let detection_location: (usize, usize) = ((calculated_placed_placable_location.0 as i8 + main_wall_delta.0 - location_delta.0 as i8) as usize, calculated_placed_placable_location.1);
+                            applicable_wall_adjacent_detection_locations.push(detection_location);
+                        }
+                        if calculated_placed_placable_location.1 == first_contact_corner.1 {
+                            let detection_location: (usize, usize) = (calculated_placed_placable_location.0, (calculated_placed_placable_location.1 as i8 + main_wall_delta.1 - location_delta.1 as i8) as usize);
+                            applicable_wall_adjacent_detection_locations.push(detection_location);
+                        }
+                    }
+
+
+                }
+            }
         }
 
         // collect PlacedPlacableCollection instances representing the floaters

@@ -155,8 +155,13 @@ impl<'a, TIdentifier: Eq + Hash + Clone + std::fmt::Debug + Ord, TNodeState: Eq 
                     let is_current_mask_from_parent_restrictive: bool;
                     if parent_neighbor_node.mask_per_neighbor_per_state.contains_key(&current_node_state) {
                         let mask_per_neighbor = parent_neighbor_node.mask_per_neighbor_per_state.get(&current_node_state).unwrap();
-                        let mask = mask_per_neighbor.get(current_collapsable_node_id).unwrap();
-                        is_current_mask_from_parent_restrictive = current_collapsable_node.is_mask_restrictive_to_current_state(mask);
+                        if mask_per_neighbor.contains_key(current_collapsable_node_id) {
+                            let mask = mask_per_neighbor.get(current_collapsable_node_id).unwrap();
+                            is_current_mask_from_parent_restrictive = current_collapsable_node.is_mask_restrictive_to_current_state(mask);
+                        }
+                        else {
+                            is_current_mask_from_parent_restrictive = false;
+                        }
                     }
                     else {
                         is_current_mask_from_parent_restrictive = false;

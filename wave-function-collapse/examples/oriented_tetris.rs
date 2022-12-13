@@ -1,9 +1,16 @@
-use std::collections::{HashMap, HashSet};
+use std::{collections::{HashMap, HashSet}, time::Instant, f32::consts::PI};
+use colored::Colorize;
 use log::debug;
-use rand::Rng;
+use rand::{Rng, SeedableRng};
+use rand_chacha::ChaCha8Rng;
 use serde::{Serialize, Deserialize};
 use uuid::Uuid;
-use wave_function_collapse::wave_function::{WaveFunction, Node, NodeStateCollection, AnonymousNodeStateCollection, NodeStateProbability, collapsable_wave_function::{accommodating_collapsable_wave_function::AccommodatingCollapsableWaveFunction, collapsable_wave_function::CollapsableWaveFunction}};
+use wave_function_collapse::wave_function::{WaveFunction, Node, NodeStateCollection, AnonymousNodeStateCollection, NodeStateProbability, collapsable_wave_function::{accommodating_collapsable_wave_function::AccommodatingCollapsableWaveFunction, collapsable_wave_function::CollapsableWaveFunction, sequential_collapsable_wave_function::SequentialCollapsableWaveFunction}};
+
+fn print_pixel(color: &[u8; 4]) {
+    let character = "\u{2588}";
+    print!("{}{}", character.truecolor(color[0], color[1], color[2]), character.truecolor(color[0], color[1], color[2]));
+}
 
 #[derive(Clone, Hash, Debug, PartialEq, PartialOrd, Eq, Ord, Serialize, Deserialize)]
 enum Piece {
@@ -36,7 +43,14 @@ enum Piece {
 
     //  O
     // OOO
-    ShortSpike
+    ShortSpike,
+
+    // OOOOO
+    // OOOOO
+    // OOOOO
+    // OOOOO
+    // OOOOO
+    MassiveSquare
 }
 
 impl Piece {
@@ -65,6 +79,15 @@ impl Piece {
             },
             Piece::ShortSpike => {
                 vec![(1, 0), (0, 1), (1, 1), (2, 1)]
+            },
+            Piece::MassiveSquare => {
+                let mut cell_locations: Vec<(usize, usize)> = Vec::new();
+                for height_index in 0..5 {
+                    for width_index in 0..5 {
+                        cell_locations.push((width_index, height_index));
+                    }
+                }
+                cell_locations
             }
         }
     }
@@ -95,6 +118,72 @@ impl Piece {
             flipped_cell_locations.push(flipped_cell_location);
         }
         flipped_cell_locations
+    }
+    fn get_max_rotation_index(&self) -> u8 {
+        let max_rotation_index: u8;
+        match self {
+            Piece::ExtraLongCorner => {
+                max_rotation_index = 4;
+            },
+            Piece::ExtraLongStraight => {
+                max_rotation_index = 2;
+            },
+            Piece::LongCorner => {
+                max_rotation_index = 4;
+            },
+            Piece::ShortCorner => {
+                max_rotation_index = 4;
+            },
+            Piece::ShortCup => {
+                max_rotation_index = 4;
+            },
+            Piece::ShortSpike => {
+                max_rotation_index = 4;
+            },
+            Piece::ShortSquare => {
+                max_rotation_index = 1;
+            },
+            Piece::ShortZigZag => {
+                max_rotation_index = 2;
+            },
+            Piece::MassiveSquare => {
+                max_rotation_index = 1;
+            }
+        }
+        max_rotation_index
+    }
+    fn get_max_flips(&self) -> std::slice::Iter<'_, bool> {
+        let flips: std::slice::Iter<'_, bool>;
+        match self {
+            Piece::ExtraLongCorner => {
+                flips = [false, true].iter();
+            },
+            Piece::ExtraLongStraight => {
+                flips = [false].iter();
+            },
+            Piece::LongCorner => {
+                flips = [false, true].iter();
+            },
+            Piece::ShortCorner => {
+                flips = [false, true].iter();
+            },
+            Piece::ShortCup => {
+                flips = [false].iter();
+            },
+            Piece::ShortSpike => {
+                flips = [false].iter();
+            },
+            Piece::ShortSquare => {
+                flips = [false].iter();
+            },
+            Piece::ShortZigZag => {
+                flips = [false, true].iter();
+            },
+            Piece::MassiveSquare => {
+                flips = [false].iter();
+            }
+        }
+        flips
     }
 }
 
@@ -212,13 +301,19 @@ impl UniquePiece {
             },
             Piece::ShortSpike => {
                 piece_seed = 7;
+            },
+            Piece::MassiveSquare => {
+                piece_seed = 8;
             }
         }
 
         let mut rng = rand::thread_rng();
-        let random_seed = Some(rng.gen::<u64>());
-
-        let random_value = 
+        let mut piece_random_seed_generator = ChaCha8Rng::seed_from_u64(piece_seed);
+        let piece_seed_random_result = piece_random_seed_generator.gen::<u64>();
+        let mut index_random_seed_generator = ChaCha8Rng::seed_from_u64(piece_seed_random_result + self.index as u64);
+        let index_seed_random_result = index_random_seed_generator.gen::<u64>();
+        let mut color_random_generator = ChaCha8Rng::seed_from_u64(index_seed_random_result);
+        [color_random_generator.gen::<u8>(), color_random_generator.gen::<u8>(), color_random_generator.gen::<u8>(), 255]
     }
 }
 
@@ -237,6 +332,7 @@ impl Puzzle {
         let mut permitted_node_states_per_neighbor_node_index_per_node_state_per_node_index: HashMap<usize, HashMap<NodeState, HashMap<usize, Vec<NodeState>>>> = HashMap::new();
 
         // get all of the permitted piece orientations and locations given each possible location for all other pieces
+
         {
             for (piece_index, piece) in self.pieces.iter().enumerate() {
                 let mut possible_node_states: Vec<NodeState> = Vec::new();
@@ -245,12 +341,12 @@ impl Puzzle {
                     if other_piece_index != piece_index {
                         for height_index in 0..self.size.1 {
                             for width_index in 0..self.size.0 {
-                                for rotation_index in 0..4 as u8 {
-                                    for is_flipped in [false, true] {
+                                for rotation_index in 0..piece.get_max_rotation_index() as u8 {
+                                    for is_flipped in piece.get_max_flips() {
                                         let node_state = NodeState {
                                             piece: piece.clone(),
                                             rotation_index: rotation_index,
-                                            is_flipped: is_flipped,
+                                            is_flipped: is_flipped.to_owned(),
                                             location: (width_index, height_index)
                                         };
 
@@ -258,26 +354,32 @@ impl Puzzle {
 
                                             for other_height_index in 0..self.size.1 {
                                                 for other_width_index in 0..self.size.0 {
-                                                    for other_rotation_index in 0..4 as u8 {
-                                                        for other_is_flipped in [false, true] {
-                                                            let other_node_state = NodeState {
-                                                                piece: other_piece.clone(),
-                                                                rotation_index: other_rotation_index,
-                                                                is_flipped: other_is_flipped,
-                                                                location: (other_width_index, other_height_index)
-                                                            };
+                                                    if piece == other_piece && piece_index < other_piece_index && (height_index < other_height_index || height_index == other_height_index && width_index < other_width_index) ||
+                                                        piece == other_piece && other_piece_index < piece_index && (other_height_index < height_index || height_index == other_height_index && other_width_index < width_index) ||
+                                                        piece != other_piece {
+                                                        
+                                                        for other_rotation_index in 0..other_piece.get_max_rotation_index() as u8 {
+                                                            for other_is_flipped in other_piece.get_max_flips() {
+                                                                let other_node_state = NodeState {
+                                                                    piece: other_piece.clone(),
+                                                                    rotation_index: other_rotation_index,
+                                                                    is_flipped: other_is_flipped.to_owned(),
+                                                                    location: (other_width_index, other_height_index)
+                                                                };
 
-                                                            if other_node_state.fits_within_bounds(self.size) && !node_state.is_overlapping(&other_node_state) {
-                                                                if !permitted_node_states_per_neighbor_node_index_per_node_state_per_node_index.contains_key(&piece_index) {
-                                                                    permitted_node_states_per_neighbor_node_index_per_node_state_per_node_index.insert(piece_index.clone(), HashMap::new());
+                                                                if other_node_state.fits_within_bounds(self.size) && !node_state.is_overlapping(&other_node_state) {
+                                                                    if !permitted_node_states_per_neighbor_node_index_per_node_state_per_node_index.contains_key(&piece_index) {
+                                                                        permitted_node_states_per_neighbor_node_index_per_node_state_per_node_index.insert(piece_index.clone(), HashMap::new());
+                                                                    }
+                                                                    if !permitted_node_states_per_neighbor_node_index_per_node_state_per_node_index.get(&piece_index).unwrap().contains_key(&node_state) {
+                                                                        permitted_node_states_per_neighbor_node_index_per_node_state_per_node_index.get_mut(&piece_index).unwrap().insert(node_state.clone(), HashMap::new());
+                                                                    }
+                                                                    if !permitted_node_states_per_neighbor_node_index_per_node_state_per_node_index.get(&piece_index).unwrap().get(&node_state).unwrap().contains_key(&other_piece_index) {
+                                                                        permitted_node_states_per_neighbor_node_index_per_node_state_per_node_index.get_mut(&piece_index).unwrap().get_mut(&node_state).unwrap().insert(other_piece_index.clone(), Vec::new());
+                                                                    }
+                                                                    permitted_node_states_per_neighbor_node_index_per_node_state_per_node_index.get_mut(&piece_index).unwrap().get_mut(&node_state).unwrap().get_mut(&other_piece_index).unwrap().push(other_node_state.clone());
+                                                                    debug!("piece {:?} at ({}, {}) permits piece {:?} at ({}, {})", piece, width_index, height_index, other_piece, other_width_index, other_height_index);
                                                                 }
-                                                                if !permitted_node_states_per_neighbor_node_index_per_node_state_per_node_index.get(&piece_index).unwrap().contains_key(&node_state) {
-                                                                    permitted_node_states_per_neighbor_node_index_per_node_state_per_node_index.get_mut(&piece_index).unwrap().insert(node_state.clone(), HashMap::new());
-                                                                }
-                                                                if !permitted_node_states_per_neighbor_node_index_per_node_state_per_node_index.get(&piece_index).unwrap().get(&node_state).unwrap().contains_key(&other_piece_index) {
-                                                                    permitted_node_states_per_neighbor_node_index_per_node_state_per_node_index.get_mut(&piece_index).unwrap().get_mut(&node_state).unwrap().insert(other_piece_index.clone(), Vec::new());
-                                                                }
-                                                                permitted_node_states_per_neighbor_node_index_per_node_state_per_node_index.get_mut(&piece_index).unwrap().get_mut(&node_state).unwrap().get_mut(&other_piece_index).unwrap().push(other_node_state.clone());
                                                             }
                                                         }
                                                     }
@@ -360,28 +462,112 @@ impl Puzzle {
 
 fn main() {
     std::env::set_var("RUST_LOG", "trace");
-    pretty_env_logger::init();
+    //pretty_env_logger::init();
 
-    let pieces: Vec<Piece> = vec![
-        Piece::ShortSquare,
-        Piece::ShortSquare
-    ];
-    let size: (usize, usize) = (4, 2);
+    let mut pieces: Vec<Piece> = vec![];
+    let size: (usize, usize);
+
+    if true {
+        for _ in 0..5 {
+            pieces.push(Piece::ShortSquare);
+        }
+        for _ in 0..11 {
+            pieces.push(Piece::LongCorner);
+        }
+        for _ in 0..5 {
+            pieces.push(Piece::ExtraLongStraight);
+        }
+        for _ in 0..1 {
+            pieces.push(Piece::ExtraLongCorner);
+        }
+        for _ in 0..1 {
+            pieces.push(Piece::ExtraLongCorner);
+        }
+        for _ in 0..4 {
+            pieces.push(Piece::ShortSpike);
+        }
+        for _ in 0..7 {
+            pieces.push(Piece::ShortZigZag);
+        }
+        for _ in 0..4 {
+            pieces.push(Piece::ShortCorner);
+        }
+        for _ in 0..1 {
+            pieces.push(Piece::ShortCup);
+        }
+        size = (10, 15);
+    }
+    else if false {
+        pieces.push(Piece::ShortSpike);
+        pieces.push(Piece::ShortSpike);
+        pieces.push(Piece::ShortSpike);
+        pieces.push(Piece::ShortSpike);
+        pieces.push(Piece::ShortZigZag);
+        pieces.push(Piece::LongCorner);
+        pieces.push(Piece::LongCorner);
+        pieces.push(Piece::LongCorner);
+        pieces.push(Piece::LongCorner);
+        size = (7, 7);
+    }
+    else {
+        for _ in 0..7 {
+            pieces.push(Piece::MassiveSquare);
+        }
+        size = (35, 35);
+    }
 
     let puzzle = Puzzle::new(pieces, size);
-    let wave_function = puzzle.get_wave_function();
-    let mut collapsable_wave_function = wave_function.get_collapsable_wave_function::<AccommodatingCollapsableWaveFunction<Identifier, NodeState>>(None);
-    let collapsed_wave_function = collapsable_wave_function.collapse().unwrap();
 
+    let everything_start = Instant::now();
+
+    println!("Creating wave function...");
+    let wave_function = puzzle.get_wave_function();
+    println!("Created wave function.");
+    println!("Creating collapsable wave function...");
+    let mut collapsable_wave_function = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<Identifier, NodeState>>(Some(0));
+    println!("Created collapsable wave function.");
+
+    let start = Instant::now();
+
+    println!("Collapsing collapsable wave function...");
+    let collapsed_wave_function = collapsable_wave_function.collapse().unwrap();
+    println!("Collapsed collapsable wave function.");
+    
+    let duration = start.elapsed();
+    
     let mut pixels: Vec<Vec<[u8; 4]>> = Vec::new();
-    for height_index in 0..size.1 {
+    for height_index in 0..size.0 {
         pixels.push(Vec::new());
-        for _ in 0..size.0 {
+        for _ in 0..size.1 {
             pixels[height_index].push([0, 0, 0, 0]);
         }
     }
 
     for (node_id, node_state) in collapsed_wave_function.node_state_per_node.iter() {
-        let color = node_id
+        if let Identifier::Node(unique_piece) = node_id {
+            let color = unique_piece.get_color();
+            let location = node_state.location;
+
+            let mut cell_locations = node_state.piece.get_cell_locations();
+            for _ in 0..node_state.rotation_index {
+                cell_locations = Piece::rotate_cell_locations(cell_locations);
+            }
+            if node_state.is_flipped {
+                cell_locations = Piece::flip_cell_locations(cell_locations);
+            }
+            for cell_location in cell_locations {
+                pixels[cell_location.0 + location.0][cell_location.1 + location.1] = color;
+            }
+        }
     }
+
+    for height_index in 0..size.1 {
+        for width_index in 0..size.0 {
+            print_pixel(&pixels[width_index][height_index]);
+        }
+        println!("");
+    }
+
+    println!("Collapse duration: {:?}", duration);
+    println!("Total duration: {:?}", everything_start.elapsed());
 }
