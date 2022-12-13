@@ -1,5 +1,5 @@
 use std::collections::{VecDeque, HashMap, HashSet};
-use austinhellerrepo_common_rust::segment_container::{Segment, SegmentContainer};
+use austinhellerrepo_common_rust::{segment_container::{Segment, SegmentContainer}, index_incrementer::IndexIncrementer};
 use colored::Colorize;
 use log::debug;
 use rand::Rng;
@@ -343,7 +343,7 @@ impl Level {
         let mut bottom_wall_indexes: Vec<usize> = Vec::new();
         let mut left_wall_indexes: Vec<usize> = Vec::new();
         let mut wall_per_index: Vec<PlacedPlacableCollection> = Vec::new();
-        let mut possible_locations_per_wall_index: HashMap<usize, HashSet<(usize, usize)>> = HashMap::new();
+        let mut possible_locations_per_wall_index: HashMap<usize, Vec<(usize, usize)>> = HashMap::new();
         let mut other_wall_possible_locations_per_other_wall_index_per_location_per_wall_index: HashMap<usize, HashMap<(usize, usize), HashMap<usize, Vec<(usize, usize)>>>> = HashMap::new();
         
         {
@@ -384,32 +384,32 @@ impl Level {
                             // the wall is stuck in the top-left or bottom-left corner
                             debug!("found wall is either in top-left or bottom-left corner");
 
-                            let mut possible_locations: HashSet<(usize, usize)> = HashSet::new();
-                            possible_locations.insert(wall.placed_placables[0].location);
+                            let mut possible_locations: Vec<(usize, usize)> = Vec::new();
+                            possible_locations.push(wall.placed_placables[0].location);
                             possible_locations_per_wall_index.insert(current_wall_index, possible_locations);
                         }
                         else if wall.placed_placables[0].location.1 == 0 && !is_horizontal {
                             // the wall is stuck in the top-left or top-right corner
                             debug!("found wall is either in top-left or top-right corner");
 
-                            let mut possible_locations: HashSet<(usize, usize)> = HashSet::new();
-                            possible_locations.insert(wall.placed_placables[0].location);
+                            let mut possible_locations: Vec<(usize, usize)> = Vec::new();
+                            possible_locations.push(wall.placed_placables[0].location);
                             possible_locations_per_wall_index.insert(current_wall_index, possible_locations);
                         }
                         else if wall.placed_placables[wall.placed_placables.len() - 1].location.0 == self.width - 1 && is_horizontal {
                             // the wall is stuck in the top-right or bottom-right corner
                             debug!("found wall is either in top-right or bottom-right corner");
 
-                            let mut possible_locations: HashSet<(usize, usize)> = HashSet::new();
-                            possible_locations.insert(wall.placed_placables[0].location);
+                            let mut possible_locations: Vec<(usize, usize)> = Vec::new();
+                            possible_locations.push(wall.placed_placables[0].location);
                             possible_locations_per_wall_index.insert(current_wall_index, possible_locations);
                         }
                         else if wall.placed_placables[wall.placed_placables.len() - 1].location.1 == self.height - 1 && !is_horizontal {
                             // the wall is stuck in the bottom-left or bottom-right corner
                             debug!("found wall is either in bottom-left or bottom-right corner");
 
-                            let mut possible_locations: HashSet<(usize, usize)> = HashSet::new();
-                            possible_locations.insert(wall.placed_placables[0].location);
+                            let mut possible_locations: Vec<(usize, usize)> = Vec::new();
+                            possible_locations.push(wall.placed_placables[0].location);
                             possible_locations_per_wall_index.insert(current_wall_index, possible_locations);
                         }
                         else {
@@ -484,9 +484,11 @@ impl Level {
                                 }
 
                                 if !possible_locations_per_wall_index.contains_key(&located_segment.id) {
-                                    possible_locations_per_wall_index.insert(located_segment.id.clone(), HashSet::new());
+                                    possible_locations_per_wall_index.insert(located_segment.id.clone(), Vec::new());
                                 }
-                                possible_locations_per_wall_index.get_mut(&located_segment.id).unwrap().insert(location.clone());
+                                if !possible_locations_per_wall_index.get(&located_segment.id).unwrap().contains(&location) {
+                                    possible_locations_per_wall_index.get_mut(&located_segment.id).unwrap().push(location.clone());
+                                }
 
                                 for (other_located_segment_index, other_located_segment) in permutation.iter().enumerate() {
                                     if located_segment_index != other_located_segment_index {
@@ -754,9 +756,10 @@ impl Level {
                     let first_side_wall_indexes: &Vec<usize>;
                     let main_wall_indexes: &Vec<usize>;
                     let second_side_wall_indexes: &Vec<usize>;
-                    let location_delta: (usize, usize);
+                    let travel_location_delta: (usize, usize);
                     let main_wall_delta: (i8, i8);
-                    let origin: (usize, usize);
+                    let inclusive_origin: (usize, usize);
+                    let exclusive_destination: (usize, usize);
                     let first_contact_corner: (usize, usize);
                     let second_contact_corner: (usize, usize);
 
@@ -765,9 +768,10 @@ impl Level {
                         first_side_wall_indexes = &top_wall_indexes;
                         main_wall_indexes = &left_wall_indexes;
                         second_side_wall_indexes = &bottom_wall_indexes;
-                        location_delta = (0, 1);
+                        travel_location_delta = (0, 1);
                         main_wall_delta = (-1, 0);
-                        origin = (1, 1);
+                        inclusive_origin = (1, 1);
+                        exclusive_destination = (1, self.height - 1 - (bottom_right_location.1 - top_left_location.1));
                         first_contact_corner = (1, 1);
                         second_contact_corner = (1, self.height - 2);
                     }
@@ -775,9 +779,10 @@ impl Level {
                         first_side_wall_indexes = &top_wall_indexes;
                         main_wall_indexes = &right_wall_indexes;
                         second_side_wall_indexes = &bottom_wall_indexes;
-                        location_delta = (0, 1);
+                        travel_location_delta = (0, 1);
                         main_wall_delta = (1, 0);
-                        origin = (self.width - 2 - (bottom_right_location.0 - top_left_location.0), 1);
+                        inclusive_origin = (self.width - 2 - (bottom_right_location.0 - top_left_location.0), 1);
+                        exclusive_destination = (self.width - 2 - (bottom_right_location.0 - top_left_location.0), self.height - 1 - (bottom_right_location.1 - top_left_location.1));
                         first_contact_corner = (self.width - 2, 1);
                         second_contact_corner = (self.width - 2, self.height - 2);
                     }
@@ -785,9 +790,10 @@ impl Level {
                         first_side_wall_indexes = &left_wall_indexes;
                         main_wall_indexes = &top_wall_indexes;
                         second_side_wall_indexes = &right_wall_indexes;
-                        location_delta = (1, 0);
+                        travel_location_delta = (1, 0);
                         main_wall_delta = (0, -1);
-                        origin = (1, 1);
+                        inclusive_origin = (1, 1);
+                        exclusive_destination = (self.width - 1 - (bottom_right_location.0 - top_left_location.0), 1);
                         first_contact_corner = (1, 1);
                         second_contact_corner = (self.width - 2, 1);
                     }
@@ -795,9 +801,10 @@ impl Level {
                         first_side_wall_indexes = &left_wall_indexes;
                         main_wall_indexes = &bottom_wall_indexes;
                         second_side_wall_indexes = &right_wall_indexes;
-                        location_delta = (1, 0);
+                        travel_location_delta = (1, 0);
                         main_wall_delta = (0, 1);
-                        origin = (1, self.height - 2 - (bottom_right_location.1 - top_left_location.1));
+                        inclusive_origin = (1, self.height - 2 - (bottom_right_location.1 - top_left_location.1));
+                        exclusive_destination = (self.width - 1 - (bottom_right_location.0 - top_left_location.0), self.height - 2 - (bottom_right_location.1 - top_left_location.1));
                         first_contact_corner = (1, self.height - 2);
                         second_contact_corner = (self.width - 2, self.height - 2);
                     }
@@ -812,26 +819,78 @@ impl Level {
                     // last keep the wall adjacent in contact with the second_side_wall and main_wall
                     //      iterate over every possible location for each wall in the second_side_wall and main_wall
 
-                    let mut current_possible_wall_location_index_per_wall_index: HashMap<usize, usize> = HashMap::new();
-
-                    for wall_index in first_side_wall_indexes.iter().chain(main_wall_indexes.iter().chain(second_side_wall_indexes.iter())) {
-                        current_possible_wall_location_index_per_wall_index.insert(wall_index.to_owned(), 0);
+                    let mut first_possible_wall_location_index_incrementer: IndexIncrementer;
+                    let mut main_possible_wall_location_index_incrementer: IndexIncrementer;
+                    let mut second_possible_wall_location_index_incrementer: IndexIncrementer;
+                    let first_wall_indexes: Vec<usize> = first_side_wall_indexes.iter().cloned().chain(main_wall_indexes.iter().cloned()).collect();
+                    let main_wall_indexes: Vec<usize> = main_wall_indexes.clone();
+                    let second_wall_indexes: Vec<usize> = second_side_wall_indexes.iter().cloned().chain(main_wall_indexes.iter().cloned()).collect();
+                    
+                    // initialize first possible wall location index incrementer
+                    {
+                        let mut maximum_exclusive_possible_wall_location_indexes: Vec<usize> = Vec::new();
+                        for wall_index in first_wall_indexes.iter() {
+                            let maximum_exclusive_possible_wall_location_index = possible_locations_per_wall_index.get(wall_index).unwrap().len();
+                            maximum_exclusive_possible_wall_location_indexes.push(maximum_exclusive_possible_wall_location_index);
+                        }
+                        first_possible_wall_location_index_incrementer = IndexIncrementer::new(maximum_exclusive_possible_wall_location_indexes);
                     }
 
-                    // collect the placed_placable locations that would overlap with a wall
-                    let mut applicable_wall_adjacent_detection_locations: Vec<(usize, usize)> = Vec::new();
+                    // initialize main possible wall location index incrementer
+                    {
+                        let mut maximum_exclusive_possible_wall_location_indexes: Vec<usize> = Vec::new();
+                        for wall_index in main_wall_indexes.iter() {
+                            let maximum_exclusive_possible_wall_location_index = possible_locations_per_wall_index.get(wall_index).unwrap().len();
+                            maximum_exclusive_possible_wall_location_indexes.push(maximum_exclusive_possible_wall_location_index);
+                        }
+                        main_possible_wall_location_index_incrementer = IndexIncrementer::new(maximum_exclusive_possible_wall_location_indexes);
+                    }
+
+                    // initialize second possible wall location index incrementer
+                    {
+                        let mut maximum_exclusive_possible_wall_location_indexes: Vec<usize> = Vec::new();
+                        for wall_index in second_wall_indexes.iter() {
+                            let maximum_exclusive_possible_wall_location_index = possible_locations_per_wall_index.get(wall_index).unwrap().len();
+                            maximum_exclusive_possible_wall_location_indexes.push(maximum_exclusive_possible_wall_location_index);
+                        }
+                        second_possible_wall_location_index_incrementer = IndexIncrementer::new(maximum_exclusive_possible_wall_location_indexes);
+                    }
+
+                    // collect the first placed_placable locations that would overlap with a wall
+                    let mut first_applicable_wall_adjacent_detection_locations: Vec<(usize, usize)> = Vec::new();
                     for placed_placable in wall_adjacent.placed_placables.iter() {
                         let calculated_placed_placable_location: (usize, usize) = (placed_placable.location.0 - top_left_location.0 + 1, placed_placable.location.1 - top_left_location.1 + 1);
 
                         if calculated_placed_placable_location.0 == first_contact_corner.0 {
-                            let detection_location: (usize, usize) = ((calculated_placed_placable_location.0 as i8 + main_wall_delta.0 - location_delta.0 as i8) as usize, calculated_placed_placable_location.1);
-                            applicable_wall_adjacent_detection_locations.push(detection_location);
+                            let detection_location: (usize, usize) = ((calculated_placed_placable_location.0 as i8 + main_wall_delta.0 - travel_location_delta.0 as i8) as usize, calculated_placed_placable_location.1);
+                            first_applicable_wall_adjacent_detection_locations.push(detection_location);
                         }
                         if calculated_placed_placable_location.1 == first_contact_corner.1 {
-                            let detection_location: (usize, usize) = (calculated_placed_placable_location.0, (calculated_placed_placable_location.1 as i8 + main_wall_delta.1 - location_delta.1 as i8) as usize);
-                            applicable_wall_adjacent_detection_locations.push(detection_location);
+                            let detection_location: (usize, usize) = (calculated_placed_placable_location.0, (calculated_placed_placable_location.1 as i8 + main_wall_delta.1 - travel_location_delta.1 as i8) as usize);
+                            first_applicable_wall_adjacent_detection_locations.push(detection_location);
                         }
                     }
+
+                    // collect the main placed_placable locations that would overlap with a wall
+                    let mut main_applicable_wall_adjacent_detection_locations_per_location: HashMap<(usize, usize), Vec<(usize, usize)>> = HashMap::new();
+                    let current_travel_location: (usize, usize) = (inclusive_origin.0 + travel_location_delta.0, inclusive_origin.1 + travel_location_delta.1);
+                    while current_travel_location != exclusive_destination {
+                        main_applicable_wall_adjacent_detection_locations_per_location.insert(current_travel_location, Vec::new());
+                        for placed_placable in wall_adjacent.placed_placables.iter() {
+                            let calculated_placed_placable_location: (usize, usize) = (placed_placable.location.0 - current_travel_location.0 + 1, placed_placable.location.1 - current_travel_location.1 + 1);
+
+                            if calculated_placed_placable_location.0 == first_contact_corner.0 {
+                                let detection_location: (usize, usize) = ((calculated_placed_placable_location.0 as i8 + main_wall_delta.0 - travel_location_delta.0 as i8) as usize, calculated_placed_placable_location.1);
+                                main_applicable_wall_adjacent_detection_locations_per_location.get_mut(&current_travel_location).unwrap().push(detection_location);
+                            }
+                            if calculated_placed_placable_location.1 == first_contact_corner.1 {
+                                let detection_location: (usize, usize) = (calculated_placed_placable_location.0, (calculated_placed_placable_location.1 as i8 + main_wall_delta.1 - travel_location_delta.1 as i8) as usize);
+                                main_applicable_wall_adjacent_detection_locations_per_location.get_mut(&current_travel_location).unwrap().push(detection_location);
+                            }
+                        }
+                    }
+
+
 
 
                 }
