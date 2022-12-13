@@ -856,10 +856,10 @@ impl Level {
                         second_possible_wall_location_index_incrementer = IndexIncrementer::new(maximum_exclusive_possible_wall_location_indexes);
                     }
 
-                    // collect the first placed_placable locations that would overlap with a wall
+                    // collect the first placed_placable locations that would overlap with a wall as it exists in the origin
                     let mut first_applicable_wall_adjacent_detection_locations: Vec<(usize, usize)> = Vec::new();
                     for placed_placable in wall_adjacent.placed_placables.iter() {
-                        let calculated_placed_placable_location: (usize, usize) = (placed_placable.location.0 - top_left_location.0 + 1, placed_placable.location.1 - top_left_location.1 + 1);
+                        let calculated_placed_placable_location: (usize, usize) = (top_left_location.0 - placed_placable.location.0 + inclusive_origin.0, top_left_location.1 - placed_placable.location.1 + inclusive_origin.1);
 
                         if calculated_placed_placable_location.0 == first_contact_corner.0 {
                             let detection_location: (usize, usize) = ((calculated_placed_placable_location.0 as i8 + main_wall_delta.0 - travel_location_delta.0 as i8) as usize, calculated_placed_placable_location.1);
@@ -871,14 +871,15 @@ impl Level {
                         }
                     }
 
-                    // collect the main placed_placable locations that would overlap with a wall
+                    // collect the main placed_placable locations that would overlap with a wall as it moves away from the origin to the destination
                     let mut main_applicable_wall_adjacent_detection_locations_per_location: HashMap<(usize, usize), Vec<(usize, usize)>> = HashMap::new();
                     let current_travel_location: (usize, usize) = (inclusive_origin.0 + travel_location_delta.0, inclusive_origin.1 + travel_location_delta.1);
                     while current_travel_location != exclusive_destination {
                         main_applicable_wall_adjacent_detection_locations_per_location.insert(current_travel_location, Vec::new());
                         for placed_placable in wall_adjacent.placed_placables.iter() {
-                            let calculated_placed_placable_location: (usize, usize) = (placed_placable.location.0 - current_travel_location.0 + 1, placed_placable.location.1 - current_travel_location.1 + 1);
+                            let calculated_placed_placable_location: (usize, usize) = (top_left_location.0 - placed_placable.location.0 + current_travel_location.0, top_left_location.1 - placed_placable.location.1 + current_travel_location.1);
 
+                            // TODO determine how to calculate the main wall detection locations
                             if calculated_placed_placable_location.0 == first_contact_corner.0 {
                                 let detection_location: (usize, usize) = ((calculated_placed_placable_location.0 as i8 + main_wall_delta.0 - travel_location_delta.0 as i8) as usize, calculated_placed_placable_location.1);
                                 main_applicable_wall_adjacent_detection_locations_per_location.get_mut(&current_travel_location).unwrap().push(detection_location);
