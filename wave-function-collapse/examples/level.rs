@@ -709,7 +709,8 @@ impl Level {
         // determine the possible locations of every wall-adjectent along with which locations the walls can and cannot be
 
         let mut possible_locations_per_wall_adjacent_index: HashMap<usize, HashSet<(usize, usize)>> = HashMap::new();
-        let mut permitted_wall_locations_per_wall_index_per_wall_adjacent_index: HashMap<usize, HashMap<usize, Vec<(usize, usize)>>> = HashMap::new();
+        let mut wall_locations_per_wall_index_per_wall_adjacent_location_per_wall_adjacent_index: HashMap<usize, HashMap<(usize, usize), HashMap<usize, HashSet<(usize, usize)>>>> = HashMap::new();
+        let mut permitted_locations_per_wall_index: HashMap<usize, HashSet<(usize, usize)>> = HashMap::new();
 
         {
             for (wall_adjacent_index, wall_adjacent) in wall_adjacents.iter().enumerate() {
@@ -719,7 +720,6 @@ impl Level {
                 let mut is_right: bool = false;
                 let mut top_left_location: (usize, usize) = (self.width, self.height);
                 let mut bottom_right_location: (usize, usize) = (0, 0);
-                let mut permitted_wall_locations_per_wall_index: HashMap<usize, Vec<(usize, usize)>> = HashMap::new();
 
                 for placed_placable in wall_adjacent.placed_placables.iter() {
                     if placed_placable.location.0 == 1 {
@@ -749,10 +749,10 @@ impl Level {
                     }
                 }
 
-                if is_left && !is_right && !is_top && !is_bottom ||
-                    !is_left && is_right && !is_top && !is_bottom ||
-                    !is_left && !is_right && is_top && !is_bottom ||
-                    !is_left && !is_right && !is_top && is_bottom {
+                // determine how many walls this wall-adjacent is in direct contact with
+                let touching_walls_total: usize = [is_left, is_right, is_top, is_bottom].into_iter().filter(|is_touching_wall| is_touching_wall.to_owned()).collect::<Vec<bool>>().len();
+
+                if touching_walls_total == 1 {
 
                     let first_side_wall_indexes: &Vec<usize>;
                     let main_wall_indexes: &Vec<usize>;
@@ -857,8 +857,9 @@ impl Level {
                         second_possible_wall_location_index_incrementer = IndexIncrementer::new(maximum_exclusive_possible_wall_location_indexes);
                     }
 
-                    // collect the first placed_placable locations that would overlap with a wall as it exists in the origin
                     let mut first_applicable_wall_adjacent_detection_locations_per_location: HashMap<(usize, usize), Vec<(usize, usize)>> = HashMap::new();
+
+                    // collect the first placed_placable locations that would overlap with a wall as it exists in the origin
                     {
                         let mut first_applicable_wall_adjacent_detection_locations: Vec<(usize, usize)> = Vec::new();
                         for placed_placable in wall_adjacent.placed_placables.iter() {
@@ -877,8 +878,9 @@ impl Level {
                         first_applicable_wall_adjacent_detection_locations_per_location.insert(inclusive_origin, first_applicable_wall_adjacent_detection_locations);
                     }
 
-                    // collect the main placed_placable locations that would overlap with a wall as it moves away from the origin to the destination
                     let mut main_applicable_wall_adjacent_detection_locations_per_location: HashMap<(usize, usize), Vec<(usize, usize)>> = HashMap::new();
+
+                    // collect the main placed_placable locations that would overlap with a wall as it moves away from the origin to the destination
                     {
                         let current_travel_location: (usize, usize) = (inclusive_origin.0 + travel_location_delta.0, inclusive_origin.1 + travel_location_delta.1);
                         while current_travel_location != inclusive_destination {
@@ -897,8 +899,9 @@ impl Level {
                         }
                     }
 
-                    // collect the second placed_placable locations that would overlap with a wall as it exists in the destination
                     let mut second_applicable_wall_adjacent_detection_locations_per_location: HashMap<(usize, usize), Vec<(usize, usize)>> = HashMap::new();
+
+                    // collect the second placed_placable locations that would overlap with a wall as it exists in the destination
                     {
                         let mut second_applicable_wall_adjacent_detection_locations: Vec<(usize, usize)> = Vec::new();
                         for placed_placable in wall_adjacent.placed_placables.iter() {
@@ -917,50 +920,82 @@ impl Level {
                         second_applicable_wall_adjacent_detection_locations_per_location.insert(inclusive_destination, second_applicable_wall_adjacent_detection_locations);
                     }
 
+                    // iterate over the possible wall location incrementers and where wall-adjacents can be located in order to find valid locations for wall-adjacents
                     {
+                        let mut wall_locations_per_wall_index_per_wall_adjacent_location: HashMap<(usize, usize), HashMap<usize, HashSet<(usize, usize)>>> = HashMap::new();
                         for (incrementer, applicable_wall_adjacent_detection_locations_per_location, wall_indexes) in [(&mut first_possible_wall_location_index_incrementer, first_applicable_wall_adjacent_detection_locations_per_location, first_wall_indexes), (&mut main_possible_wall_location_index_incrementer, main_applicable_wall_adjacent_detection_locations_per_location, main_wall_indexes), (&mut second_possible_wall_location_index_incrementer, second_applicable_wall_adjacent_detection_locations_per_location, second_wall_indexes)] {
-                            // TODO figure out what the proper data structure should be
-                            //let mut wall_locations_per_wall_adjacent_location: HashMap<(usize, usize), Vec<(usize, usize)>> = HashMap::new();
-                            
-                            for (wall_adjacent_location, applicable_wall_adjacent_detection_locations) in applicable_wall_adjacent_detection_locations_per_location.into_iter() {
-                                let mut wall_locations: Vec<(usize, usize)> = Vec::new();
+                            for (potential_wall_adjacent_location, applicable_wall_adjacent_detection_locations) in applicable_wall_adjacent_detection_locations_per_location.into_iter() {
+                                // TODO determine if this is needed
+                                //let mut wall_locations: Vec<(usize, usize)> = Vec::new();
+
                                 let mut is_wall_iteration_successful: bool = true;
                                 while is_wall_iteration_successful {
-                                    let mut discovered_adjacent_wall_indexes: Vec<usize> = Vec::new();
+                                    let mut discovered_wall_location_per_wall_index: HashMap<usize, (usize, usize)> = HashMap::new();
 
+                                    // get the current location indexes for each wall as a parallel array to wall_indexes
                                     let possible_wall_location_indexes = incrementer.get();
-                                    for (wall_index_index, location_index) in possible_wall_location_indexes.into_iter().enumerate() {
-                                        let wall_index = wall_indexes[wall_index_index];
+
+                                    // iterate over all local walls, storing which wall indexes and their locations are detected next to this wall-adjacent
+                                    for (wall_index, location_index) in zip(wall_indexes.iter().copied(), possible_wall_location_indexes.into_iter()) {
                                         let wall_location = possible_locations_per_wall_index.get(&wall_index).unwrap()[location_index];
                                         let wall: &PlacedPlacableCollection = &wall_per_index[wall_index];
                                         let placed_placable_location_delta: (i8, i8) = (wall_location.0 as i8 - wall.placed_placables[0].location.0 as i8, wall_location.1 as i8 - wall.placed_placables[0].location.1 as i8);
                                         for placed_placable in wall_per_index[wall_index].placed_placables.iter() {
                                             let calculated_wall_placed_placable_location = ((placed_placable.location.0 as i8 + placed_placable_location_delta.0) as usize, (placed_placable.location.1 as i8 + placed_placable_location_delta.1) as usize);
                                             if applicable_wall_adjacent_detection_locations.contains(&calculated_wall_placed_placable_location) {
-                                                // this wall is adjacent to this wall-adjacent
-                                                discovered_adjacent_wall_indexes.push(wall_index);
+                                                // this wall is detected to be adjacent to this wall-adjacent
+                                                discovered_wall_location_per_wall_index.insert(wall_index, wall_location);
                                                 break;
                                             }
                                         }
-                                        
-                                        // TODO store the possibly permitted wall locations
-                                        //wall_locations.push(wall_location);
                                     }
                                     
-                                    // TODO check that the discovered adjacent wall indexes match the exactly expected wall indexes
-                                    // TODO if they match then store the wall-adjacent location and wall locations for node state collection purposes
+                                    // check that the discovered adjacent wall indexes match the exactly expected wall indexes
+                                    let original_wall_indexes = wall_indexes_per_wall_adjacent_index.get(&wall_adjacent_index).unwrap();
+                                    if discovered_wall_location_per_wall_index.len() == original_wall_indexes.len() {
+                                        let mut is_all_discovered_wall_indexes_same_as_original_wall_indexes: bool = true;
+                                        for wall_index in discovered_wall_location_per_wall_index.keys() {
+                                            if !original_wall_indexes.contains(wall_index) {
+                                                is_all_discovered_wall_indexes_same_as_original_wall_indexes = false;
+                                                break;
+                                            }
+                                        }
+                                        if is_all_discovered_wall_indexes_same_as_original_wall_indexes {
+                                            // the wall indexes found at this combination of wall-adjacent location and all relevant wall locations correspond with the original locations
+
+                                            if !wall_locations_per_wall_index_per_wall_adjacent_location.contains_key(&potential_wall_adjacent_location) {
+                                                wall_locations_per_wall_index_per_wall_adjacent_location.insert(potential_wall_adjacent_location, HashMap::new());
+                                            }
+                                            for (wall_index, wall_location) in discovered_wall_location_per_wall_index.into_iter() {
+                                                if !wall_locations_per_wall_index_per_wall_adjacent_location.get(&potential_wall_adjacent_location).unwrap().contains_key(&wall_index) {
+                                                    wall_locations_per_wall_index_per_wall_adjacent_location.get_mut(&potential_wall_adjacent_location).unwrap().insert(wall_index, HashSet::new());
+                                                }
+
+                                                // store the wall-adjacent location and wall locations for node state collection purposes
+                                                wall_locations_per_wall_index_per_wall_adjacent_location.get_mut(&potential_wall_adjacent_location).unwrap().get_mut(&wall_index).unwrap().insert(wall_location);
+                                            }
+                                        }
+                                    }
 
                                     is_wall_iteration_successful = incrementer.try_increment();
                                 }
                             }
                         }
+                        wall_locations_per_wall_index_per_wall_adjacent_location_per_wall_adjacent_index.insert(wall_adjacent_index, wall_locations_per_wall_index_per_wall_adjacent_location);
                     }
-
-
                 }
-
-                // TODO does this need to include the wall adjacent location as well?
-                permitted_wall_locations_per_wall_index_per_wall_adjacent_index.insert(wall_adjacent_index, permitted_wall_locations_per_wall_index);
+                else if touching_walls_total == 2 {
+                    todo!();
+                }
+                else if touching_walls_total == 3 {
+                    todo!();
+                }
+                else if touching_walls_total == 4 {
+                    todo!();
+                }
+                else {
+                    panic!("Unexpected number of walls in contact with wall-adjacent {}: {:?}", wall_adjacent_index, wall_adjacent);
+                }
             }
         }
 
