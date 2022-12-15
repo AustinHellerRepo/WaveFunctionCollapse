@@ -5,7 +5,7 @@ use log::debug;
 use rand::Rng;
 use serde::{Serialize, Deserialize};
 use uuid::Uuid;
-use wave_function_collapse::wave_function::{Node, NodeStateCollection, WaveFunction, collapsable_wave_function::{entropic_collapsable_wave_function::EntropicCollapsableWaveFunction, collapsable_wave_function::CollapsableWaveFunction, accommodating_collapsable_wave_function::AccommodatingCollapsableWaveFunction}};
+use wave_function_collapse::wave_function::{Node, NodeStateCollection, WaveFunction, collapsable_wave_function::{entropic_collapsable_wave_function::EntropicCollapsableWaveFunction, collapsable_wave_function::CollapsableWaveFunction, accommodating_collapsable_wave_function::AccommodatingCollapsableWaveFunction}, AnonymousNodeStateCollection};
 use std::iter::zip;
 
 fn print_pixel(color: &[u8; 4]) {
@@ -114,6 +114,30 @@ struct NodeState {
     location: (usize, usize)
 }
 
+#[derive(Clone, Hash, Debug, Ord, PartialEq, PartialOrd, Eq, Serialize, Deserialize)]
+enum ComponentType {
+    Wall,
+    WallAdjacent,
+    Floater
+}
+
+#[derive(Clone, Hash, Debug, Ord, PartialEq, PartialOrd, Eq, Serialize, Deserialize)]
+struct NodeIdentifier {
+    component_type: ComponentType,
+    index: usize
+}
+
+#[derive(Clone, Hash, Debug, Ord, PartialEq, PartialOrd, Eq, Serialize, Deserialize)]
+struct NodeStateCollectionIdentifier {
+    uuid: String
+}
+
+#[derive(Clone, Hash, Debug, Ord, PartialEq, PartialOrd, Eq, Serialize, Deserialize)]
+enum Identifier {
+    Node(NodeIdentifier),
+    NodeStateCollection(NodeStateCollectionIdentifier)
+}
+
 struct Level {
     width: usize,
     height: usize,
@@ -193,12 +217,7 @@ impl Level {
             println!("");
         }
     }
-    fn get_wave_function(&self) -> WaveFunction<String, NodeState> {
-
-        // begin constructing nodes and node state collections for wave function
-
-        let mut nodes: Vec<Node<String, NodeState>> = Vec::new();
-        let mut node_state_collections: Vec<NodeStateCollection<String, NodeState>> = Vec::new();
+    fn get_wave_function(&self) -> WaveFunction<Identifier, NodeState> {
 
         // cache useful data
 
@@ -342,7 +361,7 @@ impl Level {
         let mut right_wall_indexes: Vec<usize> = Vec::new();
         let mut bottom_wall_indexes: Vec<usize> = Vec::new();
         let mut left_wall_indexes: Vec<usize> = Vec::new();
-        let mut wall_per_index: Vec<PlacedPlacableCollection> = Vec::new();
+        let mut walls: Vec<PlacedPlacableCollection> = Vec::new();
         let mut possible_locations_per_wall_index: HashMap<usize, Vec<(usize, usize)>> = HashMap::new();
         let mut other_wall_possible_locations_per_other_wall_index_per_location_per_wall_index: HashMap<usize, HashMap<(usize, usize), HashMap<usize, Vec<(usize, usize)>>>> = HashMap::new();
         
@@ -350,8 +369,8 @@ impl Level {
             let mut current_wall_index: usize = 0;
 
             // iterate over each wall
-            for ((walls, is_horizontal), width_or_height) in zip(zip([top_walls, bottom_walls, left_walls, right_walls], [true, true, false, false]), [0, self.height - 1, 0, self.width - 1]) {
-                debug!("trying walls {:?} which are located at {}", walls, width_or_height);
+            for ((edge_walls, is_horizontal), width_or_height) in zip(zip([top_walls, bottom_walls, left_walls, right_walls], [true, true, false, false]), [0, self.height - 1, 0, self.width - 1]) {
+                debug!("trying edge_walls {:?} which are located at {}", edge_walls, width_or_height);
 
                 if is_horizontal {
                     if width_or_height == 0 {
@@ -370,14 +389,14 @@ impl Level {
                     }
                 }
 
-                if !walls.is_empty() {
+                if !edge_walls.is_empty() {
 
                     let mut segments: Vec<Segment<usize>> = Vec::new();
 
-                    for wall in walls.iter() {
+                    for wall in edge_walls.iter() {
 
                         debug!("examining wall index {} as {:?}", current_wall_index, wall);
-                        wall_per_index.push(wall.clone());
+                        walls.push(wall.clone());
 
                         // ensure that this wall is not stuck to another wall
                         if wall.placed_placables[0].location.0 == 0 && is_horizontal {
@@ -437,11 +456,11 @@ impl Level {
 
                         // get the left-most and right-most a wall can travel based on the existence (or not) of any corner walls
                         let left_most_length: usize;
-                        if walls[0].placed_placables[0].location.0 == 0 && is_horizontal {
-                            left_most_length = walls[0].placed_placables[walls[0].placed_placables.len() - 1].location.0 + 2;  // +2 spaces away is the next valid location
+                        if edge_walls[0].placed_placables[0].location.0 == 0 && is_horizontal {
+                            left_most_length = edge_walls[0].placed_placables[edge_walls[0].placed_placables.len() - 1].location.0 + 2;  // +2 spaces away is the next valid location
                         }
-                        else if walls[0].placed_placables[0].location.1 == 0 && !is_horizontal {
-                            left_most_length = walls[0].placed_placables[walls[0].placed_placables.len() - 1].location.1 + 2;  // +2 spaces away is the next valid location
+                        else if edge_walls[0].placed_placables[0].location.1 == 0 && !is_horizontal {
+                            left_most_length = edge_walls[0].placed_placables[edge_walls[0].placed_placables.len() - 1].location.1 + 2;  // +2 spaces away is the next valid location
                         }
                         else {
                             left_most_length = 1;  // 1 space away from 0 is the next valid location
@@ -449,16 +468,16 @@ impl Level {
                         
                         let right_most_length: usize;
                         if is_horizontal {
-                            if walls[walls.len() - 1].placed_placables[walls[walls.len() - 1].placed_placables.len() - 1].location.0 == self.width - 1 {
-                                right_most_length = walls[walls.len() - 1].placed_placables[0].location.0 - 2;  // -2 spaces away to the left is the next valid location
+                            if edge_walls[edge_walls.len() - 1].placed_placables[edge_walls[edge_walls.len() - 1].placed_placables.len() - 1].location.0 == self.width - 1 {
+                                right_most_length = edge_walls[edge_walls.len() - 1].placed_placables[0].location.0 - 2;  // -2 spaces away to the left is the next valid location
                             }
                             else {
                                 right_most_length = self.width - 2;  // 1 space to the left of the last index is the next valid location
                             }
                         }
                         else {
-                            if walls[walls.len() - 1].placed_placables[walls[walls.len() - 1].placed_placables.len() - 1].location.1 == self.height - 1 {
-                                right_most_length = walls[walls.len() - 1].placed_placables[0].location.1 - 2;  // -2 spaces away to the left is the next valid location
+                            if edge_walls[edge_walls.len() - 1].placed_placables[edge_walls[edge_walls.len() - 1].placed_placables.len() - 1].location.1 == self.height - 1 {
+                                right_most_length = edge_walls[edge_walls.len() - 1].placed_placables[0].location.1 - 2;  // -2 spaces away to the left is the next valid location
                             }
                             else {
                                 right_most_length = self.height - 2;  // 1 space up from the last index is the next valid location
@@ -634,7 +653,7 @@ impl Level {
                 for wall_adjacent_placed_placable in wall_adjacent.placed_placables.iter() {
                     if wall_adjacent_placed_placable.location.0 == 1 {
                         'wall_search: {
-                            for (wall_index, wall) in wall_per_index.iter().enumerate() {
+                            for (wall_index, wall) in walls.iter().enumerate() {
                                 for wall_placed_placable in wall.placed_placables.iter() {
                                     if wall_placed_placable.location.1 == wall_adjacent_placed_placable.location.1 &&
                                         wall_placed_placable.location.0 == wall_adjacent_placed_placable.location.0 - 1 {
@@ -650,7 +669,7 @@ impl Level {
                     }
                     if wall_adjacent_placed_placable.location.1 == 1 {
                         'wall_search: {
-                            for (wall_index, wall) in wall_per_index.iter().enumerate() {
+                            for (wall_index, wall) in walls.iter().enumerate() {
                                 for wall_placed_placable in wall.placed_placables.iter() {
                                     if wall_placed_placable.location.0 == wall_adjacent_placed_placable.location.0 &&
                                         wall_placed_placable.location.1 == wall_adjacent_placed_placable.location.1 - 1 {
@@ -666,7 +685,7 @@ impl Level {
                     }
                     if wall_adjacent_placed_placable.location.0 == self.width - 2 {
                         'wall_search: {
-                            for (wall_index, wall) in wall_per_index.iter().enumerate() {
+                            for (wall_index, wall) in walls.iter().enumerate() {
                                 for wall_placed_placable in wall.placed_placables.iter() {
                                     if wall_placed_placable.location.1 == wall_adjacent_placed_placable.location.1 &&
                                         wall_placed_placable.location.0 == wall_adjacent_placed_placable.location.0 + 1 {
@@ -682,7 +701,7 @@ impl Level {
                     }
                     if wall_adjacent_placed_placable.location.1 == self.height - 2 {
                         'wall_search: {
-                            for (wall_index, wall) in wall_per_index.iter().enumerate() {
+                            for (wall_index, wall) in walls.iter().enumerate() {
                                 for wall_placed_placable in wall.placed_placables.iter() {
                                     if wall_placed_placable.location.0 == wall_adjacent_placed_placable.location.0 &&
                                         wall_placed_placable.location.1 == wall_adjacent_placed_placable.location.1 + 1 {
@@ -708,9 +727,7 @@ impl Level {
 
         // determine the possible locations of every wall-adjectent along with which locations the walls can and cannot be
 
-        let mut possible_locations_per_wall_adjacent_index: HashMap<usize, HashSet<(usize, usize)>> = HashMap::new();
         let mut wall_locations_per_wall_index_per_wall_adjacent_location_per_wall_adjacent_index: HashMap<usize, HashMap<(usize, usize), HashMap<usize, HashSet<(usize, usize)>>>> = HashMap::new();
-        let mut permitted_locations_per_wall_index: HashMap<usize, HashSet<(usize, usize)>> = HashMap::new();
         let mut top_left_location_per_wall_adjacent_index: HashMap<usize, (usize, usize)> = HashMap::new();
 
         {
@@ -1250,9 +1267,9 @@ impl Level {
                                 // iterate over all local walls, storing which wall indexes and their locations are detected next to this wall-adjacent
                                 for (wall_index, location_index) in zip(wall_indexes.iter().copied(), possible_wall_location_indexes.into_iter()) {
                                     let wall_location = possible_locations_per_wall_index.get(&wall_index).unwrap()[location_index];
-                                    let wall: &PlacedPlacableCollection = &wall_per_index[wall_index];
+                                    let wall: &PlacedPlacableCollection = &walls[wall_index];
                                     let placed_placable_location_delta: (i8, i8) = (wall_location.0 as i8 - wall.placed_placables[0].location.0 as i8, wall_location.1 as i8 - wall.placed_placables[0].location.1 as i8);
-                                    for placed_placable in wall_per_index[wall_index].placed_placables.iter() {
+                                    for placed_placable in walls[wall_index].placed_placables.iter() {
                                         let calculated_wall_placed_placable_location = ((placed_placable.location.0 as i8 + placed_placable_location_delta.0) as usize, (placed_placable.location.1 as i8 + placed_placable_location_delta.1) as usize);
                                         if applicable_wall_adjacent_detection_locations.contains(&calculated_wall_placed_placable_location) {
                                             // this wall is detected to be adjacent to this wall-adjacent
@@ -1365,6 +1382,7 @@ impl Level {
         let mut unrestricted_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index: HashMap<usize, HashMap<(usize, usize), HashMap<usize, Vec<(usize, usize)>>>> = HashMap::new();
 
         {
+            let mut restricted_wall_adjacent_locations_per_wall_adjacent_index: HashMap<usize, Vec<(usize, usize)>> = HashMap::new();
             for wall_adjacent_index in possible_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index.keys() {
                 for wall_adjacent_location in possible_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index.get(wall_adjacent_index).unwrap().keys() {
                     let mut is_at_least_one_other_wall_adjacent_fully_restricted: bool = false;
@@ -1374,7 +1392,23 @@ impl Level {
                             break;
                         }
                     }
-                    if !is_at_least_one_other_wall_adjacent_fully_restricted {
+                    if is_at_least_one_other_wall_adjacent_fully_restricted {
+                        if !restricted_wall_adjacent_locations_per_wall_adjacent_index.contains_key(wall_adjacent_index) {
+                            restricted_wall_adjacent_locations_per_wall_adjacent_index.insert(wall_adjacent_index.to_owned(), Vec::new());
+                        }
+                        restricted_wall_adjacent_locations_per_wall_adjacent_index.get_mut(wall_adjacent_index).unwrap().push(wall_adjacent_location.clone());
+                    }
+                }
+            }
+
+            for wall_adjacent_index in possible_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index.keys() {
+                for wall_adjacent_location in possible_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index.get(wall_adjacent_index).unwrap().keys() {
+                    if restricted_wall_adjacent_locations_per_wall_adjacent_index.contains_key(wall_adjacent_index) &&
+                        restricted_wall_adjacent_locations_per_wall_adjacent_index.get(wall_adjacent_index).unwrap().contains(wall_adjacent_location) {
+
+                        // this wall-adjacent location for this wall-adjacent is too restrictive for at least one other wall-adjacent
+                    }
+                    else {
                         if !unrestricted_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index.contains_key(wall_adjacent_index) {
                             unrestricted_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index.insert(wall_adjacent_index.to_owned(), HashMap::new());
                         }
@@ -1382,13 +1416,26 @@ impl Level {
                             unrestricted_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index.get_mut(wall_adjacent_index).unwrap().insert(wall_adjacent_location.to_owned(), HashMap::new());
                         }
                         for other_wall_adjacent_index in possible_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index.get(wall_adjacent_index).unwrap().get(wall_adjacent_location).unwrap().keys() {
-                            unrestricted_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index.get_mut(wall_adjacent_index).unwrap().get_mut(wall_adjacent_location).unwrap().insert(other_wall_adjacent_index.to_owned(), possible_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index.get(wall_adjacent_index).unwrap().get(wall_adjacent_location).unwrap().get(other_wall_adjacent_index).unwrap().clone());
+                            for other_wall_adjacent_location in possible_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index.get(wall_adjacent_index).unwrap().get(wall_adjacent_location).unwrap().get(other_wall_adjacent_index).unwrap().iter() {
+                                if restricted_wall_adjacent_locations_per_wall_adjacent_index.contains_key(other_wall_adjacent_index) &&
+                                    restricted_wall_adjacent_locations_per_wall_adjacent_index.get(other_wall_adjacent_index).unwrap().contains(other_wall_adjacent_location) {
+
+                                    // this wall-adjacent location for this wall-adjacent is too restrictive for at least one other wall-adjacent
+                                }
+                                else {
+                                    if !unrestricted_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index.get(wall_adjacent_index).unwrap().get(wall_adjacent_location).unwrap().contains_key(other_wall_adjacent_index) {
+                                        unrestricted_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index.get_mut(wall_adjacent_index).unwrap().get_mut(wall_adjacent_location).unwrap().insert(other_wall_adjacent_index.to_owned(), Vec::new());
+                                    }
+                                    unrestricted_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index.get_mut(wall_adjacent_index).unwrap().get_mut(wall_adjacent_location).unwrap().get_mut(other_wall_adjacent_index).unwrap().push(other_wall_adjacent_location.to_owned());
+                                }
+                            }
                         }
                     }
                 }
             }
 
-            debug!("unrestricted_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index: {:?}", unrestricted_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index.get(&2).unwrap());
+            debug!("unrestricted_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index: 2.(20, 28).3 length {:?}", unrestricted_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index.get(&2).unwrap().get(&(20, 28)).unwrap().get(&3).unwrap().len());
+            debug!("unrestricted_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index: 2.(20, 28).3 {:?}", unrestricted_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index.get(&2).unwrap().get(&(20, 28)).unwrap().get(&3).unwrap());
         }
 
         // collect PlacedPlacableCollection instances representing the floaters
@@ -1397,7 +1444,146 @@ impl Level {
 
         // determine the subset of possible locations of every floater compared to every other floater
 
+        // determine the wall-adjacent locations that are possible now that they have been further restricted by large floaters
 
+        let mut permitted_wall_adjacent_locations_per_wall_adjacent_index: HashMap<usize, Vec<(usize, usize)>> = HashMap::new();
+
+        {
+            // TODO consider the influence of large floaters
+            
+        }
+
+        // determine the wall locations that are possible now that they have been further restricted by wall-adjacents which were restricted by large floaters
+
+        let mut permitted_wall_locations_per_wall_index: HashMap<usize, Vec<(usize, usize)>> = HashMap::new();
+
+        {
+            // TODO use the latest wall-adjacent locations once the large floaters logic is implemented
+            for (wall_index, wall_locations) in possible_locations_per_wall_index.iter() {
+                permitted_wall_locations_per_wall_index.insert(wall_index.to_owned(), Vec::new());
+                for wall_location in wall_locations.iter() {
+                    let is_wall_location_permitted_by_every_wall_adjacent: bool = true;
+                    for wall_adjacent_index in unrestricted_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index.keys() {
+                        let is_found_for_at_least_one_wall_adjacent_location: bool = false;
+                        for wall_adjacent_location in unrestricted_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index.get(wall_adjacent_index).unwrap().keys() {
+                            if wall_locations_per_wall_index_per_wall_adjacent_location_per_wall_adjacent_index.get(wall_adjacent_index).unwrap().get(wall_adjacent_location).unwrap().contains_key(wall_index) &&
+                                wall_locations_per_wall_index_per_wall_adjacent_location_per_wall_adjacent_index.get(wall_adjacent_index).unwrap().get(wall_adjacent_location).unwrap().get(wall_index).unwrap().contains(wall_location) {
+                                
+                                is_found_for_at_least_one_wall_adjacent_location = true;
+                                break;
+                            }
+                        }
+                        if !is_found_for_at_least_one_wall_adjacent_location {
+                            is_wall_location_permitted_by_every_wall_adjacent = false;
+                        }
+                    }
+                    if is_wall_location_permitted_by_every_wall_adjacent {
+                        permitted_wall_locations_per_wall_index.get_mut(wall_index).unwrap().push(wall_location.to_owned());
+                    }
+                }
+            }
+        }
+
+        // construct the node state collections
+
+        let mut node_state_collection_ids_per_wall_index_per_wall_adjacent_index: HashMap<usize, HashMap<usize, Vec<NodeStateCollectionIdentifier>>> = HashMap::new();
+        let mut node_state_collection_ids_per_wall_adjacent_index_per_wall_adjacent_index: HashMap<usize, HashMap<usize, Vec<NodeStateCollectionIdentifier>>> = HashMap::new();
+        let mut node_state_collection_id_per_anonymous_node_state_collection: HashMap<AnonymousNodeStateCollection<NodeState>, NodeStateCollectionIdentifier> = HashMap::new();
+        let mut node_state_collections: Vec<NodeStateCollection<Identifier, NodeState>> = Vec::new();
+
+        {
+            for wall_adjacent_index in unrestricted_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index.keys() {
+                node_state_collection_ids_per_wall_index_per_wall_adjacent_index.insert(wall_adjacent_index.to_owned(), HashMap::new());
+                node_state_collection_ids_per_wall_adjacent_index_per_wall_adjacent_index.insert(wall_adjacent_index.to_owned(), HashMap::new());
+                for wall_adjacent_location in unrestricted_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index.get(wall_adjacent_index).unwrap().keys() {
+
+                    // store the permitted wall locations for this wall-adjacent
+                    for wall_index in wall_locations_per_wall_index_per_wall_adjacent_location_per_wall_adjacent_index.get(wall_adjacent_index).unwrap().get(wall_adjacent_location).unwrap().keys() {
+                        // create an anonymous node state collection for when this wall adjacent is at this location that this wall is permitted at these locations
+                        let anonymous_node_state_collection = AnonymousNodeStateCollection {
+                            when_node_state: NodeState {
+                                location: wall_adjacent_location.to_owned()
+                            },
+                            then_node_states: wall_locations_per_wall_index_per_wall_adjacent_location_per_wall_adjacent_index.get(wall_adjacent_index).unwrap().get(wall_adjacent_location).unwrap().get(wall_index).unwrap().iter().cloned().map(|location| NodeState { location: location }).collect()
+                        };
+
+                        let node_state_collection_id: NodeStateCollectionIdentifier;
+                        if !node_state_collection_id_per_anonymous_node_state_collection.contains_key(&anonymous_node_state_collection) {
+                            let uuid: String = Uuid::new_v4().to_string();
+                            node_state_collection_id = NodeStateCollectionIdentifier {
+                                uuid: uuid
+                            };
+                            node_state_collection_id_per_anonymous_node_state_collection.insert(anonymous_node_state_collection, node_state_collection_id.clone());
+                        }
+                        else {
+                            node_state_collection_id = node_state_collection_id_per_anonymous_node_state_collection.get(&anonymous_node_state_collection).unwrap().clone();
+                        }
+
+                        if !node_state_collection_ids_per_wall_index_per_wall_adjacent_index.get(wall_adjacent_index).unwrap().contains_key(wall_index) {
+                            node_state_collection_ids_per_wall_index_per_wall_adjacent_index.get_mut(wall_adjacent_index).unwrap().insert(wall_index.to_owned(), Vec::new());
+                        }
+                        node_state_collection_ids_per_wall_index_per_wall_adjacent_index.get_mut(wall_adjacent_index).unwrap().get_mut(wall_index).unwrap().push(node_state_collection_id);
+                    }
+
+                    // store the permitted wall-adjacent locations for this wall-adjacent
+                    for other_wall_adjacent_index in unrestricted_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index.get(wall_adjacent_index).unwrap().get(wall_adjacent_location).unwrap().keys() {
+                        // create an anonymous node state collection for when this wall-adjacent is at this location that this other wall-adjacent is permitted at these locations
+                        let anonymous_node_state_collection = AnonymousNodeStateCollection {
+                            when_node_state: NodeState {
+                                location: wall_adjacent_location.to_owned()
+                            },
+                            then_node_states: unrestricted_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index.get(wall_adjacent_index).unwrap().get(wall_adjacent_location).unwrap().get(other_wall_adjacent_index).unwrap().iter().cloned().map(|location| NodeState { location: location }).collect()
+                        };
+
+                        let node_state_collection_id: NodeStateCollectionIdentifier;
+                        if !node_state_collection_id_per_anonymous_node_state_collection.contains_key(&anonymous_node_state_collection) {
+                            let uuid: String = Uuid::new_v4().to_string();
+                            node_state_collection_id = NodeStateCollectionIdentifier {
+                                uuid: uuid
+                            };
+                            node_state_collection_id_per_anonymous_node_state_collection.insert(anonymous_node_state_collection, node_state_collection_id.clone());
+                        }
+                        else {
+                            node_state_collection_id = node_state_collection_id_per_anonymous_node_state_collection.get(&anonymous_node_state_collection).unwrap().clone();
+                        }
+
+                        if !node_state_collection_ids_per_wall_adjacent_index_per_wall_adjacent_index.get(wall_adjacent_index).unwrap().contains_key(other_wall_adjacent_index) {
+                            node_state_collection_ids_per_wall_adjacent_index_per_wall_adjacent_index.get_mut(wall_adjacent_index).unwrap().insert(other_wall_adjacent_index.to_owned(), Vec::new());
+                        }
+                        node_state_collection_ids_per_wall_adjacent_index_per_wall_adjacent_index.get_mut(wall_adjacent_index).unwrap().get_mut(other_wall_adjacent_index).unwrap().push(node_state_collection_id);
+                    }
+                }
+            }
+
+            for (anonymous_node_state_collection, node_state_collection_id) in node_state_collection_id_per_anonymous_node_state_collection.into_iter() {
+                node_state_collections.push(NodeStateCollection::new_from_anonymous(Identifier::NodeStateCollection(node_state_collection_id), anonymous_node_state_collection));
+            }
+        }
+
+        // construct the nodes
+
+        let mut node_id_per_wall_index: HashMap<usize, NodeIdentifier> = HashMap::new();
+        let mut node_id_per_wall_adjacent_index: HashMap<usize, NodeIdentifier> = HashMap::new();
+        let mut nodes: Vec<Node<Identifier, NodeState>> = Vec::new();
+
+        {
+            for wall_index in 0..walls.len() {
+                node_id_per_wall_index.insert(wall_index, NodeIdentifier { component_type: ComponentType::Wall, index: wall_index });
+            }
+            for wall_adjacent_index in 0..wall_adjacents.len() {
+                node_id_per_wall_adjacent_index.insert(wall_adjacent_index, NodeIdentifier { component_type: ComponentType::WallAdjacent, index: wall_adjacent_index });
+            }
+            // TODO floaters
+
+            for wall_index in 0..walls.len() {
+                let node_id = node_id_per_wall_index.get(wall_index).unwrap();
+                let possible_node_states: Vec<NodeState> = Vec::new();
+
+                // TODO update to use the latest collection of locations
+
+                let node = Node::new(node_id.clone(), )
+            }
+        }
 
         let wave_function = WaveFunction::new(nodes, node_state_collections);
 
@@ -1412,7 +1598,7 @@ impl Level {
         let mut rng = rand::thread_rng();
         let random_seed = Some(rng.gen::<u64>());
 
-        let mut collapsable_wave_function = wave_function.get_collapsable_wave_function::<AccommodatingCollapsableWaveFunction<String, NodeState>>(random_seed);
+        let mut collapsable_wave_function = wave_function.get_collapsable_wave_function::<AccommodatingCollapsableWaveFunction<Identifier, NodeState>>(random_seed);
 
         let collapsed_wave_function = collapsable_wave_function.collapse().unwrap();
 
