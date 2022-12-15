@@ -698,7 +698,7 @@ impl Level {
                     }
                 }
                 if wall_indexes.is_empty() {
-                    panic!("Failed to find wall adjacent to wall-adjancent at index {}: {:?}", wall_adjacent_index, wall_adjacent);
+                    panic!("Failed to find wall adjacent to wall-adjacent at index {}: {:?}", wall_adjacent_index, wall_adjacent);
                 }
                 wall_indexes_per_wall_adjacent_index.insert(wall_adjacent_index, wall_indexes);
             }
@@ -711,9 +711,13 @@ impl Level {
         let mut possible_locations_per_wall_adjacent_index: HashMap<usize, HashSet<(usize, usize)>> = HashMap::new();
         let mut wall_locations_per_wall_index_per_wall_adjacent_location_per_wall_adjacent_index: HashMap<usize, HashMap<(usize, usize), HashMap<usize, HashSet<(usize, usize)>>>> = HashMap::new();
         let mut permitted_locations_per_wall_index: HashMap<usize, HashSet<(usize, usize)>> = HashMap::new();
+        let mut top_left_location_per_wall_adjacent_index: HashMap<usize, (usize, usize)> = HashMap::new();
 
         {
             for (wall_adjacent_index, wall_adjacent) in wall_adjacents.iter().enumerate() {
+
+                debug!("wall-adjacent: {}: {:?}", wall_adjacent_index, wall_adjacent);
+
                 let mut is_top: bool = false;
                 let mut is_bottom: bool = false;
                 let mut is_left: bool = false;
@@ -749,8 +753,14 @@ impl Level {
                     }
                 }
 
+                top_left_location_per_wall_adjacent_index.insert(wall_adjacent_index, top_left_location);
+
                 // determine how many walls this wall-adjacent is in direct contact with
                 let touching_walls_total: usize = [is_left, is_right, is_top, is_bottom].into_iter().filter(|is_touching_wall| is_touching_wall.to_owned()).collect::<Vec<bool>>().len();
+
+                debug!("touching_walls_total: {}", touching_walls_total);
+
+                let mut wall_incrementer_and_wall_adjacent_tuples: Vec<(IndexIncrementer, HashMap<(usize, usize), Vec<(usize, usize)>>, Vec<usize>)> = Vec::new();
 
                 if touching_walls_total == 1 {
 
@@ -820,13 +830,15 @@ impl Level {
                     // last keep the wall adjacent in contact with the second_side_wall and main_wall
                     //      iterate over every possible location for each wall in the second_side_wall and main_wall
 
-                    let mut first_possible_wall_location_index_incrementer: IndexIncrementer;
-                    let mut main_possible_wall_location_index_incrementer: IndexIncrementer;
-                    let mut second_possible_wall_location_index_incrementer: IndexIncrementer;
+                    let first_possible_wall_location_index_incrementer: IndexIncrementer;
+                    let main_possible_wall_location_index_incrementer: IndexIncrementer;
+                    let second_possible_wall_location_index_incrementer: IndexIncrementer;
                     let first_wall_indexes: Vec<usize> = first_side_wall_indexes.iter().cloned().chain(main_wall_indexes.iter().cloned()).collect();
                     let main_wall_indexes: Vec<usize> = main_wall_indexes.clone();
                     let second_wall_indexes: Vec<usize> = second_side_wall_indexes.iter().cloned().chain(main_wall_indexes.iter().cloned()).collect();
                     
+                    debug!("initializing first possible wall location index incrementer");
+
                     // initialize first possible wall location index incrementer
                     {
                         let mut maximum_exclusive_possible_wall_location_indexes: Vec<usize> = Vec::new();
@@ -836,6 +848,10 @@ impl Level {
                         }
                         first_possible_wall_location_index_incrementer = IndexIncrementer::new(maximum_exclusive_possible_wall_location_indexes);
                     }
+
+                    debug!("initialized first possible wall location index incrementer");
+
+                    debug!("initializing main possible wall location index incrementer");
 
                     // initialize main possible wall location index incrementer
                     {
@@ -847,6 +863,10 @@ impl Level {
                         main_possible_wall_location_index_incrementer = IndexIncrementer::new(maximum_exclusive_possible_wall_location_indexes);
                     }
 
+                    debug!("initialized main possible wall location index incrementer");
+
+                    debug!("initializing second possible wall location index incrementer");
+
                     // initialize second possible wall location index incrementer
                     {
                         let mut maximum_exclusive_possible_wall_location_indexes: Vec<usize> = Vec::new();
@@ -856,6 +876,10 @@ impl Level {
                         }
                         second_possible_wall_location_index_incrementer = IndexIncrementer::new(maximum_exclusive_possible_wall_location_indexes);
                     }
+
+                    debug!("initialized second possible wall location index incrementer");
+
+                    debug!("collecting first placed_placable locations that would overlap with a nearby wall");
 
                     let mut first_applicable_wall_adjacent_detection_locations_per_location: HashMap<(usize, usize), Vec<(usize, usize)>> = HashMap::new();
 
@@ -878,11 +902,15 @@ impl Level {
                         first_applicable_wall_adjacent_detection_locations_per_location.insert(inclusive_origin, first_applicable_wall_adjacent_detection_locations);
                     }
 
+                    debug!("collected first placed_placable locations that would overlap with a nearby wall");
+
+                    debug!("collecting main placed_placable locations that would overlap with a nearby wall");
+
                     let mut main_applicable_wall_adjacent_detection_locations_per_location: HashMap<(usize, usize), Vec<(usize, usize)>> = HashMap::new();
 
                     // collect the main placed_placable locations that would overlap with a wall as it moves away from the origin to the destination
                     {
-                        let current_travel_location: (usize, usize) = (inclusive_origin.0 + travel_location_delta.0, inclusive_origin.1 + travel_location_delta.1);
+                        let mut current_travel_location: (usize, usize) = (inclusive_origin.0 + travel_location_delta.0, inclusive_origin.1 + travel_location_delta.1);
                         while current_travel_location != inclusive_destination {
                             main_applicable_wall_adjacent_detection_locations_per_location.insert(current_travel_location, Vec::new());
                             for placed_placable in wall_adjacent.placed_placables.iter() {
@@ -896,8 +924,14 @@ impl Level {
                                     main_applicable_wall_adjacent_detection_locations_per_location.get_mut(&current_travel_location).unwrap().push(detection_location);
                                 }
                             }
+                            current_travel_location.0 += travel_location_delta.0;
+                            current_travel_location.1 += travel_location_delta.1;
                         }
                     }
+
+                    debug!("collected main placed_placable locations that would overlap with a nearby wall");
+
+                    debug!("collecting second placed_placable locations that would overlap with a nearby wall");
 
                     let mut second_applicable_wall_adjacent_detection_locations_per_location: HashMap<(usize, usize), Vec<(usize, usize)>> = HashMap::new();
 
@@ -920,83 +954,441 @@ impl Level {
                         second_applicable_wall_adjacent_detection_locations_per_location.insert(inclusive_destination, second_applicable_wall_adjacent_detection_locations);
                     }
 
-                    // iterate over the possible wall location incrementers and where wall-adjacents can be located in order to find valid locations for wall-adjacents
-                    {
-                        let mut wall_locations_per_wall_index_per_wall_adjacent_location: HashMap<(usize, usize), HashMap<usize, HashSet<(usize, usize)>>> = HashMap::new();
-                        for (incrementer, applicable_wall_adjacent_detection_locations_per_location, wall_indexes) in [(&mut first_possible_wall_location_index_incrementer, first_applicable_wall_adjacent_detection_locations_per_location, first_wall_indexes), (&mut main_possible_wall_location_index_incrementer, main_applicable_wall_adjacent_detection_locations_per_location, main_wall_indexes), (&mut second_possible_wall_location_index_incrementer, second_applicable_wall_adjacent_detection_locations_per_location, second_wall_indexes)] {
-                            for (potential_wall_adjacent_location, applicable_wall_adjacent_detection_locations) in applicable_wall_adjacent_detection_locations_per_location.into_iter() {
-                                // TODO determine if this is needed
-                                //let mut wall_locations: Vec<(usize, usize)> = Vec::new();
+                    debug!("collected second placed_placable locations that would overlap with a nearby wall");
 
-                                let mut is_wall_iteration_successful: bool = true;
-                                while is_wall_iteration_successful {
-                                    let mut discovered_wall_location_per_wall_index: HashMap<usize, (usize, usize)> = HashMap::new();
-
-                                    // get the current location indexes for each wall as a parallel array to wall_indexes
-                                    let possible_wall_location_indexes = incrementer.get();
-
-                                    // iterate over all local walls, storing which wall indexes and their locations are detected next to this wall-adjacent
-                                    for (wall_index, location_index) in zip(wall_indexes.iter().copied(), possible_wall_location_indexes.into_iter()) {
-                                        let wall_location = possible_locations_per_wall_index.get(&wall_index).unwrap()[location_index];
-                                        let wall: &PlacedPlacableCollection = &wall_per_index[wall_index];
-                                        let placed_placable_location_delta: (i8, i8) = (wall_location.0 as i8 - wall.placed_placables[0].location.0 as i8, wall_location.1 as i8 - wall.placed_placables[0].location.1 as i8);
-                                        for placed_placable in wall_per_index[wall_index].placed_placables.iter() {
-                                            let calculated_wall_placed_placable_location = ((placed_placable.location.0 as i8 + placed_placable_location_delta.0) as usize, (placed_placable.location.1 as i8 + placed_placable_location_delta.1) as usize);
-                                            if applicable_wall_adjacent_detection_locations.contains(&calculated_wall_placed_placable_location) {
-                                                // this wall is detected to be adjacent to this wall-adjacent
-                                                discovered_wall_location_per_wall_index.insert(wall_index, wall_location);
-                                                break;
-                                            }
-                                        }
-                                    }
-                                    
-                                    // check that the discovered adjacent wall indexes match the exactly expected wall indexes
-                                    let original_wall_indexes = wall_indexes_per_wall_adjacent_index.get(&wall_adjacent_index).unwrap();
-                                    if discovered_wall_location_per_wall_index.len() == original_wall_indexes.len() {
-                                        let mut is_all_discovered_wall_indexes_same_as_original_wall_indexes: bool = true;
-                                        for wall_index in discovered_wall_location_per_wall_index.keys() {
-                                            if !original_wall_indexes.contains(wall_index) {
-                                                is_all_discovered_wall_indexes_same_as_original_wall_indexes = false;
-                                                break;
-                                            }
-                                        }
-                                        if is_all_discovered_wall_indexes_same_as_original_wall_indexes {
-                                            // the wall indexes found at this combination of wall-adjacent location and all relevant wall locations correspond with the original locations
-
-                                            if !wall_locations_per_wall_index_per_wall_adjacent_location.contains_key(&potential_wall_adjacent_location) {
-                                                wall_locations_per_wall_index_per_wall_adjacent_location.insert(potential_wall_adjacent_location, HashMap::new());
-                                            }
-                                            for (wall_index, wall_location) in discovered_wall_location_per_wall_index.into_iter() {
-                                                if !wall_locations_per_wall_index_per_wall_adjacent_location.get(&potential_wall_adjacent_location).unwrap().contains_key(&wall_index) {
-                                                    wall_locations_per_wall_index_per_wall_adjacent_location.get_mut(&potential_wall_adjacent_location).unwrap().insert(wall_index, HashSet::new());
-                                                }
-
-                                                // store the wall-adjacent location and wall locations for node state collection purposes
-                                                wall_locations_per_wall_index_per_wall_adjacent_location.get_mut(&potential_wall_adjacent_location).unwrap().get_mut(&wall_index).unwrap().insert(wall_location);
-                                            }
-                                        }
-                                    }
-
-                                    is_wall_iteration_successful = incrementer.try_increment();
-                                }
-                            }
-                        }
-                        wall_locations_per_wall_index_per_wall_adjacent_location_per_wall_adjacent_index.insert(wall_adjacent_index, wall_locations_per_wall_index_per_wall_adjacent_location);
-                    }
+                    wall_incrementer_and_wall_adjacent_tuples.push((first_possible_wall_location_index_incrementer, first_applicable_wall_adjacent_detection_locations_per_location, first_wall_indexes));
+                    wall_incrementer_and_wall_adjacent_tuples.push((main_possible_wall_location_index_incrementer, main_applicable_wall_adjacent_detection_locations_per_location, main_wall_indexes));
+                    wall_incrementer_and_wall_adjacent_tuples.push((second_possible_wall_location_index_incrementer, second_applicable_wall_adjacent_detection_locations_per_location, second_wall_indexes));
                 }
                 else if touching_walls_total == 2 {
-                    todo!();
+
+                    if is_left && is_right || is_top && is_bottom {
+                        // the wall-adjacent stretches across the level
+
+                        todo!();
+                    }
+                    else {
+                        // the wall-adjacent is stuck in the corner
+
+                        let first_side_wall_indexes: &Vec<usize>;
+                        let second_side_wall_indexes: &Vec<usize>;
+                        let origin: (usize, usize);
+                        let contact_corner: (usize, usize);
+                        let contact_corner_delta: (i8, i8);
+
+                        // single-walled wall-adjacent
+                        if is_left {
+
+                            first_side_wall_indexes = &left_wall_indexes;
+
+                            if is_top {
+                                second_side_wall_indexes = &top_wall_indexes;
+                                origin = (1, 1);
+                                contact_corner = (1, 1);
+                                contact_corner_delta = (-1, -1);
+                            }
+                            else if is_bottom {
+                                second_side_wall_indexes = &bottom_wall_indexes;
+                                origin = (1, self.height - 2 - (bottom_right_location.1 - top_left_location.1));
+                                contact_corner = (1, self.height - 2);
+                                contact_corner_delta = (-1, 1);
+                            }
+                            else {
+                                panic!("Unexpected lack of edge-adjacent contact.");
+                            }
+                        }
+                        else if is_right {
+
+                            first_side_wall_indexes = &right_wall_indexes;
+
+                            if is_top {
+                                second_side_wall_indexes = &top_wall_indexes;
+                                origin = (self.width - 2 - (bottom_right_location.0 - top_left_location.0), 1);
+                                contact_corner = (self.width - 2, 1);
+                                contact_corner_delta = (1, -1);
+                            }
+                            else if is_bottom {
+                                second_side_wall_indexes = &bottom_wall_indexes;
+                                origin = (self.width - 2 - (bottom_right_location.0 - top_left_location.0), self.height - 2 - (bottom_right_location.1 - top_left_location.1));
+                                contact_corner = (self.width - 2, self.height - 2);
+                                contact_corner_delta = (1, 1);
+                            }
+                            else {
+                                panic!("Unexpected lack of edge-adjacent contact.");
+                            }
+                        }
+                        else {
+                            panic!("Unexpected lack of walls for wall-adjacent at index {}: {:?}", wall_adjacent_index, wall_adjacent);
+                        }
+                        
+                        // keep the wall adjacent in contact with the first_side_wall and second_side_wall
+                        //      iterate over every possible location for each wall in the first_side_wall and second_side_wall
+
+                        let possible_wall_location_index_incrementer: IndexIncrementer;
+                        let wall_indexes: Vec<usize> = first_side_wall_indexes.iter().cloned().chain(second_side_wall_indexes.iter().cloned()).collect();
+
+                        // initialize possible wall location index incrementer
+                        {
+                            let mut maximum_exclusive_possible_wall_location_indexes: Vec<usize> = Vec::new();
+                            for wall_index in wall_indexes.iter() {
+                                let maximum_exclusive_possible_wall_location_index = possible_locations_per_wall_index.get(wall_index).unwrap().len();
+                                maximum_exclusive_possible_wall_location_indexes.push(maximum_exclusive_possible_wall_location_index);
+                            }
+                            possible_wall_location_index_incrementer = IndexIncrementer::new(maximum_exclusive_possible_wall_location_indexes);
+                        }
+
+                        let mut applicable_wall_adjacent_detection_locations_per_location: HashMap<(usize, usize), Vec<(usize, usize)>> = HashMap::new();
+
+                        // collect the placed_placable locations that would overlap with a wall as it exists in the contact corner
+                        {
+                            let mut applicable_wall_adjacent_detection_locations: Vec<(usize, usize)> = Vec::new();
+                            for placed_placable in wall_adjacent.placed_placables.iter() {
+                                let calculated_placed_placable_location: (usize, usize) = (placed_placable.location.0 - top_left_location.0 + origin.0, placed_placable.location.1 - top_left_location.1 + origin.1);
+
+                                if calculated_placed_placable_location.0 == contact_corner.0 {
+                                    // move from the current direction into the direction of the wall (if this axis is main wall adjacent) or into the direction of the first wall (if this axis is first wall adjacent)
+                                    let detection_location: (usize, usize) = ((calculated_placed_placable_location.0 as i8 + contact_corner_delta.0) as usize, calculated_placed_placable_location.1);
+                                    applicable_wall_adjacent_detection_locations.push(detection_location);
+                                }
+                                if calculated_placed_placable_location.1 == contact_corner.1 {
+                                    let detection_location: (usize, usize) = (calculated_placed_placable_location.0, (calculated_placed_placable_location.1 as i8 + contact_corner_delta.1) as usize);
+                                    applicable_wall_adjacent_detection_locations.push(detection_location);
+                                }
+                            }
+                            applicable_wall_adjacent_detection_locations_per_location.insert(origin, applicable_wall_adjacent_detection_locations);
+                        }
+
+                        wall_incrementer_and_wall_adjacent_tuples.push((possible_wall_location_index_incrementer, applicable_wall_adjacent_detection_locations_per_location, wall_indexes));
+                    }
                 }
                 else if touching_walls_total == 3 {
-                    todo!();
+
+                    // the wall-adjacent is stuck in both corners
+
+                    let left_side_wall_indexes: &Vec<usize>;
+                    let middle_side_wall_indexes: &Vec<usize>;
+                    let right_side_wall_indexes: &Vec<usize>;
+                    let origin: (usize, usize);
+                    let left_middle_contact_corner: (usize, usize);
+                    let left_middle_contact_corner_delta: (i8, i8);
+                    let middle_right_contact_corner: (usize, usize);
+                    let middle_right_contact_corner_delta: (i8, i8);
+
+                    // single-walled wall-adjacent
+                    if !is_left {
+
+                        left_side_wall_indexes = &top_wall_indexes;
+                        middle_side_wall_indexes = &right_wall_indexes;
+                        right_side_wall_indexes = &bottom_wall_indexes;
+                        origin = (self.width - 2 - (bottom_right_location.0 - top_left_location.0), 1);
+                        left_middle_contact_corner = (self.width - 2, 1);
+                        left_middle_contact_corner_delta = (1, -1);
+                        middle_right_contact_corner = (self.width - 2, self.height - 2);
+                        middle_right_contact_corner_delta = (1, 1);
+                    }
+                    else if !is_top {
+
+                        left_side_wall_indexes = &left_wall_indexes;
+                        middle_side_wall_indexes = &bottom_wall_indexes;
+                        right_side_wall_indexes = &right_wall_indexes;
+                        origin = (1, self.height - 2 - (bottom_right_location.1 - top_left_location.1));
+                        left_middle_contact_corner = (1, self.height - 2);
+                        left_middle_contact_corner_delta = (-1, 1);
+                        middle_right_contact_corner = (self.width - 2, self.height - 2);
+                        middle_right_contact_corner_delta = (1, 1);
+                    }
+                    else if !is_right {
+
+                        left_side_wall_indexes = &top_wall_indexes;
+                        middle_side_wall_indexes = &left_side_wall_indexes;
+                        right_side_wall_indexes = &bottom_wall_indexes;
+                        origin = (1, 1);
+                        left_middle_contact_corner = (1, 1);
+                        left_middle_contact_corner_delta = (-1, -1);
+                        middle_right_contact_corner = (1, self.height - 2);
+                        middle_right_contact_corner_delta = (-1, 1);
+                    }
+                    else if !is_bottom {
+
+                        left_side_wall_indexes = &left_wall_indexes;
+                        middle_side_wall_indexes = &top_wall_indexes;
+                        right_side_wall_indexes = &right_wall_indexes;
+                        origin = (1, 1);
+                        left_middle_contact_corner = (1, 1);
+                        left_middle_contact_corner_delta = (-1, -1);
+                        middle_right_contact_corner = (self.width - 2, 1);
+                        middle_right_contact_corner_delta = (1, -1);
+                    }
+                    else {
+                        panic!("Unexpected lack of walls for wall-adjacent at index {}: {:?}", wall_adjacent_index, wall_adjacent);
+                    }
+                    
+                    // keep the wall adjacent in contact with the first_side_wall and second_side_wall
+                    //      iterate over every possible location for each wall in the first_side_wall and second_side_wall
+
+                    let possible_wall_location_index_incrementer: IndexIncrementer;
+                    let wall_indexes: Vec<usize> = left_side_wall_indexes.iter().cloned().chain(middle_side_wall_indexes.iter().cloned().chain(right_side_wall_indexes.iter().cloned())).collect();
+
+                    // initialize possible wall location index incrementer
+                    {
+                        let mut maximum_exclusive_possible_wall_location_indexes: Vec<usize> = Vec::new();
+                        for wall_index in wall_indexes.iter() {
+                            let maximum_exclusive_possible_wall_location_index = possible_locations_per_wall_index.get(wall_index).unwrap().len();
+                            maximum_exclusive_possible_wall_location_indexes.push(maximum_exclusive_possible_wall_location_index);
+                        }
+                        possible_wall_location_index_incrementer = IndexIncrementer::new(maximum_exclusive_possible_wall_location_indexes);
+                    }
+
+                    let mut applicable_wall_adjacent_detection_locations_per_location: HashMap<(usize, usize), Vec<(usize, usize)>> = HashMap::new();
+
+                    // collect the placed_placable locations that would overlap with a wall as it exists in both contact corners
+                    {
+                        let mut applicable_wall_adjacent_detection_locations: Vec<(usize, usize)> = Vec::new();
+                        for placed_placable in wall_adjacent.placed_placables.iter() {
+                            let calculated_placed_placable_location: (usize, usize) = (placed_placable.location.0 - top_left_location.0 + origin.0, placed_placable.location.1 - top_left_location.1 + origin.1);
+
+                            if calculated_placed_placable_location.0 == left_middle_contact_corner.0 {
+                                // move from the current direction into the direction of the wall (if this axis is main wall adjacent) or into the direction of the first wall (if this axis is first wall adjacent)
+                                let detection_location: (usize, usize) = ((calculated_placed_placable_location.0 as i8 + left_middle_contact_corner_delta.0) as usize, calculated_placed_placable_location.1);
+                                applicable_wall_adjacent_detection_locations.push(detection_location);
+                            }
+                            if calculated_placed_placable_location.1 == left_middle_contact_corner.1 {
+                                let detection_location: (usize, usize) = (calculated_placed_placable_location.0, (calculated_placed_placable_location.1 as i8 + left_middle_contact_corner_delta.1) as usize);
+                                applicable_wall_adjacent_detection_locations.push(detection_location);
+                            }
+                            if calculated_placed_placable_location.0 == middle_right_contact_corner.0 && left_middle_contact_corner.0 != middle_right_contact_corner.0 {
+                                // move from the current direction into the direction of the wall (if this axis is main wall adjacent) or into the direction of the first wall (if this axis is first wall adjacent)
+                                let detection_location: (usize, usize) = ((calculated_placed_placable_location.0 as i8 + middle_right_contact_corner_delta.0) as usize, calculated_placed_placable_location.1);
+                                applicable_wall_adjacent_detection_locations.push(detection_location);
+                            }
+                            if calculated_placed_placable_location.1 == middle_right_contact_corner.1 && left_middle_contact_corner.1 != middle_right_contact_corner.1 {
+                                let detection_location: (usize, usize) = (calculated_placed_placable_location.0, (calculated_placed_placable_location.1 as i8 + middle_right_contact_corner_delta.1) as usize);
+                                applicable_wall_adjacent_detection_locations.push(detection_location);
+                            }
+                        }
+                        applicable_wall_adjacent_detection_locations_per_location.insert(origin, applicable_wall_adjacent_detection_locations);
+                    }
+
+                    wall_incrementer_and_wall_adjacent_tuples.push((possible_wall_location_index_incrementer, applicable_wall_adjacent_detection_locations_per_location, wall_indexes));
                 }
                 else if touching_walls_total == 4 {
-                    todo!();
+
+                    // the wall-adjacent is stuck in all four corners
+                    let origin: (usize, usize) = (1, 1);
+                    let top_left_contact_corner: (usize, usize) = (1, 1);
+                    let top_left_contact_corner_delta: (i8, i8) = (-1, -1);
+                    let bottom_right_contact_corner: (usize, usize) = (self.width - 2, self.height - 2);
+                    let bottom_right_contact_corner_delta: (i8, i8) = (1, 1);
+
+                    // keep the wall adjacent in contact with all four walls, so exactly where it is currently located
+                    //      iterate over every possible location for each wall
+
+                    let possible_wall_location_index_incrementer: IndexIncrementer;
+                    let wall_indexes: Vec<usize> = left_wall_indexes.iter().cloned().chain(top_wall_indexes.iter().cloned().chain(right_wall_indexes.iter().cloned().chain(bottom_wall_indexes.iter().cloned()))).collect();
+
+                    // initialize possible wall location index incrementer
+                    {
+                        let mut maximum_exclusive_possible_wall_location_indexes: Vec<usize> = Vec::new();
+                        for wall_index in wall_indexes.iter() {
+                            let maximum_exclusive_possible_wall_location_index = possible_locations_per_wall_index.get(wall_index).unwrap().len();
+                            maximum_exclusive_possible_wall_location_indexes.push(maximum_exclusive_possible_wall_location_index);
+                        }
+                        possible_wall_location_index_incrementer = IndexIncrementer::new(maximum_exclusive_possible_wall_location_indexes);
+                    }
+
+                    let mut applicable_wall_adjacent_detection_locations_per_location: HashMap<(usize, usize), Vec<(usize, usize)>> = HashMap::new();
+
+                    // collect the placed_placable locations that would overlap with a wall as it exists in the contact corner
+                    {
+                        let mut applicable_wall_adjacent_detection_locations: Vec<(usize, usize)> = Vec::new();
+                        for placed_placable in wall_adjacent.placed_placables.iter() {
+                            let calculated_placed_placable_location: (usize, usize) = (placed_placable.location.0 - top_left_location.0 + origin.0, placed_placable.location.1 - top_left_location.1 + origin.1);
+
+                            if calculated_placed_placable_location.0 == top_left_contact_corner.0 {
+                                // move from the current direction into the direction of the wall (if this axis is main wall adjacent) or into the direction of the first wall (if this axis is first wall adjacent)
+                                let detection_location: (usize, usize) = ((calculated_placed_placable_location.0 as i8 + top_left_contact_corner_delta.0) as usize, calculated_placed_placable_location.1);
+                                applicable_wall_adjacent_detection_locations.push(detection_location);
+                            }
+                            if calculated_placed_placable_location.1 == top_left_contact_corner.1 {
+                                let detection_location: (usize, usize) = (calculated_placed_placable_location.0, (calculated_placed_placable_location.1 as i8 + top_left_contact_corner_delta.1) as usize);
+                                applicable_wall_adjacent_detection_locations.push(detection_location);
+                            }
+                            if calculated_placed_placable_location.0 == bottom_right_contact_corner.0 {
+                                // move from the current direction into the direction of the wall (if this axis is main wall adjacent) or into the direction of the first wall (if this axis is first wall adjacent)
+                                let detection_location: (usize, usize) = ((calculated_placed_placable_location.0 as i8 + bottom_right_contact_corner_delta.0) as usize, calculated_placed_placable_location.1);
+                                applicable_wall_adjacent_detection_locations.push(detection_location);
+                            }
+                            if calculated_placed_placable_location.1 == bottom_right_contact_corner.1 {
+                                let detection_location: (usize, usize) = (calculated_placed_placable_location.0, (calculated_placed_placable_location.1 as i8 + bottom_right_contact_corner_delta.1) as usize);
+                                applicable_wall_adjacent_detection_locations.push(detection_location);
+                            }
+                        }
+                        applicable_wall_adjacent_detection_locations_per_location.insert(origin, applicable_wall_adjacent_detection_locations);
+                    }
+
+                    wall_incrementer_and_wall_adjacent_tuples.push((possible_wall_location_index_incrementer, applicable_wall_adjacent_detection_locations_per_location, wall_indexes));
                 }
                 else {
                     panic!("Unexpected number of walls in contact with wall-adjacent {}: {:?}", wall_adjacent_index, wall_adjacent);
                 }
+
+                debug!("iterating over possible wall location incrementers and such");
+
+                // iterate over the possible wall location incrementers and where wall-adjacents can be located in order to find valid locations for wall-adjacents
+                {
+                    let mut wall_locations_per_wall_index_per_wall_adjacent_location: HashMap<(usize, usize), HashMap<usize, HashSet<(usize, usize)>>> = HashMap::new();
+                    for (mut incrementer, applicable_wall_adjacent_detection_locations_per_location, wall_indexes) in wall_incrementer_and_wall_adjacent_tuples.into_iter() {
+                        for (potential_wall_adjacent_location, applicable_wall_adjacent_detection_locations) in applicable_wall_adjacent_detection_locations_per_location.into_iter() {
+
+                            let mut is_wall_iteration_successful: bool = true;
+                            while is_wall_iteration_successful {
+                                let mut discovered_wall_location_per_wall_index: HashMap<usize, (usize, usize)> = HashMap::new();
+
+                                // get the current location indexes for each wall as a parallel array to wall_indexes
+                                let possible_wall_location_indexes = incrementer.get();
+
+                                // iterate over all local walls, storing which wall indexes and their locations are detected next to this wall-adjacent
+                                for (wall_index, location_index) in zip(wall_indexes.iter().copied(), possible_wall_location_indexes.into_iter()) {
+                                    let wall_location = possible_locations_per_wall_index.get(&wall_index).unwrap()[location_index];
+                                    let wall: &PlacedPlacableCollection = &wall_per_index[wall_index];
+                                    let placed_placable_location_delta: (i8, i8) = (wall_location.0 as i8 - wall.placed_placables[0].location.0 as i8, wall_location.1 as i8 - wall.placed_placables[0].location.1 as i8);
+                                    for placed_placable in wall_per_index[wall_index].placed_placables.iter() {
+                                        let calculated_wall_placed_placable_location = ((placed_placable.location.0 as i8 + placed_placable_location_delta.0) as usize, (placed_placable.location.1 as i8 + placed_placable_location_delta.1) as usize);
+                                        if applicable_wall_adjacent_detection_locations.contains(&calculated_wall_placed_placable_location) {
+                                            // this wall is detected to be adjacent to this wall-adjacent
+                                            discovered_wall_location_per_wall_index.insert(wall_index, wall_location);
+                                            break;
+                                        }
+                                    }
+                                }
+                                
+                                // check that the discovered adjacent wall indexes match the exactly expected wall indexes
+                                let original_wall_indexes = wall_indexes_per_wall_adjacent_index.get(&wall_adjacent_index).unwrap();
+                                if discovered_wall_location_per_wall_index.len() == original_wall_indexes.len() {
+                                    let mut is_all_discovered_wall_indexes_same_as_original_wall_indexes: bool = true;
+                                    for wall_index in discovered_wall_location_per_wall_index.keys() {
+                                        if !original_wall_indexes.contains(wall_index) {
+                                            is_all_discovered_wall_indexes_same_as_original_wall_indexes = false;
+                                            break;
+                                        }
+                                    }
+                                    if is_all_discovered_wall_indexes_same_as_original_wall_indexes {
+                                        // the wall indexes found at this combination of wall-adjacent location and all relevant wall locations correspond with the original locations
+
+                                        if !wall_locations_per_wall_index_per_wall_adjacent_location.contains_key(&potential_wall_adjacent_location) {
+                                            wall_locations_per_wall_index_per_wall_adjacent_location.insert(potential_wall_adjacent_location, HashMap::new());
+                                        }
+                                        for (wall_index, wall_location) in discovered_wall_location_per_wall_index.into_iter() {
+                                            if !wall_locations_per_wall_index_per_wall_adjacent_location.get(&potential_wall_adjacent_location).unwrap().contains_key(&wall_index) {
+                                                wall_locations_per_wall_index_per_wall_adjacent_location.get_mut(&potential_wall_adjacent_location).unwrap().insert(wall_index, HashSet::new());
+                                            }
+
+                                            // store the wall-adjacent location and wall locations for node state collection purposes
+                                            wall_locations_per_wall_index_per_wall_adjacent_location.get_mut(&potential_wall_adjacent_location).unwrap().get_mut(&wall_index).unwrap().insert(wall_location);
+                                        }
+                                    }
+                                }
+
+                                is_wall_iteration_successful = incrementer.try_increment();
+                            }
+                        }
+                    }
+                    wall_locations_per_wall_index_per_wall_adjacent_location_per_wall_adjacent_index.insert(wall_adjacent_index, wall_locations_per_wall_index_per_wall_adjacent_location);
+                }
+
+                debug!("iterated over possible wall location incrementers and such");
+
             }
+
+            debug!("wall_locations_per_wall_index_per_wall_adjacent_location_per_wall_adjacent_index: {:?}", wall_locations_per_wall_index_per_wall_adjacent_location_per_wall_adjacent_index);
+        }
+
+        // collect possible wall-adjacent locations per wall-adjacent location
+
+        let mut possible_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index: HashMap<usize, HashMap<(usize, usize), HashMap<usize, Vec<(usize, usize)>>>> = HashMap::new();
+
+        {
+            for (wall_adjacent_index, wall_adjacent) in wall_adjacents.iter().enumerate() {
+                
+                possible_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index.insert(wall_adjacent_index, HashMap::new());
+                let wall_adjacent_top_left_location = top_left_location_per_wall_adjacent_index.get(&wall_adjacent_index).unwrap();
+
+                for (other_wall_adjacent_index, other_wall_adjacent) in wall_adjacents.iter().enumerate() {
+
+                    let other_wall_adjacent_top_left_location = top_left_location_per_wall_adjacent_index.get(&other_wall_adjacent_index).unwrap();
+
+                    if wall_adjacent_index != other_wall_adjacent_index {
+                        
+                        // check that when the wall_adjacent is at each possible location, that the other_wall_adjacent is not overlapping or directly adjacent
+
+                        for wall_adjacent_location in wall_locations_per_wall_index_per_wall_adjacent_location_per_wall_adjacent_index.get(&wall_adjacent_index).unwrap().keys() {
+
+                            if !possible_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index.get(&wall_adjacent_index).unwrap().contains_key(wall_adjacent_location) {
+                                possible_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index.get_mut(&wall_adjacent_index).unwrap().insert(wall_adjacent_location.to_owned(), HashMap::new());
+                            }
+                            if !possible_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index.get(&wall_adjacent_index).unwrap().get(wall_adjacent_location).unwrap().contains_key(&other_wall_adjacent_index) {
+                                possible_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index.get_mut(&wall_adjacent_index).unwrap().get_mut(wall_adjacent_location).unwrap().insert(other_wall_adjacent_index, Vec::new());
+                            }
+
+                            // collect detection locations that the other wall-adjacent cannot exist at
+                            let mut wall_adjacent_detection_locations: HashSet<(usize, usize)> = HashSet::new();
+                            for placed_placable in wall_adjacent.placed_placables.iter() {
+                                let calculated_placed_placable_location = (placed_placable.location.0 - wall_adjacent_top_left_location.0 + wall_adjacent_location.0, placed_placable.location.1 - wall_adjacent_top_left_location.1 + wall_adjacent_location.1);
+                                wall_adjacent_detection_locations.insert(calculated_placed_placable_location);
+                                wall_adjacent_detection_locations.insert((calculated_placed_placable_location.0 - 1, calculated_placed_placable_location.1));
+                                wall_adjacent_detection_locations.insert((calculated_placed_placable_location.0 + 1, calculated_placed_placable_location.1));
+                                wall_adjacent_detection_locations.insert((calculated_placed_placable_location.0, calculated_placed_placable_location.1 - 1));
+                                wall_adjacent_detection_locations.insert((calculated_placed_placable_location.0, calculated_placed_placable_location.1 + 1));
+                            }
+
+                            for other_wall_adjacent_location in wall_locations_per_wall_index_per_wall_adjacent_location_per_wall_adjacent_index.get(&other_wall_adjacent_index).unwrap().keys() {
+                                let mut is_other_wall_adjacent_permitted_at_location: bool = true;
+                                for placed_placable in other_wall_adjacent.placed_placables.iter() {
+                                    let calculated_placed_placable_location = (placed_placable.location.0 - other_wall_adjacent_top_left_location.0 + other_wall_adjacent_location.0, placed_placable.location.1 - other_wall_adjacent_top_left_location.1 + other_wall_adjacent_location.1);
+                                    if wall_adjacent_detection_locations.contains(&calculated_placed_placable_location) {
+                                        is_other_wall_adjacent_permitted_at_location = false;
+                                        break;
+                                    }
+                                }
+                                if is_other_wall_adjacent_permitted_at_location {
+                                    possible_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index.get_mut(&wall_adjacent_index).unwrap().get_mut(wall_adjacent_location).unwrap().get_mut(&other_wall_adjacent_index).unwrap().push(other_wall_adjacent_location.to_owned());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // limit wall-adjacent locations to only those that do not over-restrict another wall-adjacent
+
+        let mut unrestricted_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index: HashMap<usize, HashMap<(usize, usize), HashMap<usize, Vec<(usize, usize)>>>> = HashMap::new();
+
+        {
+            for wall_adjacent_index in possible_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index.keys() {
+                for wall_adjacent_location in possible_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index.get(wall_adjacent_index).unwrap().keys() {
+                    let mut is_at_least_one_other_wall_adjacent_fully_restricted: bool = false;
+                    for other_wall_adjacent_index in possible_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index.get(wall_adjacent_index).unwrap().get(wall_adjacent_location).unwrap().keys() {
+                        if possible_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index.get(wall_adjacent_index).unwrap().get(wall_adjacent_location).unwrap().get(other_wall_adjacent_index).unwrap().is_empty() {
+                            is_at_least_one_other_wall_adjacent_fully_restricted = true;
+                            break;
+                        }
+                    }
+                    if !is_at_least_one_other_wall_adjacent_fully_restricted {
+                        if !unrestricted_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index.contains_key(wall_adjacent_index) {
+                            unrestricted_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index.insert(wall_adjacent_index.to_owned(), HashMap::new());
+                        }
+                        if !unrestricted_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index.get(wall_adjacent_index).unwrap().contains_key(wall_adjacent_location) {
+                            unrestricted_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index.get_mut(wall_adjacent_index).unwrap().insert(wall_adjacent_location.to_owned(), HashMap::new());
+                        }
+                        for other_wall_adjacent_index in possible_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index.get(wall_adjacent_index).unwrap().get(wall_adjacent_location).unwrap().keys() {
+                            unrestricted_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index.get_mut(wall_adjacent_index).unwrap().get_mut(wall_adjacent_location).unwrap().insert(other_wall_adjacent_index.to_owned(), possible_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index.get(wall_adjacent_index).unwrap().get(wall_adjacent_location).unwrap().get(other_wall_adjacent_index).unwrap().clone());
+                        }
+                    }
+                }
+            }
+
+            debug!("unrestricted_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index: {:?}", unrestricted_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index.get(&2).unwrap());
         }
 
         // collect PlacedPlacableCollection instances representing the floaters
