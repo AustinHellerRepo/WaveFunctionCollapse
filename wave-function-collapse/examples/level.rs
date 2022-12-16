@@ -5,7 +5,7 @@ use log::debug;
 use rand::Rng;
 use serde::{Serialize, Deserialize};
 use uuid::Uuid;
-use wave_function_collapse::wave_function::{Node, NodeStateCollection, WaveFunction, collapsable_wave_function::{entropic_collapsable_wave_function::EntropicCollapsableWaveFunction, collapsable_wave_function::CollapsableWaveFunction, accommodating_collapsable_wave_function::AccommodatingCollapsableWaveFunction}, AnonymousNodeStateCollection};
+use wave_function_collapse::wave_function::{Node, NodeStateCollection, WaveFunction, collapsable_wave_function::{entropic_collapsable_wave_function::EntropicCollapsableWaveFunction, collapsable_wave_function::CollapsableWaveFunction, accommodating_collapsable_wave_function::AccommodatingCollapsableWaveFunction}, AnonymousNodeStateCollection, NodeStateProbability};
 use std::iter::zip;
 
 fn print_pixel(color: &[u8; 4]) {
@@ -362,14 +362,16 @@ impl Level {
         let mut bottom_wall_indexes: Vec<usize> = Vec::new();
         let mut left_wall_indexes: Vec<usize> = Vec::new();
         let mut walls: Vec<PlacedPlacableCollection> = Vec::new();
-        let mut possible_locations_per_wall_index: HashMap<usize, Vec<(usize, usize)>> = HashMap::new();
+        // This contains the possible locations that each wall could exist at
+        let mut raw_locations_per_wall_index: HashMap<usize, Vec<(usize, usize)>> = HashMap::new();
+        // This contains the permutation-based walls and the possible locations of other walls since they can move around each other and are dependent upon each other
         let mut other_wall_possible_locations_per_other_wall_index_per_location_per_wall_index: HashMap<usize, HashMap<(usize, usize), HashMap<usize, Vec<(usize, usize)>>>> = HashMap::new();
         
         {
             let mut current_wall_index: usize = 0;
 
             // iterate over each wall
-            for ((edge_walls, is_horizontal), width_or_height) in zip(zip([top_walls, bottom_walls, left_walls, right_walls], [true, true, false, false]), [0, self.height - 1, 0, self.width - 1]) {
+            for ((edge_walls, is_horizontal), width_or_height) in zip(zip([top_walls.clone(), bottom_walls.clone(), left_walls.clone(), right_walls.clone()], [true, true, false, false]), [0, self.height - 1, 0, self.width - 1]) {
                 debug!("trying edge_walls {:?} which are located at {}", edge_walls, width_or_height);
 
                 if is_horizontal {
@@ -405,7 +407,7 @@ impl Level {
 
                             let mut possible_locations: Vec<(usize, usize)> = Vec::new();
                             possible_locations.push(wall.placed_placables[0].location);
-                            possible_locations_per_wall_index.insert(current_wall_index, possible_locations);
+                            raw_locations_per_wall_index.insert(current_wall_index, possible_locations);
                         }
                         else if wall.placed_placables[0].location.1 == 0 && !is_horizontal {
                             // the wall is stuck in the top-left or top-right corner
@@ -413,7 +415,7 @@ impl Level {
 
                             let mut possible_locations: Vec<(usize, usize)> = Vec::new();
                             possible_locations.push(wall.placed_placables[0].location);
-                            possible_locations_per_wall_index.insert(current_wall_index, possible_locations);
+                            raw_locations_per_wall_index.insert(current_wall_index, possible_locations);
                         }
                         else if wall.placed_placables[wall.placed_placables.len() - 1].location.0 == self.width - 1 && is_horizontal {
                             // the wall is stuck in the top-right or bottom-right corner
@@ -421,7 +423,7 @@ impl Level {
 
                             let mut possible_locations: Vec<(usize, usize)> = Vec::new();
                             possible_locations.push(wall.placed_placables[0].location);
-                            possible_locations_per_wall_index.insert(current_wall_index, possible_locations);
+                            raw_locations_per_wall_index.insert(current_wall_index, possible_locations);
                         }
                         else if wall.placed_placables[wall.placed_placables.len() - 1].location.1 == self.height - 1 && !is_horizontal {
                             // the wall is stuck in the bottom-left or bottom-right corner
@@ -429,7 +431,7 @@ impl Level {
 
                             let mut possible_locations: Vec<(usize, usize)> = Vec::new();
                             possible_locations.push(wall.placed_placables[0].location);
-                            possible_locations_per_wall_index.insert(current_wall_index, possible_locations);
+                            raw_locations_per_wall_index.insert(current_wall_index, possible_locations);
                         }
                         else {
                             debug!("found wall unstuck from any corners");
@@ -502,11 +504,11 @@ impl Level {
                                     location = (width_or_height, located_segment.position + left_most_length);
                                 }
 
-                                if !possible_locations_per_wall_index.contains_key(&located_segment.id) {
-                                    possible_locations_per_wall_index.insert(located_segment.id.clone(), Vec::new());
+                                if !raw_locations_per_wall_index.contains_key(&located_segment.id) {
+                                    raw_locations_per_wall_index.insert(located_segment.id.clone(), Vec::new());
                                 }
-                                if !possible_locations_per_wall_index.get(&located_segment.id).unwrap().contains(&location) {
-                                    possible_locations_per_wall_index.get_mut(&located_segment.id).unwrap().push(location.clone());
+                                if !raw_locations_per_wall_index.get(&located_segment.id).unwrap().contains(&location) {
+                                    raw_locations_per_wall_index.get_mut(&located_segment.id).unwrap().push(location.clone());
                                 }
 
                                 for (other_located_segment_index, other_located_segment) in permutation.iter().enumerate() {
@@ -538,7 +540,7 @@ impl Level {
                 }
             }
 
-            debug!("possible_locations_per_wall_index: {:?}", possible_locations_per_wall_index);
+            debug!("raw_locations_per_wall_index: {:?}", raw_locations_per_wall_index);
             debug!("other_wall_possible_locations_per_other_wall_index_per_location_per_wall_index: {:?}", other_wall_possible_locations_per_other_wall_index_per_location_per_wall_index);
         }
 
@@ -553,6 +555,7 @@ impl Level {
                     let location = (width_index, height_index);
                     if placed_placable_per_location.contains_key(&location) && !traveled_locations.contains(&location) {
 
+                        let mut is_next_to_at_least_one_wall: bool = false;
                         let mut wall_adjacent: PlacedPlacableCollection = PlacedPlacableCollection::default();
                         let mut wall_adjacent_locations: VecDeque<(usize, usize)> = VecDeque::new();
                         wall_adjacent_locations.push_back(location);
@@ -566,10 +569,36 @@ impl Level {
                                     wall_adjacent_locations.push_back(left_location);
                                 }
                             }
+                            else {
+                                let potential_wall_location = (location.0 - 1, location.1);
+                                'search_walls: {
+                                    for wall in left_walls.iter() {
+                                        for placed_placable in wall.placed_placables.iter() {
+                                            if placed_placable.location == potential_wall_location {
+                                                is_next_to_at_least_one_wall = true;
+                                                break 'search_walls;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                             if location.1 != 1 {
                                 let top_location = (location.0, location.1 - 1);
                                 if placed_placable_per_location.contains_key(&top_location) && !traveled_locations.contains(&top_location) {
                                     wall_adjacent_locations.push_back(top_location);
+                                }
+                            }
+                            else {
+                                let potential_wall_location = (location.0, location.1 - 1);
+                                'search_walls: {
+                                    for wall in top_walls.iter() {
+                                        for placed_placable in wall.placed_placables.iter() {
+                                            if placed_placable.location == potential_wall_location {
+                                                is_next_to_at_least_one_wall = true;
+                                                break 'search_walls;
+                                            }
+                                        }
+                                    }
                                 }
                             }
                             if location.0 != self.width - 2 {
@@ -578,10 +607,36 @@ impl Level {
                                     wall_adjacent_locations.push_back(right_location);
                                 }
                             }
+                            else {
+                                let potential_wall_location = (location.0 + 1, location.1);
+                                'search_walls: {
+                                    for wall in right_walls.iter() {
+                                        for placed_placable in wall.placed_placables.iter() {
+                                            if placed_placable.location == potential_wall_location {
+                                                is_next_to_at_least_one_wall = true;
+                                                break 'search_walls;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                             if location.1 != self.height - 2 {
                                 let bottom_location = (location.0, location.1 + 1);
                                 if placed_placable_per_location.contains_key(&bottom_location) && !traveled_locations.contains(&bottom_location) {
                                     wall_adjacent_locations.push_back(bottom_location);
+                                }
+                            }
+                            else {
+                                let potential_wall_location = (location.0, location.1 + 1);
+                                'search_walls: {
+                                    for wall in bottom_walls.iter() {
+                                        for placed_placable in wall.placed_placables.iter() {
+                                            if placed_placable.location == potential_wall_location {
+                                                is_next_to_at_least_one_wall = true;
+                                                break 'search_walls;
+                                            }
+                                        }
+                                    }
                                 }
                             }
 
@@ -589,7 +644,9 @@ impl Level {
                             traveled_locations.insert(location);
                         }
 
-                        wall_adjacents.push(wall_adjacent);
+                        if is_next_to_at_least_one_wall {
+                            wall_adjacents.push(wall_adjacent);
+                        }
                     }
                 }
             }
@@ -598,6 +655,7 @@ impl Level {
                     let location = (width_index, height_index);
                     if placed_placable_per_location.contains_key(&location) && !traveled_locations.contains(&location) {
 
+                        let mut is_next_to_at_least_one_wall: bool = false;
                         let mut wall_adjacent: PlacedPlacableCollection = PlacedPlacableCollection::default();
                         let mut wall_adjacent_locations: VecDeque<(usize, usize)> = VecDeque::new();
                         wall_adjacent_locations.push_back(location);
@@ -611,10 +669,36 @@ impl Level {
                                     wall_adjacent_locations.push_back(left_location);
                                 }
                             }
+                            else {
+                                let potential_wall_location = (location.0 - 1, location.1);
+                                'search_walls: {
+                                    for wall in left_walls.iter() {
+                                        for placed_placable in wall.placed_placables.iter() {
+                                            if placed_placable.location == potential_wall_location {
+                                                is_next_to_at_least_one_wall = true;
+                                                break 'search_walls;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                             if location.1 != 1 {
                                 let top_location = (location.0, location.1 - 1);
                                 if placed_placable_per_location.contains_key(&top_location) && !traveled_locations.contains(&top_location) {
                                     wall_adjacent_locations.push_back(top_location);
+                                }
+                            }
+                            else {
+                                let potential_wall_location = (location.0, location.1 - 1);
+                                'search_walls: {
+                                    for wall in top_walls.iter() {
+                                        for placed_placable in wall.placed_placables.iter() {
+                                            if placed_placable.location == potential_wall_location {
+                                                is_next_to_at_least_one_wall = true;
+                                                break 'search_walls;
+                                            }
+                                        }
+                                    }
                                 }
                             }
                             if location.0 != self.width - 2 {
@@ -623,10 +707,36 @@ impl Level {
                                     wall_adjacent_locations.push_back(right_location);
                                 }
                             }
+                            else {
+                                let potential_wall_location = (location.0 + 1, location.1);
+                                'search_walls: {
+                                    for wall in right_walls.iter() {
+                                        for placed_placable in wall.placed_placables.iter() {
+                                            if placed_placable.location == potential_wall_location {
+                                                is_next_to_at_least_one_wall = true;
+                                                break 'search_walls;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                             if location.1 != self.height - 2 {
                                 let bottom_location = (location.0, location.1 + 1);
                                 if placed_placable_per_location.contains_key(&bottom_location) && !traveled_locations.contains(&bottom_location) {
                                     wall_adjacent_locations.push_back(bottom_location);
+                                }
+                            }
+                            else {
+                                let potential_wall_location = (location.0, location.1 + 1);
+                                'search_walls: {
+                                    for wall in bottom_walls.iter() {
+                                        for placed_placable in wall.placed_placables.iter() {
+                                            if placed_placable.location == potential_wall_location {
+                                                is_next_to_at_least_one_wall = true;
+                                                break 'search_walls;
+                                            }
+                                        }
+                                    }
                                 }
                             }
 
@@ -634,7 +744,9 @@ impl Level {
                             traveled_locations.insert(location);
                         }
 
-                        wall_adjacents.push(wall_adjacent);
+                        if is_next_to_at_least_one_wall {
+                            wall_adjacents.push(wall_adjacent);
+                        }
                     }
                 }
             }
@@ -729,6 +841,8 @@ impl Level {
 
         let mut wall_locations_per_wall_index_per_wall_adjacent_location_per_wall_adjacent_index: HashMap<usize, HashMap<(usize, usize), HashMap<usize, HashSet<(usize, usize)>>>> = HashMap::new();
         let mut top_left_location_per_wall_adjacent_index: HashMap<usize, (usize, usize)> = HashMap::new();
+        // the wall locations when the possible wall-adjacent locations are considered
+        let mut filtered_locations_per_wall_index: HashMap<usize, Vec<(usize, usize)>> = HashMap::new();
 
         {
             for (wall_adjacent_index, wall_adjacent) in wall_adjacents.iter().enumerate() {
@@ -860,7 +974,7 @@ impl Level {
                     {
                         let mut maximum_exclusive_possible_wall_location_indexes: Vec<usize> = Vec::new();
                         for wall_index in first_wall_indexes.iter() {
-                            let maximum_exclusive_possible_wall_location_index = possible_locations_per_wall_index.get(wall_index).unwrap().len();
+                            let maximum_exclusive_possible_wall_location_index = raw_locations_per_wall_index.get(wall_index).unwrap().len();
                             maximum_exclusive_possible_wall_location_indexes.push(maximum_exclusive_possible_wall_location_index);
                         }
                         first_possible_wall_location_index_incrementer = IndexIncrementer::new(maximum_exclusive_possible_wall_location_indexes);
@@ -874,7 +988,7 @@ impl Level {
                     {
                         let mut maximum_exclusive_possible_wall_location_indexes: Vec<usize> = Vec::new();
                         for wall_index in main_wall_indexes.iter() {
-                            let maximum_exclusive_possible_wall_location_index = possible_locations_per_wall_index.get(wall_index).unwrap().len();
+                            let maximum_exclusive_possible_wall_location_index = raw_locations_per_wall_index.get(wall_index).unwrap().len();
                             maximum_exclusive_possible_wall_location_indexes.push(maximum_exclusive_possible_wall_location_index);
                         }
                         main_possible_wall_location_index_incrementer = IndexIncrementer::new(maximum_exclusive_possible_wall_location_indexes);
@@ -888,7 +1002,7 @@ impl Level {
                     {
                         let mut maximum_exclusive_possible_wall_location_indexes: Vec<usize> = Vec::new();
                         for wall_index in second_wall_indexes.iter() {
-                            let maximum_exclusive_possible_wall_location_index = possible_locations_per_wall_index.get(wall_index).unwrap().len();
+                            let maximum_exclusive_possible_wall_location_index = raw_locations_per_wall_index.get(wall_index).unwrap().len();
                             maximum_exclusive_possible_wall_location_indexes.push(maximum_exclusive_possible_wall_location_index);
                         }
                         second_possible_wall_location_index_incrementer = IndexIncrementer::new(maximum_exclusive_possible_wall_location_indexes);
@@ -1048,7 +1162,7 @@ impl Level {
                         {
                             let mut maximum_exclusive_possible_wall_location_indexes: Vec<usize> = Vec::new();
                             for wall_index in wall_indexes.iter() {
-                                let maximum_exclusive_possible_wall_location_index = possible_locations_per_wall_index.get(wall_index).unwrap().len();
+                                let maximum_exclusive_possible_wall_location_index = raw_locations_per_wall_index.get(wall_index).unwrap().len();
                                 maximum_exclusive_possible_wall_location_indexes.push(maximum_exclusive_possible_wall_location_index);
                             }
                             possible_wall_location_index_incrementer = IndexIncrementer::new(maximum_exclusive_possible_wall_location_indexes);
@@ -1150,7 +1264,7 @@ impl Level {
                     {
                         let mut maximum_exclusive_possible_wall_location_indexes: Vec<usize> = Vec::new();
                         for wall_index in wall_indexes.iter() {
-                            let maximum_exclusive_possible_wall_location_index = possible_locations_per_wall_index.get(wall_index).unwrap().len();
+                            let maximum_exclusive_possible_wall_location_index = raw_locations_per_wall_index.get(wall_index).unwrap().len();
                             maximum_exclusive_possible_wall_location_indexes.push(maximum_exclusive_possible_wall_location_index);
                         }
                         possible_wall_location_index_incrementer = IndexIncrementer::new(maximum_exclusive_possible_wall_location_indexes);
@@ -1207,7 +1321,7 @@ impl Level {
                     {
                         let mut maximum_exclusive_possible_wall_location_indexes: Vec<usize> = Vec::new();
                         for wall_index in wall_indexes.iter() {
-                            let maximum_exclusive_possible_wall_location_index = possible_locations_per_wall_index.get(wall_index).unwrap().len();
+                            let maximum_exclusive_possible_wall_location_index = raw_locations_per_wall_index.get(wall_index).unwrap().len();
                             maximum_exclusive_possible_wall_location_indexes.push(maximum_exclusive_possible_wall_location_index);
                         }
                         possible_wall_location_index_incrementer = IndexIncrementer::new(maximum_exclusive_possible_wall_location_indexes);
@@ -1266,7 +1380,7 @@ impl Level {
 
                                 // iterate over all local walls, storing which wall indexes and their locations are detected next to this wall-adjacent
                                 for (wall_index, location_index) in zip(wall_indexes.iter().copied(), possible_wall_location_indexes.into_iter()) {
-                                    let wall_location = possible_locations_per_wall_index.get(&wall_index).unwrap()[location_index];
+                                    let wall_location = raw_locations_per_wall_index.get(&wall_index).unwrap()[location_index];
                                     let wall: &PlacedPlacableCollection = &walls[wall_index];
                                     let placed_placable_location_delta: (i8, i8) = (wall_location.0 as i8 - wall.placed_placables[0].location.0 as i8, wall_location.1 as i8 - wall.placed_placables[0].location.1 as i8);
                                     for placed_placable in walls[wall_index].placed_placables.iter() {
@@ -1302,6 +1416,14 @@ impl Level {
 
                                             // store the wall-adjacent location and wall locations for node state collection purposes
                                             wall_locations_per_wall_index_per_wall_adjacent_location.get_mut(&potential_wall_adjacent_location).unwrap().get_mut(&wall_index).unwrap().insert(wall_location);
+
+                                            // store the filtered wall locations since they are expected to be reduced as part of this process
+                                            if !filtered_locations_per_wall_index.contains_key(&wall_index) {
+                                                filtered_locations_per_wall_index.insert(wall_index, Vec::new());
+                                            }
+                                            if !filtered_locations_per_wall_index.get(&wall_index).unwrap().contains(&wall_location) {
+                                                filtered_locations_per_wall_index.get_mut(&wall_index).unwrap().push(wall_location);
+                                            }
                                         }
                                     }
                                 }
@@ -1451,6 +1573,12 @@ impl Level {
         {
             // TODO consider the influence of large floaters
             
+            for wall_adjacent_index in unrestricted_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index.keys() {
+                permitted_wall_adjacent_locations_per_wall_adjacent_index.insert(wall_adjacent_index.to_owned(), Vec::new());
+                for wall_adjacent_location in unrestricted_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index.get(wall_adjacent_index).unwrap().keys() {
+                    permitted_wall_adjacent_locations_per_wall_adjacent_index.get_mut(wall_adjacent_index).unwrap().push(wall_adjacent_location.to_owned());
+                }
+            }
         }
 
         // determine the wall locations that are possible now that they have been further restricted by wall-adjacents which were restricted by large floaters
@@ -1459,12 +1587,12 @@ impl Level {
 
         {
             // TODO use the latest wall-adjacent locations once the large floaters logic is implemented
-            for (wall_index, wall_locations) in possible_locations_per_wall_index.iter() {
+            for (wall_index, wall_locations) in raw_locations_per_wall_index.iter() {
                 permitted_wall_locations_per_wall_index.insert(wall_index.to_owned(), Vec::new());
                 for wall_location in wall_locations.iter() {
-                    let is_wall_location_permitted_by_every_wall_adjacent: bool = true;
+                    let mut is_wall_location_permitted_by_every_wall_adjacent: bool = true;
                     for wall_adjacent_index in unrestricted_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index.keys() {
-                        let is_found_for_at_least_one_wall_adjacent_location: bool = false;
+                        let mut is_found_for_at_least_one_wall_adjacent_location: bool = false;
                         for wall_adjacent_location in unrestricted_wall_adjacent_locations_per_wall_adjacent_index_per_wall_adjacent_location_per_wall_adjacent_index.get(wall_adjacent_index).unwrap().keys() {
                             if wall_locations_per_wall_index_per_wall_adjacent_location_per_wall_adjacent_index.get(wall_adjacent_index).unwrap().get(wall_adjacent_location).unwrap().contains_key(wall_index) &&
                                 wall_locations_per_wall_index_per_wall_adjacent_location_per_wall_adjacent_index.get(wall_adjacent_index).unwrap().get(wall_adjacent_location).unwrap().get(wall_index).unwrap().contains(wall_location) {
@@ -1562,27 +1690,59 @@ impl Level {
 
         // construct the nodes
 
-        let mut node_id_per_wall_index: HashMap<usize, NodeIdentifier> = HashMap::new();
-        let mut node_id_per_wall_adjacent_index: HashMap<usize, NodeIdentifier> = HashMap::new();
+        let mut node_id_per_wall_index: HashMap<usize, Identifier> = HashMap::new();
+        let mut node_id_per_wall_adjacent_index: HashMap<usize, Identifier> = HashMap::new();
         let mut nodes: Vec<Node<Identifier, NodeState>> = Vec::new();
 
         {
             for wall_index in 0..walls.len() {
-                node_id_per_wall_index.insert(wall_index, NodeIdentifier { component_type: ComponentType::Wall, index: wall_index });
+                node_id_per_wall_index.insert(wall_index, Identifier::Node(NodeIdentifier { component_type: ComponentType::Wall, index: wall_index }));
             }
             for wall_adjacent_index in 0..wall_adjacents.len() {
-                node_id_per_wall_adjacent_index.insert(wall_adjacent_index, NodeIdentifier { component_type: ComponentType::WallAdjacent, index: wall_adjacent_index });
+                node_id_per_wall_adjacent_index.insert(wall_adjacent_index, Identifier::Node(NodeIdentifier { component_type: ComponentType::WallAdjacent, index: wall_adjacent_index }));
             }
             // TODO floaters
 
             for wall_index in 0..walls.len() {
-                let node_id = node_id_per_wall_index.get(wall_index).unwrap();
-                let possible_node_states: Vec<NodeState> = Vec::new();
+                let node_id = node_id_per_wall_index.get(&wall_index).unwrap();
+                let mut node_states: Vec<NodeState> = Vec::new();
 
-                // TODO update to use the latest collection of locations
+                for wall_location in permitted_wall_locations_per_wall_index.get(&wall_index).unwrap().iter() {
+                    node_states.push(NodeState {
+                        location: wall_location.to_owned()
+                    });
+                }
 
-                let node = Node::new(node_id.clone(), )
+                let node_state_collection_ids_per_neighbor_node_id: HashMap<Identifier, Vec<Identifier>> = HashMap::new();
+
+                // TODO tie the walls to the wall-adjacents
+
+                let node = Node::new(node_id.clone(), NodeStateProbability::get_equal_probability(node_states), node_state_collection_ids_per_neighbor_node_id);
+                nodes.push(node);
             }
+
+            for wall_adjacent_index in 0..wall_adjacents.len() {
+                let node_id = node_id_per_wall_adjacent_index.get(&wall_adjacent_index).unwrap();
+                let mut node_states: Vec<NodeState> = Vec::new();
+
+                for wall_adjacent_location in permitted_wall_adjacent_locations_per_wall_adjacent_index.get(&wall_adjacent_index).unwrap().iter() {
+                    node_states.push(NodeState {
+                        location: wall_adjacent_location.to_owned()
+                    });
+                }
+
+                let node_state_collection_ids_per_neighbor_node_id: HashMap<Identifier, Vec<Identifier>> = HashMap::new();
+
+                // TODO tie the wall-adjacents to the walls
+
+                // TODO tie the wall-adjacents to the floaters
+
+                let node = Node::new(node_id.clone(), NodeStateProbability::get_equal_probability(node_states), node_state_collection_ids_per_neighbor_node_id);
+                nodes.push(node);
+            }
+
+            // TODO create a similar loop for creating the nodes and node state collections, but for the floaters
+
         }
 
         let wave_function = WaveFunction::new(nodes, node_state_collections);
