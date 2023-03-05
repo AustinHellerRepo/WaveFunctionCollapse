@@ -11,17 +11,14 @@ keywords = ["wave-function", "generation", "procedural", "constraint", "wfc"]
 categories = ["algorithms", "data-structures", "game-development"]
 
 [dependencies]
-async-std = { version = "1.12.0", features = ["attributes"] }
 serde = { version = "1.0.147", features = ["derive"] }
 serde_json = "1.0.88"
-dyn-clone = "1.0.9"
 rand = { version = "0.8.5", features = ["default"] }
 rand_chacha = "0.3.1"
 bitvec = { version = "1.0.1" }
 uuid = { version = "1.2.2", features = ["v4"] }
 log = { version = "0.4.17" }
 pretty_env_logger = { version = "0.4.0" }
-string-builder = { version = "0.2.0" }
 ordered-float = { version = "3.4.0" }
 permutation = { version = "0.4.1" }
 indexmap = { version = "1.9.2" }
