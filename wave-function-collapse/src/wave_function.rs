@@ -54,7 +54,7 @@ impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> Node<TNodeState> {
         self.id.clone()
     }
     pub fn get_neighbor_node_ids(&self) -> Vec<String> {
-        self.node_state_collection_ids_per_neighbor_node_id.iter().map(|(n, _)| n.clone()).collect()
+        self.node_state_collection_ids_per_neighbor_node_id.keys().cloned().collect()
     }
 }
 
