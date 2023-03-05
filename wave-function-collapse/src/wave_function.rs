@@ -18,13 +18,10 @@ pub struct NodeStateProbability;
 
 impl NodeStateProbability {
     pub fn get_equal_probability(node_state_ids: Vec<String>) -> HashMap<String, f32> {
-        let mut node_state_probability_per_node_state_id: HashMap<String, f32> = HashMap::new();
-
-        for node_state_id in node_state_ids.into_iter() {
-            node_state_probability_per_node_state_id.insert(node_state_id, 1.0);
-        }
-
-        node_state_probability_per_node_state_id
+        node_state_ids
+          .into_iter()
+          .map(|id| (id, 1.))
+          .collect()
     }
 }
 
@@ -39,12 +36,7 @@ pub struct Node<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> {
 
 impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> Node<TNodeState> {
     pub fn new(id: String, node_state_ratio_per_node_state_id: HashMap<TNodeState, f32>, node_state_collection_ids_per_neighbor_node_id: HashMap<String, Vec<String>>) -> Self {
-        let mut node_state_ids: Vec<TNodeState> = Vec::new();
-        let mut node_state_ratios: Vec<f32> = Vec::new();
-        for (node_state_id, node_state_ratio) in node_state_ratio_per_node_state_id.iter() {
-            node_state_ids.push(node_state_id.clone());
-            node_state_ratios.push(*node_state_ratio);
-        }
+        let (mut node_state_ids, mut node_state_ratios): (Vec<TNodeState>, Vec<f32>) = node_state_ratio_per_node_state_id.into_iter().unzip();
         
         // sort the node_state_ids and node_state_probabilities
         let mut sort_permutation = permutation::sort(&node_state_ids);
@@ -62,11 +54,7 @@ impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> Node<TNodeState> {
         self.id.clone()
     }
     pub fn get_neighbor_node_ids(&self) -> Vec<String> {
-        let mut neighbor_node_ids: Vec<String> = Vec::new();
-        for (neighbor_node_id, _) in self.node_state_collection_ids_per_neighbor_node_id.iter() {
-            neighbor_node_ids.push(neighbor_node_id.clone());
-        }
-        neighbor_node_ids
+        self.node_state_collection_ids_per_neighbor_node_id.iter().map(|(n, _)| n.clone()).collect()
     }
 }
 
@@ -128,16 +116,13 @@ impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord + Serialize + Deseria
         let mut error_message = Option::None;
         
         // ensure that references neighbors are actually nodes
-        for (_, node) in node_per_id.iter() {
+        'neighbor_checks: for (_, node) in node_per_id.iter() {
             for (neighbor_node_id_string, _) in node.node_state_collection_ids_per_neighbor_node_id.iter() {
                 let neighbor_node_id: &str = neighbor_node_id_string;
                 if !node_ids.contains(neighbor_node_id) {
                     error_message = Some(format!("Neighbor node {neighbor_node_id} does not exist in main list of nodes."));
-                    break;
+                    break 'neighbor_checks;
                 }
-            }
-            if error_message.is_some() {
-                break;
             }
         }
 
@@ -174,7 +159,7 @@ impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord + Serialize + Deseria
             }
 
             if error_message.is_none() {
-                // TODO add more vaidation when needed
+                // TODO add more validation when needed
             }
         }
 
@@ -187,14 +172,10 @@ impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord + Serialize + Deseria
     }
 
     pub fn get_collapsable_wave_function<'a, TCollapsableWaveFunction: CollapsableWaveFunction<'a, TNodeState>>(&'a self, random_seed: Option<u64>) -> TCollapsableWaveFunction {
-        let mut node_per_id: HashMap<&str, &Node<TNodeState>> = HashMap::new();
-        self.nodes.iter().for_each(|node: &Node<TNodeState>| {
-            node_per_id.insert(&node.id, node);
-        });
-        let mut node_state_collection_per_id: HashMap<&str, &NodeStateCollection<TNodeState>> = HashMap::new();
-        self.node_state_collections.iter().for_each(|node_state_collection| {
-            node_state_collection_per_id.insert(&node_state_collection.id, node_state_collection);
-        });
+        let node_state_collection_per_id: HashMap<&str, &NodeStateCollection<TNodeState>> = self.node_state_collections
+          .iter()
+          .map(|node| (node.id.as_str(), node))
+          .collect();
 
         // for each neighbor node
         //      for each possible state for this node
@@ -227,19 +208,14 @@ impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord + Serialize + Deseria
                     // get the node state collections that this parent neighbor node forces upon this node
                     let node_state_collection_ids: &Vec<String> = parent_neighbor_node.node_state_collection_ids_per_neighbor_node_id.get(&child_node.id).unwrap();
                     for node_state_collection_id in node_state_collection_ids.iter() {
-                        let node_state_collection_id: &str = node_state_collection_id;
-                        let node_state_collection = node_state_collection_per_id.get(node_state_collection_id).unwrap();
+                        let node_state_collection = node_state_collection_per_id.get(node_state_collection_id.as_str()).unwrap();
                         // construct a mask for this parent neighbor's node state collection and node state for this child node
-                        let mut mask: BitVec = BitVec::new();
-                        for node_state_id in child_node.node_state_ids.iter() {
-                            // if the node state for the child is permitted by the parent neighbor node state collection
-                            if node_state_collection.node_state_ids.contains(node_state_id) {
-                                mask.push(true);
-                            }
-                            else {
-                                mask.push(false);
-                            }
-                        }
+                        let mask: BitVec = child_node.node_state_ids
+                          .iter()
+                          .map(|id| node_state_collection.node_state_ids.contains(id))
+                          .into_iter()
+                          .collect();
+
                         // store the mask for this child node
                         mask_per_parent_state.insert(&node_state_collection.node_state_id, mask);
                     }
@@ -278,24 +254,18 @@ impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord + Serialize + Deseria
             neighbor_mask_mapped_view_per_node_id.insert(node_id, mask_per_neighbor_per_state);
         }
 
-        let mut node_state_indexed_view_per_node_id: HashMap<&str, IndexedView<&TNodeState>> = HashMap::new();
+        let mut node_state_indexed_view_per_node_id: HashMap<&str, IndexedView<&TNodeState>> = self.nodes
+          .iter()
+          .map(|node| {
+              let referenced_node_state_ids: Vec<&TNodeState> = node.node_state_ids.iter().collect();
+              let cloned_node_state_ratios: Vec<f32> = node.node_state_ratios.clone();
 
-        // store all of the masks that my neighbors will be orienting so that this node can check for restrictions
-        for node in self.nodes.iter() {
-            let node_id: &str = &node.id;
-
-            //debug!("storing for node {node_id} restrictive masks into node state indexed view.");
-
-            let referenced_node_state_ids: Vec<&TNodeState> = node.node_state_ids.iter().collect();
-            let cloned_node_state_ratios: Vec<f32> = node.node_state_ratios.clone();
-
-            let node_state_indexed_view = IndexedView::new(referenced_node_state_ids, cloned_node_state_ratios);
-            //debug!("stored for node {node_id} node state indexed view {:?}", node_state_indexed_view);
-            node_state_indexed_view_per_node_id.insert(node_id, node_state_indexed_view);
-        }
+              let node_state_indexed_view = IndexedView::new(referenced_node_state_ids, cloned_node_state_ratios);
+              (node.id.as_str(), node_state_indexed_view)
+          })
+          .collect();
 
         let mut collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<TNodeState>>>> = Vec::new();
-        let mut collapsable_node_per_id: HashMap<&str, Rc<RefCell<CollapsableNode<TNodeState>>>> = HashMap::new();
         // contains the mask to apply to the neighbor when this node is in a specific state
         for (node_index, node) in self.nodes.iter().enumerate() {
             let node_id: &str = &node.id;
@@ -314,6 +284,7 @@ impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord + Serialize + Deseria
             collapsable_nodes.push(Rc::new(RefCell::new(collapsable_node)));
         }
 
+        let mut collapsable_node_per_id: HashMap<&str, Rc<RefCell<CollapsableNode<TNodeState>>>> = HashMap::new();
         for wrapped_collapsable_node in collapsable_nodes.iter() {
             let collapsable_node = wrapped_collapsable_node.borrow();
             collapsable_node_per_id.insert(collapsable_node.id, wrapped_collapsable_node.clone());

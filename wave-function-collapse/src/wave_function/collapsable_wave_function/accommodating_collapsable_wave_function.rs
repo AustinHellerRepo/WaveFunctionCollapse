@@ -152,7 +152,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingCol
                 let mut current_node_state = original_node_state;
                 let mut is_current_node_state_restrictive = true;
                 while is_current_node_state_restrictive {
-                    is_current_node_state_restrictive = if parent_neighbor_node.mask_per_neighbor_per_state.contains_key(&current_node_state) {
+                    let is_current_mask_from_parent_restrictive = if parent_neighbor_node.mask_per_neighbor_per_state.contains_key(&current_node_state) {
                         let mask_per_neighbor = parent_neighbor_node.mask_per_neighbor_per_state.get(&current_node_state).unwrap();
                         let mask = mask_per_neighbor.get(current_collapsable_node_id).unwrap();
                         current_collapsable_node.is_mask_restrictive_to_current_state(mask)
