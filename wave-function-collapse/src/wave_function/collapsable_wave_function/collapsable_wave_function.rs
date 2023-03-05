@@ -70,10 +70,10 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableNode<
         neighbor_node_ids.sort();
 
         CollapsableNode {
-            id: id,
-            neighbor_node_ids: neighbor_node_ids,
-            node_state_indexed_view: node_state_indexed_view,
-            mask_per_neighbor_per_state: mask_per_neighbor_per_state,
+            id,
+            neighbor_node_ids,
+            node_state_indexed_view,
+            mask_per_neighbor_per_state,
             current_chosen_from_sort_index: None,
             parent_neighbor_node_ids: Vec::new(),
             node_state_type: PhantomData

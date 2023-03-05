@@ -152,7 +152,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> SequentialCollap
             node_state_per_node.insert(node, node_state);
         }
         CollapsedWaveFunction {
-            node_state_per_node: node_state_per_node
+            node_state_per_node
         }
     }
 }
@@ -161,15 +161,15 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveF
     fn new(collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a, TNodeState>>>>, collapsable_node_per_id: HashMap<&'a str, Rc<RefCell<CollapsableNode<'a, TNodeState>>>>) -> Self {
         let collapsable_nodes_length: usize = collapsable_nodes.len();
 
-        let collapsable_wave_function = SequentialCollapsableWaveFunction {
-            collapsable_nodes: collapsable_nodes,
-            collapsable_node_per_id: collapsable_node_per_id,
-            collapsable_nodes_length: collapsable_nodes_length,
+        
+
+        SequentialCollapsableWaveFunction {
+            collapsable_nodes,
+            collapsable_node_per_id,
+            collapsable_nodes_length,
             current_collapsable_node_index: 0,
             node_state_type: PhantomData
-        };
-
-        collapsable_wave_function
+        }
     }
     fn collapse_into_steps(&'a mut self) -> Result<Vec<CollapsedNodeState<TNodeState>>, String> {
 
@@ -239,8 +239,8 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveF
         debug!("starting while loop");
         while !is_unable_to_collapse && !self.is_fully_collapsed() {
             debug!("incrementing node state");
-            let is_increment_successful: bool;
-            is_increment_successful = self.try_increment_current_collapsable_node_state().node_state_id.is_some();
+            
+            let is_increment_successful: bool = self.try_increment_current_collapsable_node_state().node_state_id.is_some();
             if is_increment_successful {
                 debug!("incremented node state");
                 if self.try_alter_reference_to_current_collapsable_node_mask() {

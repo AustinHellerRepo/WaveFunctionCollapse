@@ -72,7 +72,7 @@ impl<TNodeState: Clone + Eq + Hash + Debug> IndexedView<TNodeState> {
 
         for _ in 0..self.node_state_ids_length {
             let node_state_id = probability_container.pop_random(random_instance).unwrap();
-            self.index_mapping.push(*self.index_per_node_state_id.get(&node_state_id).unwrap());
+            self.index_mapping.push(*self.index_per_node_state_id.get(node_state_id).unwrap());
         }
 
         debug!("randomized index mapping to {:?}.", self.index_mapping);
@@ -192,14 +192,14 @@ impl<TNodeState: Clone + Eq + Hash + Debug> IndexedView<TNodeState> {
     pub fn is_mask_restrictive_to_current_state(&self, mask: &BitVec) -> bool {
         if let Some(index) = self.index {
             let mapped_index = self.index_mapping[index];
-            let is_restrictive = !mask[mapped_index];
+            
             /*if is_restrictive {
                 debug!("mask is restrictive at index {:?} after mapping to index {:?} for mask {:?}", index, mapped_index, mask);
             }
             else {
                 debug!("mask is not restrictive at index {:?} after mapping to index {:?} for mask {:?}", index, mapped_index, mask);
             }*/
-            is_restrictive
+            !mask[mapped_index]
         }
         else {
             debug!("was not restrictive because not currently in a state");

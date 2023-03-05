@@ -1,3 +1,4 @@
+#![allow(clippy::all)]
 use std::{collections::HashMap, time::Instant};
 use wave_function_collapse::wave_function::{
     Node,
@@ -19,7 +20,7 @@ impl SudokuPuzzle {
                 if y_index == 0 {
                     number_per_column_per_row.push(Vec::new());
                 }
-                number_per_column_per_row.get_mut(x_index).unwrap().push(number.clone());
+                number_per_column_per_row.get_mut(x_index).unwrap().push(*number);
             }
         }
 
@@ -35,7 +36,7 @@ impl SudokuPuzzle {
                 }
                 print!("|");
             }
-            println!("");
+            println!();
         }
         println!("-------------------");
     }
@@ -45,7 +46,7 @@ impl SudokuPuzzle {
         for (x_index, number_per_row) in self.number_per_row_per_column.iter().enumerate() {
             let mut node_id_per_y: HashMap<usize, String> = HashMap::new();
             for (y_index, _) in number_per_row.iter().enumerate() {
-                let node_id = format!("node_{}_{}", x_index, y_index);
+                let node_id = format!("node_{x_index}_{y_index}");
                 node_id_per_y.insert(y_index, node_id);
             }
             node_id_per_y_per_x.insert(x_index, node_id_per_y);
@@ -141,7 +142,7 @@ impl SudokuPuzzle {
                                     for possible_from_number in 1u8..10 {
                                         let node_state_collection: &NodeStateCollection<String>;
                                         if possible_from_number == *from_number {
-                                            node_state_collection = always_node_state_collection_per_to_number_per_from_number.get(&possible_from_number).unwrap().get(&to_number).unwrap();
+                                            node_state_collection = always_node_state_collection_per_to_number_per_from_number.get(&possible_from_number).unwrap().get(to_number).unwrap();
                                         }
                                         else {
                                             node_state_collection = impossible_node_state_collection_per_number.get(&possible_from_number).unwrap();
@@ -193,7 +194,7 @@ impl SudokuPuzzle {
                                 }
                             }
 
-                            let to_node_id = format!("node_{}_{}", to_x_index, to_y_index);
+                            let to_node_id = format!("node_{to_x_index}_{to_y_index}");
                             node_state_collection_ids_per_neighbor_node_id.insert(to_node_id, node_state_collection_ids);
                         }
                         else {
@@ -228,10 +229,10 @@ impl SudokuPuzzle {
                 }
             }
             for (node, node_state) in collapsed_wave_function.node_state_per_node.iter() {
-                let node_string_split = node.split("_").collect::<Vec<&str>>();
+                let node_string_split = node.split('_').collect::<Vec<&str>>();
                 let x_index = node_string_split[2].parse::<u8>().unwrap();
                 let y_index = node_string_split[1].parse::<u8>().unwrap();
-                let node_state_string_split = node_state.split("_").collect::<Vec<&str>>();
+                let node_state_string_split = node_state.split('_').collect::<Vec<&str>>();
                 let state = node_state_string_split[1].parse::<u8>().unwrap();
                 state_per_row_per_column[y_index as usize][x_index as usize] = Some(state);
             }
@@ -262,7 +263,7 @@ fn main() {
     number_per_row_per_column.push(vec![Some(2), Some(8), None,    Some(5), Some(4), Some(9), Some(3), None,    None]);
     number_per_row_per_column.push(vec![None,    Some(6), None,    Some(8), None,    None,    None,    None,    None]);
     let puzzle = SudokuPuzzle {
-        number_per_row_per_column: number_per_row_per_column
+        number_per_row_per_column
     };
     puzzle.print();
 
@@ -276,5 +277,5 @@ fn main() {
     }
 
     let duration = start.elapsed();
-    println!("Duration: {:?}", duration);
+    println!("Duration: {duration:?}");
 }

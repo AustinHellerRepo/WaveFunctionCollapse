@@ -1,3 +1,4 @@
+#![allow(clippy::all)]
 use std::{collections::{HashMap}, slice::Iter};
 use log::debug;
 extern crate pretty_env_logger;
@@ -81,7 +82,7 @@ impl NationalOrigin {
 
 impl std::fmt::Display for NationalOrigin {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 
@@ -112,7 +113,7 @@ impl HouseColor {
 
 impl std::fmt::Display for HouseColor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 
@@ -143,7 +144,7 @@ impl CigaretteType {
 
 impl std::fmt::Display for CigaretteType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 
@@ -174,7 +175,7 @@ impl Pet {
 
 impl std::fmt::Display for Pet {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 
@@ -205,7 +206,7 @@ impl Drink {
 
 impl std::fmt::Display for Drink {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 
@@ -228,6 +229,7 @@ enum Proximity {
 }
 
 /// This struct represents a flattened unit of information, defined by the type.
+#[derive(Default)]
 struct Information {
     national_origin: Option<NationalOrigin>,
     house_color: Option<HouseColor>,
@@ -237,18 +239,7 @@ struct Information {
     information_type: Option<InformationType>
 }
 
-impl Default for Information {
-    fn default() -> Self {
-        Information {
-            national_origin: None,
-            house_color: None,
-            cigarette_type: None,
-            pet: None,
-            drink: None,
-            information_type: None
-        }
-    }
-}
+
 
 impl Information {
     fn new_national_origin(national_origin: NationalOrigin) -> Self {
@@ -317,44 +308,42 @@ struct Dependency {
 impl Dependency {
     fn new(subject: Information, proximity: Proximity, target: Option<Information>) -> Self {
         Dependency {
-            subject: subject,
-            proximity: proximity,
-            target: target
+            subject,
+            proximity,
+            target
         }
     }
     fn is_static(&self) -> bool {
         self.target.is_none()
     }
     fn is_staticly_applicable(&self, from_house_index: usize, from_information_type: &InformationType) -> bool {
-        if self.subject.information_type.as_ref().unwrap() == from_information_type {
-            if self.target.is_none() {
-                match self.proximity {
-                    Proximity::Index(index) => {
-                        if from_house_index == index {
-                            return true;
-                        }
-                    },
-                    Proximity::ImmediateLeft => {
-                        panic!("Cannot use ImmediateLeft when a target is not specified.");
-                    },
-                    Proximity::RelativeLeft => {
-                        panic!("Cannot use RelativeLeft when a target is not specified.");
-                    },
-                    Proximity::Same => {
-                        panic!("Cannot use Same when a target is not specified.");
-                    },
-                    Proximity::RelativeRight => {
-                        panic!("Cannot use RelativeRight when a target is not specified.");
-                    },
-                    Proximity::ImmediateRight => {
-                        panic!("Cannot use ImmediateRight when a target is not specified.");
+        if self.subject.information_type.as_ref().unwrap() == from_information_type && self.target.is_none() {
+            match self.proximity {
+                Proximity::Index(index) => {
+                    if from_house_index == index {
+                        return true;
                     }
-                    Proximity::NotSame => {
-                        panic!("Cannot use NotSame when a target is not specified.");
-                    }
-                    Proximity::ImmediateAdjacent => {
-                        panic!("Cannot use ImmediateAdjacent when a target is not specified.");
-                    }
+                },
+                Proximity::ImmediateLeft => {
+                    panic!("Cannot use ImmediateLeft when a target is not specified.");
+                },
+                Proximity::RelativeLeft => {
+                    panic!("Cannot use RelativeLeft when a target is not specified.");
+                },
+                Proximity::Same => {
+                    panic!("Cannot use Same when a target is not specified.");
+                },
+                Proximity::RelativeRight => {
+                    panic!("Cannot use RelativeRight when a target is not specified.");
+                },
+                Proximity::ImmediateRight => {
+                    panic!("Cannot use ImmediateRight when a target is not specified.");
+                }
+                Proximity::NotSame => {
+                    panic!("Cannot use NotSame when a target is not specified.");
+                }
+                Proximity::ImmediateAdjacent => {
+                    panic!("Cannot use ImmediateAdjacent when a target is not specified.");
                 }
             }
         }
@@ -376,7 +365,7 @@ impl Dependency {
                     // the subject and target match the provided types
 
                     match self.proximity {
-                        Proximity::Index(index) => {
+                        Proximity::Index(_index) => {
                             panic!("Cannot use Index when a target is specified.");
                         },
                         Proximity::ImmediateLeft => {
@@ -432,25 +421,25 @@ impl Dependency {
                 panic!("Cannot use Index when a target is specified.");
             },
             Proximity::ImmediateLeft => {
-                return true;
+                true
             },
             Proximity::RelativeLeft => {
-                return false;
+                false
             },
             Proximity::Same => {
-                return true;
+                true
             },
             Proximity::RelativeRight => {
-                return false;
+                false
             },
             Proximity::ImmediateRight => {
-                return true;
+                true
             }
             Proximity::NotSame => {
-                return false;
+                false
             }
             Proximity::ImmediateAdjacent => {
-                return false;
+                false
             }
         }
     }
@@ -488,7 +477,7 @@ impl ZebraPuzzle {
             // create all node ids
             for house_index in 0..5 {
                 for information_type in InformationType::iter() {
-                    let node_id: String = format!("{}_{:?}_{}", house_index, information_type, Uuid::new_v4().to_string());
+                    let node_id: String = format!("{}_{:?}_{}", house_index, information_type, Uuid::new_v4());
                     all_node_ids.push(node_id);
                 }
             }
@@ -543,17 +532,15 @@ impl ZebraPuzzle {
                 for (from_information_type, from_node_id) in node_id_per_information_type_per_house_index[from_house_index].iter() {
                     let from_node_id: &str = from_node_id;
                     for dependency in self.dependencies.iter() {
-                        if dependency.is_static() {
-                            if dependency.is_staticly_applicable(from_house_index, from_information_type) {
-                                // the nth house for this specific information type is this subject value
-                                let node_state_id: String = dependency.subject.get_node_state_id();
+                        if dependency.is_static() && dependency.is_staticly_applicable(from_house_index, from_information_type) {
+                            // the nth house for this specific information type is this subject value
+                            let node_state_id: String = dependency.subject.get_node_state_id();
 
-                                if !existing_node_state_id_per_information_type_per_house_index.contains_key(&from_house_index) {
-                                    let node_state_id_per_information_type: HashMap<&InformationType, String> = HashMap::new();
-                                    existing_node_state_id_per_information_type_per_house_index.insert(from_house_index, node_state_id_per_information_type);
-                                }
-                                existing_node_state_id_per_information_type_per_house_index.get_mut(&from_house_index).unwrap().insert(from_information_type, node_state_id);
-                            }
+                            existing_node_state_id_per_information_type_per_house_index.entry(from_house_index).or_insert_with(|| {
+                                let node_state_id_per_information_type: HashMap<&InformationType, String> = HashMap::new();
+                                node_state_id_per_information_type
+                            });
+                            existing_node_state_id_per_information_type_per_house_index.get_mut(&from_house_index).unwrap().insert(from_information_type, node_state_id);
                         }
                     }
 
@@ -707,7 +694,7 @@ impl ZebraPuzzle {
         // set the possible node states per node given its information type
         let mut node_state_collection_id_per_node_state_collection_key: HashMap<NodeStateCollectionKey, String> = HashMap::new();
         let mut node_index: usize = 0;
-        for house_index in 0..5 as usize {
+        for house_index in 0..5_usize {
             for information_type in InformationType::iter() {
                 let node_id: &str = all_node_ids.get(node_index).unwrap();
                 let mut node_state_ids: Vec<String> = Vec::new();
@@ -722,7 +709,7 @@ impl ZebraPuzzle {
                 // tie this node to all other neighbors of the same information type
                 let mut node_state_collection_ids_per_neighbor_node_id: HashMap<String, Vec<String>> = HashMap::new();
                 let mut neighbor_node_index: usize = 0;
-                for neighbor_house_index in 0..5 as usize {
+                for neighbor_house_index in 0..5_usize {
                     for neighbor_information_type in InformationType::iter() {
                         let neighbor_node_id: &str = all_node_ids.get(neighbor_node_index).unwrap();
                         if node_index != neighbor_node_index {
@@ -767,7 +754,7 @@ impl ZebraPuzzle {
                                         }
                                         permitted_node_state_ids.retain(|node_state_id| node_state_id != &from_node_state_id);
                                         let node_state_collection_key = NodeStateCollectionKey {
-                                            from_node_state_id: from_node_state_id,
+                                            from_node_state_id,
                                             to_node_state_ids: permitted_node_state_ids
                                         };
                                         debug!("allowing {house_index} {:?} to {neighbor_house_index} {:?} via {:?}.", information_type, neighbor_information_type, node_state_collection_key);
@@ -831,7 +818,7 @@ impl ZebraPuzzle {
                                         }
                                         permitted_node_state_ids.retain(|node_state_id| node_state_id != &from_node_state_id);
                                         let node_state_collection_key = NodeStateCollectionKey {
-                                            from_node_state_id: from_node_state_id,
+                                            from_node_state_id,
                                             to_node_state_ids: permitted_node_state_ids
                                         };
                                         debug!("allowing {house_index} {:?} to {neighbor_house_index} {:?} via {:?}.", information_type, neighbor_information_type, node_state_collection_key);
@@ -890,12 +877,12 @@ impl ZebraSolution {
         }
 
         for (node, node_state) in self.collapsed_wave_function.node_state_per_node.iter() {
-            let node_split = node.split("_").collect::<Vec<&str>>();
+            let node_split = node.split('_').collect::<Vec<&str>>();
             let collapsed_node_house_index: usize = node_split[0].parse::<u8>().unwrap() as usize;
             let collapsed_node_information_type: &str = node_split[1];
 
             for (information_type_index, information_type) in InformationType::iter().enumerate() {
-                if format!("{:?}", information_type) == collapsed_node_information_type {
+                if format!("{information_type:?}") == collapsed_node_information_type {
                     node_state_per_column_per_row[information_type_index][collapsed_node_house_index] = Some(node_state.clone());
                 }
             }
@@ -907,7 +894,7 @@ impl ZebraSolution {
             for column in row.into_iter() {
                 print!("{:<13}|", column.unwrap());
             }
-            println!("");
+            println!();
         }
     }
 }

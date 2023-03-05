@@ -1,3 +1,4 @@
+#![allow(clippy::all)]
 use std::{slice::Iter, collections::HashMap, time::Instant};
 use colored::{Colorize, ColoredString};
 use log::debug;
@@ -9,7 +10,7 @@ use wave_function_collapse::wave_function::{
     Node,
     NodeStateCollection,
     WaveFunction,
-    collapsable_wave_function::{collapsable_wave_function::CollapsableWaveFunction, accommodating_collapsable_wave_function::AccommodatingCollapsableWaveFunction, accommodating_sequential_collapsable_wave_function::AccommodatingSequentialCollapsableWaveFunction}
+    collapsable_wave_function::{collapsable_wave_function::CollapsableWaveFunction, accommodating_collapsable_wave_function::AccommodatingCollapsableWaveFunction}
 };
 
 /// This enum represents the possible states of a node in the 2D world
@@ -69,7 +70,7 @@ impl LandscapeElement {
 
 impl std::fmt::Display for LandscapeElement {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 
@@ -82,8 +83,8 @@ struct Landscape {
 impl Landscape {
     fn new(width: u32, height: u32) -> Self {
         Landscape {
-            width: width,
-            height: height
+            width,
+            height
         }
     }
     fn get_wave_function(&self) -> WaveFunction<LandscapeElement> {
@@ -142,7 +143,7 @@ impl Landscape {
         for height_index in 0..self.height {
             let mut node_id_per_x: HashMap<u32, String> = HashMap::new();
             for width_index in 0..self.width {
-                let node_id = format!("{}_{}", width_index, height_index);
+                let node_id = format!("{width_index}_{height_index}");
                 node_id_per_x.insert(width_index, node_id);
             }
             node_id_per_x_per_y.insert(height_index, node_id_per_x);
@@ -199,7 +200,7 @@ impl Landscape {
                 else {
                     for to_height_index in min_to_height_index..=max_to_height_index {
                         let to_width_index = from_width_index;
-                        if !(from_height_index == to_height_index) {
+                        if from_height_index != to_height_index {
                             debug!("connecting ({from_width_index}, {from_height_index}) to ({to_width_index}, {to_height_index})");
                             let to_node_id: String = node_id_per_x_per_y.get(&to_height_index).unwrap().get(&to_width_index).unwrap().clone();
                             node_state_collection_ids_per_neighbor_node_id.insert(to_node_id, node_state_collection_ids.clone());
@@ -207,7 +208,7 @@ impl Landscape {
                     }
                     for to_width_index in min_to_width_index..=max_to_width_index {
                         let to_height_index = from_height_index;
-                        if !(from_width_index == to_width_index) {
+                        if from_width_index != to_width_index {
                             debug!("connecting ({from_width_index}, {from_height_index}) to ({to_width_index}, {to_height_index})");
                             let to_node_id: String = node_id_per_x_per_y.get(&to_height_index).unwrap().get(&to_width_index).unwrap().clone();
                             node_state_collection_ids_per_neighbor_node_id.insert(to_node_id, node_state_collection_ids.clone());
@@ -266,7 +267,7 @@ fn main() {
     }
 
     for (node, node_state) in collapsed_wave_function.node_state_per_node.into_iter() {
-        let node_split = node.split("_").collect::<Vec<&str>>();
+        let node_split = node.split('_').collect::<Vec<&str>>();
         let x = node_split[0].parse::<u32>().unwrap() as usize;
         let y = node_split[1].parse::<u32>().unwrap() as usize;
         node_state_per_y_per_x[x][y] = Some(node_state);
@@ -282,7 +283,7 @@ fn main() {
         for x in 0..width as usize {
             let node_state_id = node_state_per_y_per_x[x][y].as_ref().unwrap();
             let colored_text = LandscapeElement::get_colored_text_by_node_state_id(node_state_id);
-            print!("{}{}", colored_text, colored_text);
+            print!("{colored_text}{colored_text}");
         }
         println!("|");
     }
@@ -293,5 +294,5 @@ fn main() {
     println!("-");
 
     let duration = start.elapsed();
-    println!("Duration: {:?}", duration);
+    println!("Duration: {duration:?}");
 }

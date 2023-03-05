@@ -1,3 +1,4 @@
+#![allow(clippy::all)]
 use std::{collections::HashMap, time::Instant};
 use colored::{ColoredString, Colorize};
 use rand::Rng;
@@ -36,16 +37,16 @@ impl SparseElement {
 
 impl std::fmt::Display for SparseElement {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 
 impl Sparse {
     fn new(width: u32, height: u32, distance: u32) -> Self {
         Sparse {
-            width: width,
-            height: height,
-            distance: distance
+            width,
+            height,
+            distance
         }
     }
     fn get_wave_function(&self) -> WaveFunction<SparseElement> {
@@ -68,7 +69,7 @@ impl Sparse {
         for height_index in 0..self.height {
             let mut node_id_per_x: HashMap<u32, String> = HashMap::new();
             for width_index in 0..self.width {
-                let node_id = format!("{}_{}", width_index, height_index);
+                let node_id = format!("{width_index}_{height_index}");
                 node_id_per_x.insert(width_index, node_id);
             }
             node_id_per_x_per_y.insert(height_index, node_id_per_x);
@@ -143,7 +144,7 @@ fn main() {
     }
 
     for (node, node_state) in collapsed_wave_function.node_state_per_node.into_iter() {
-        let node_split = node.split("_").collect::<Vec<&str>>();
+        let node_split = node.split('_').collect::<Vec<&str>>();
         let x = node_split[0].parse::<u32>().unwrap() as usize;
         let y = node_split[1].parse::<u32>().unwrap() as usize;
         node_state_per_y_per_x[x][y] = Some(node_state);
@@ -159,7 +160,7 @@ fn main() {
         for x in 0..width as usize {
             let node_state_id = node_state_per_y_per_x[x][y].as_ref().unwrap();
             let colored_text = SparseElement::get_colored_text_by_node_state_id(node_state_id);
-            print!("{}{}", colored_text, colored_text);
+            print!("{colored_text}{colored_text}");
         }
         println!("|");
     }
@@ -170,5 +171,5 @@ fn main() {
     println!("-");
 
     let duration = start.elapsed();
-    println!("Duration: {:?}", duration);
+    println!("Duration: {duration:?}");
 }

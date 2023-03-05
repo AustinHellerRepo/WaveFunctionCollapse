@@ -1,11 +1,12 @@
+#![allow(clippy::all)]
 use std::{collections::{HashSet, HashMap}, io::Write, time::{Instant, Duration}};
-use bitvec::macros::internal::funty::Fundamental;
+
 use rand::Rng;
 use serde::{Serialize, Deserialize};
 use uuid::Uuid;
-use wave_function_collapse::wave_function::{WaveFunction, NodeStateCollection, Node, collapsable_wave_function::{accommodating_collapsable_wave_function::AccommodatingCollapsableWaveFunction, collapsable_wave_function::{CollapsableWaveFunction, CollapsedWaveFunction, CollapsedNodeState}, sequential_collapsable_wave_function::SequentialCollapsableWaveFunction, accommodating_sequential_collapsable_wave_function::AccommodatingSequentialCollapsableWaveFunction, entropic_collapsable_wave_function::EntropicCollapsableWaveFunction}};
+use wave_function_collapse::wave_function::{WaveFunction, NodeStateCollection, Node, collapsable_wave_function::{collapsable_wave_function::{CollapsableWaveFunction, CollapsedWaveFunction, CollapsedNodeState}, entropic_collapsable_wave_function::EntropicCollapsableWaveFunction}};
 use image::{io::Reader as ImageReader, GenericImageView, DynamicImage, ImageFormat};
-use colored::{Colorize, ColoredString};
+use colored::{Colorize};
 use std::cmp;
 
 fn print_pixel(color: &[u8; 4]) {
@@ -39,7 +40,7 @@ impl ImageFragment {
             }
         }
         ImageFragment {
-            pixels: pixels,
+            pixels,
             width: fragment_width,
             height: fragment_height
         }
@@ -66,7 +67,7 @@ impl ImageFragment {
                 let color = self.pixels[width_index][height_index];
                 print_pixel(&color);
             }
-            println!("");
+            println!();
         }
     }
     fn rotate(&self) -> Self {
@@ -86,7 +87,7 @@ impl ImageFragment {
             }
         }
         ImageFragment {
-            pixels: pixels,
+            pixels,
             width: self.height,
             height: self.width
         }
@@ -108,7 +109,7 @@ impl ImageFragment {
             }
         }
         ImageFragment {
-            pixels: pixels,
+            pixels,
             width: self.width,
             height: self.height
         }
@@ -123,8 +124,8 @@ struct Canvas {
 impl Canvas {
     fn new(width: u32, height: u32) -> Self {
         Canvas {
-            width: width,
-            height: height
+            width,
+            height
         }
     }
     fn get_wave_function(&self, source_image_file_path: &str, fragment_width: u32, fragment_height: u32, is_reflection_permitted: bool, is_rotation_permitted: bool, is_periodic: bool, contains_ground: bool) -> WaveFunction<ImageFragment> {
@@ -209,15 +210,15 @@ impl Canvas {
             //println!("Root:");
             //root_image_fragment.print();
             let mut permitted_node_states_per_height_offset_per_width_offset: HashMap<i8, HashMap<i8, Vec<ImageFragment>>> = HashMap::new();
-            for width_offset in -1..=1 as i8 {
+            for width_offset in -1..=1_i8 {
                 let mut permitted_node_states_per_height_offset: HashMap<i8, Vec<ImageFragment>> = HashMap::new();
-                for height_offset in -1..=1 as i8 {
+                for height_offset in -1..=1_i8 {
                     // do not setup node state collection for root overlapping root
                     if !(height_offset == 0 && width_offset == 0 ||
                         height_offset.abs() == 1 && width_offset.abs() == 1) {
                         let mut permitted_node_states: Vec<ImageFragment> = Vec::new();
                         for other_image_fragment in image_fragments.iter() {
-                            if root_image_fragment.is_overlapping(&other_image_fragment, width_offset, height_offset) {
+                            if root_image_fragment.is_overlapping(other_image_fragment, width_offset, height_offset) {
                                 //println!("overlapping at {} {}", width_offset, height_offset);
                                 //other_image_fragment.print();
                                 permitted_node_states.push(other_image_fragment.clone());
@@ -235,9 +236,7 @@ impl Canvas {
         let mut node_state_collection_ids_per_height_offset_per_width_offset: HashMap<i8, HashMap<i8, Vec<String>>> = HashMap::new();
         for (from_node_state, permitted_node_states_per_height_offset_per_width_offset) in permitted_node_states_per_height_offset_per_width_offset_per_node_state.into_iter() {
             for (width_offset, permitted_node_states_per_height_offset) in permitted_node_states_per_height_offset_per_width_offset.into_iter() {
-                if !node_state_collection_ids_per_height_offset_per_width_offset.contains_key(&width_offset) {
-                    node_state_collection_ids_per_height_offset_per_width_offset.insert(width_offset, HashMap::new());
-                }
+                node_state_collection_ids_per_height_offset_per_width_offset.entry(width_offset).or_insert_with(HashMap::new);
                 for (height_offset, permitted_node_states) in permitted_node_states_per_height_offset.into_iter() {
                     if !node_state_collection_ids_per_height_offset_per_width_offset.get(&width_offset).unwrap().contains_key(&height_offset) {
                         node_state_collection_ids_per_height_offset_per_width_offset.get_mut(&width_offset).unwrap().insert(height_offset, Vec::new());
@@ -258,7 +257,7 @@ impl Canvas {
         for node_width_index in 0..(self.width - (fragment_width - 1)) as usize {
             let mut node_id_per_height_index: HashMap<usize, String> = HashMap::new();
             for node_height_index in 0..(self.height - (fragment_height - 1)) as usize {
-                let node_id: String = format!("node_{}_{}", node_width_index, node_height_index);
+                let node_id: String = format!("node_{node_width_index}_{node_height_index}");
                 node_id_per_height_index.insert(node_height_index, node_id);
             }
             node_id_per_height_index_per_width_index.insert(node_width_index, node_id_per_height_index);
@@ -269,8 +268,8 @@ impl Canvas {
             for node_height_index in 0..(self.height - (fragment_height - 1)) as i8 {
                 let node_id: &String = node_id_per_height_index_per_width_index.get(&(node_width_index as usize)).unwrap().get(&(node_height_index as usize)).unwrap();
                 let mut node_state_collection_ids_per_neighbor_node_id: HashMap<String, Vec<String>> = HashMap::new();
-                for neighbor_width_offset in -1..=1 as i8 {
-                    for neighbor_height_offset in -1..=1 as i8 {
+                for neighbor_width_offset in -1..=1_i8 {
+                    for neighbor_height_offset in -1..=1_i8 {
                         if !(neighbor_width_offset == 0 && neighbor_height_offset == 0 ||
                             neighbor_width_offset.abs() == 1 && neighbor_height_offset.abs() == 1) {
                             let mut neighbor_width_index = node_width_index + neighbor_width_offset;
@@ -341,7 +340,7 @@ impl Canvas {
         }
 
         for (node_id, node_state) in collapsed_wave_function.node_state_per_node.into_iter() {
-            let node_id_split = node_id.split("_").collect::<Vec<&str>>();
+            let node_id_split = node_id.split('_').collect::<Vec<&str>>();
             let node_width_index = node_id_split[1].parse::<usize>().unwrap();
             let node_height_index = node_id_split[2].parse::<usize>().unwrap();
             node_state_per_height_index_per_width_index.get_mut(&node_width_index).unwrap().insert(node_height_index, Some(node_state));
@@ -351,7 +350,7 @@ impl Canvas {
         for _ in 0..self.width {
             let mut vec = Vec::new();
             for _ in 0..self.height {
-                vec.push([0 as u8, 0, 128, 0]);
+                vec.push([0_u8, 0, 128, 0]);
             }
             pixels.push(vec);
         }
@@ -378,7 +377,7 @@ impl Canvas {
                 let color = pixels[width_index][height_index];
                 print_pixel(&color);
             }
-            println!("");
+            println!();
         }
     }
     fn print_step(&self, collapsed_node_states: &Vec<CollapsedNodeState<ImageFragment>>, step_index: usize) {
@@ -386,14 +385,14 @@ impl Canvas {
         for _ in 0..self.width {
             let mut vec = Vec::new();
             for _ in 0..self.height {
-                vec.push([0 as u8, 0, 128, 0]);
+                vec.push([0_u8, 0, 128, 0]);
             }
             pixels.push(vec);
         }
 
         for current_step_index in 0..=step_index {
             let collapsed_node_state = collapsed_node_states.get(current_step_index).unwrap();
-            let node_id_split = collapsed_node_state.node_id.split("_").collect::<Vec<&str>>();
+            let node_id_split = collapsed_node_state.node_id.split('_').collect::<Vec<&str>>();
             let node_width_index = node_id_split[1].parse::<usize>().unwrap();
             let node_height_index = node_id_split[2].parse::<usize>().unwrap();
             if let Some(pixel_color) = &collapsed_node_state.node_state_id {
@@ -418,7 +417,7 @@ impl Canvas {
             for width_index in 0..self.width as usize {
                 print_pixel(&pixels[width_index][height_index]);
             }
-            println!("");
+            println!();
         }
     }
 }
@@ -511,5 +510,5 @@ fn main() {
         canvas.print(collapsed_wave_function, fragment_width, fragment_height);
     }
 
-    println!("Duration: {:?}", duration);
+    println!("Duration: {duration:?}");
 }

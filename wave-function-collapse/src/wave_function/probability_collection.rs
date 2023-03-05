@@ -25,10 +25,10 @@ impl<T: Eq + Hash + Clone + Debug> ProbabilityCollection<T> {
             }
         }
         ProbabilityCollection {
-            probability_total: probability_total,
-            items_total: items_total,
-            probability_per_item: probability_per_item,
-            items: items
+            probability_total,
+            items_total,
+            probability_per_item,
+            items
         }
     }
     #[allow(dead_code)]
