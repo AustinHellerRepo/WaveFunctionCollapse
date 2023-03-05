@@ -98,8 +98,8 @@ pub struct WaveFunction<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> {
 impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord + Serialize + DeserializeOwned> WaveFunction<TNodeState> {
     pub fn new(nodes: Vec<Node<TNodeState>>, node_state_collections: Vec<NodeStateCollection<TNodeState>>) -> Self {
         WaveFunction {
-            nodes: nodes,
-            node_state_collections: node_state_collections
+            nodes,
+            node_state_collections
         }
     }
 

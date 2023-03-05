@@ -44,14 +44,14 @@ impl<TNodeState: Clone + Eq + Hash + Debug> IndexedView<TNodeState> {
             is_restricted_at_index.push(false);
         }
         IndexedView {
-            node_state_ids: node_state_ids,
-            node_state_ratios: node_state_ratios,
-            index_per_node_state_id: index_per_node_state_id,
-            node_state_ids_length: node_state_ids_length,
+            node_state_ids,
+            node_state_ratios,
+            index_per_node_state_id,
+            node_state_ids_length,
             index: Option::None,
-            index_mapping: index_mapping,
-            mask_counter: mask_counter,
-            is_restricted_at_index: is_restricted_at_index,
+            index_mapping,
+            mask_counter,
+            is_restricted_at_index,
             is_mask_dirty: true,
             is_fully_restricted: false,
             previous_mask_counters: VecDeque::new(),

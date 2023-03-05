@@ -106,7 +106,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingSeq
 
         self.spread_node_ids_index == self.spread_node_ids_length
     }
-    fn is_current_node_in_conflict(&mut self) -> bool {
+    fn is_current_node_in_conflict(&self) -> bool {
 
         // returns if current collapsable node is in conflict and not already impacted
 
