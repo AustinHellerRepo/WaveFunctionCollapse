@@ -344,14 +344,12 @@ impl<TNodeState: Clone + Eq + Hash + Debug> IndexedView<TNodeState> {
         if self.entropy.is_none() {
             let mut weights_total: f32 = 0.0;
             let mut weights_times_log_weights_total: f32 = 0.0;
-            let mut checked_total: u32 = 0;
             for index in 0..self.node_state_ids_length {
                 if !self.is_restricted_at_index[index] {
                     let weight = self.node_state_ratios[index];
                     let log_weight = weight.ln();
                     weights_total += weight;
                     weights_times_log_weights_total += weight * log_weight;
-                    checked_total += 1;
                 }
             }
             self.entropy = Some(weights_total.ln() - weights_times_log_weights_total / weights_total);

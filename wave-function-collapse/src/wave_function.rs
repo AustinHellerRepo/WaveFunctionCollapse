@@ -12,7 +12,6 @@ mod probability_collection;
 mod probability_tree;
 mod probability_container;
 pub mod collapsable_wave_function;
-mod tests;
 
 /// This struct makes for housing convenient utility functions.
 pub struct NodeStateProbability;

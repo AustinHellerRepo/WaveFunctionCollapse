@@ -3,6 +3,7 @@ use rand::Rng;
 use std::hash::Hash;
 
 /// This struct is optimized better than ProbabilityContainer to remove a random item but does not permit searching for a random item.
+#[allow(dead_code)]
 pub struct ProbabilityCollection<T> {
     probability_total: f32,
     items_total: u32,
@@ -11,6 +12,7 @@ pub struct ProbabilityCollection<T> {
 }
 
 impl<T: Eq + Hash + Clone + Debug> ProbabilityCollection<T> {
+    #[allow(dead_code)]
     pub fn new(probability_per_item: HashMap<T, f32>) -> Self {
         let mut probability_total = 0.0;
         let mut items_total: u32 = 0;
@@ -29,6 +31,7 @@ impl<T: Eq + Hash + Clone + Debug> ProbabilityCollection<T> {
             items: items
         }
     }
+    #[allow(dead_code)]
     pub fn pop_random<R: Rng + ?Sized>(&mut self, random_instance: &mut R) -> Option<T> {
         debug!("current state: {:?}", self.probability_per_item);
         if self.items_total == 0 {

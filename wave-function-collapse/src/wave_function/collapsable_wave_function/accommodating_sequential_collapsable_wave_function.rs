@@ -579,7 +579,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingSeq
             }
         }
 
-        for (neighbor_node_id, mut mask_state) in self.stash_per_neighbor_node_id.iter_mut() {
+        for (neighbor_node_id, mask_state) in self.stash_per_neighbor_node_id.iter_mut() {
             let wrapped_neighbor_collapsable_node = self.collapsable_node_per_id.get(neighbor_node_id).unwrap();
             let mut neighbor_collapsable_node = wrapped_neighbor_collapsable_node.borrow_mut();
             neighbor_collapsable_node.node_state_indexed_view.unstash_mask_state(mask_state);
