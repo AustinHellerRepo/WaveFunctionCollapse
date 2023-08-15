@@ -1,11 +1,10 @@
 use std::{collections::{HashSet, HashMap}, io::Write, time::{Instant, Duration}};
-use bitvec::macros::internal::funty::Fundamental;
 use rand::Rng;
 use serde::{Serialize, Deserialize};
 use uuid::Uuid;
-use wave_function_collapse::wave_function::{WaveFunction, NodeStateCollection, Node, collapsable_wave_function::{accommodating_collapsable_wave_function::AccommodatingCollapsableWaveFunction, collapsable_wave_function::{CollapsableWaveFunction, CollapsedWaveFunction, CollapsedNodeState}, sequential_collapsable_wave_function::SequentialCollapsableWaveFunction, accommodating_sequential_collapsable_wave_function::AccommodatingSequentialCollapsableWaveFunction, entropic_collapsable_wave_function::EntropicCollapsableWaveFunction}};
+use wave_function_collapse::wave_function::{WaveFunction, NodeStateCollection, Node, collapsable_wave_function::{collapsable_wave_function::{CollapsableWaveFunction, CollapsedWaveFunction, CollapsedNodeState}, entropic_collapsable_wave_function::EntropicCollapsableWaveFunction}};
 use image::{io::Reader as ImageReader, GenericImageView, DynamicImage, ImageFormat};
-use colored::{Colorize, ColoredString};
+use colored::Colorize;
 use std::cmp;
 
 fn print_pixel(color: &[u8; 4]) {
@@ -60,6 +59,7 @@ impl ImageFragment {
         }
         !is_at_least_one_pixel_nonoverlapping
     }
+    #[allow(dead_code)]
     fn print(&self) {
         for height_index in 0..self.height as usize {
             for width_index in 0..self.width as usize {
@@ -423,6 +423,7 @@ impl Canvas {
     }
 }
 
+#[allow(dead_code)]
 enum Image {
     Plant,
     Rooms,

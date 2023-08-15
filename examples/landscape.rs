@@ -9,7 +9,7 @@ use wave_function_collapse::wave_function::{
     Node,
     NodeStateCollection,
     WaveFunction,
-    collapsable_wave_function::{collapsable_wave_function::CollapsableWaveFunction, accommodating_collapsable_wave_function::AccommodatingCollapsableWaveFunction, accommodating_sequential_collapsable_wave_function::AccommodatingSequentialCollapsableWaveFunction}
+    collapsable_wave_function::{collapsable_wave_function::CollapsableWaveFunction, accommodating_collapsable_wave_function::AccommodatingCollapsableWaveFunction}
 };
 
 /// This enum represents the possible states of a node in the 2D world
@@ -25,12 +25,15 @@ enum LandscapeElement {
 }
 
 impl LandscapeElement {
+    #[allow(dead_code)]
     fn iter() -> Iter<'static, LandscapeElement> {
         [LandscapeElement::Water, LandscapeElement::Sand, LandscapeElement::Grass, LandscapeElement::Tree, LandscapeElement::Forest, LandscapeElement::Hill, LandscapeElement::Mountain].iter()
     }
+    #[allow(dead_code)]
     fn into_iter() -> std::array::IntoIter<LandscapeElement, 7> {
         [LandscapeElement::Water, LandscapeElement::Sand, LandscapeElement::Grass, LandscapeElement::Tree, LandscapeElement::Forest, LandscapeElement::Hill, LandscapeElement::Mountain].into_iter()
     }
+    #[allow(dead_code)]
     fn get_node_state_ids() -> Vec<String> {
         let mut node_state_ids: Vec<String> = Vec::new();
         for landscape_element in LandscapeElement::iter() {

@@ -1,4 +1,4 @@
-use std::{collections::{HashMap, HashSet}, cell::{RefCell}, rc::Rc, hash::Hash, fs::File, io::BufReader};
+use std::{collections::{HashMap, HashSet}, rc::Rc, hash::Hash, fs::File, io::BufReader, cell::RefCell};
 use serde::{Serialize, Deserialize, de::DeserializeOwned};
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
@@ -7,7 +7,8 @@ use log::debug;
 extern crate pretty_env_logger;
 mod indexed_view;
 use crate::wave_function::collapsable_wave_function::collapsable_wave_function::CollapsableNode;
-use self::{indexed_view::IndexedView, collapsable_wave_function::collapsable_wave_function::{CollapsableWaveFunction}};
+
+use self::{collapsable_wave_function::collapsable_wave_function::CollapsableWaveFunction, indexed_view::IndexedView};
 mod probability_collection;
 mod probability_tree;
 mod probability_container;

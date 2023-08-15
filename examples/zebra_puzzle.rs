@@ -1,4 +1,4 @@
-use std::{collections::{HashMap}, slice::Iter};
+use std::{collections::HashMap, slice::Iter};
 use log::debug;
 extern crate pretty_env_logger;
 use uuid::Uuid;
@@ -74,6 +74,7 @@ impl NationalOrigin {
     fn iter() -> Iter<'static, NationalOrigin> {
         [NationalOrigin::England, NationalOrigin::Spain, NationalOrigin::Ukraine, NationalOrigin::Norway, NationalOrigin::Japan].iter()
     }
+    #[allow(dead_code)]
     fn into_iter() -> std::array::IntoIter<NationalOrigin, 5> {
         [NationalOrigin::England, NationalOrigin::Spain, NationalOrigin::Ukraine, NationalOrigin::Norway, NationalOrigin::Japan].into_iter()
     }
@@ -105,6 +106,7 @@ impl HouseColor {
     fn iter() -> Iter<'static, HouseColor> {
         [HouseColor::Red, HouseColor::Green, HouseColor::Ivory, HouseColor::Yellow, HouseColor::Blue].iter()
     }
+    #[allow(dead_code)]
     fn into_iter() -> std::array::IntoIter<HouseColor, 5> {
         [HouseColor::Red, HouseColor::Green, HouseColor::Ivory, HouseColor::Yellow, HouseColor::Blue].into_iter()
     }
@@ -136,6 +138,7 @@ impl CigaretteType {
     fn iter() -> Iter<'static, CigaretteType> {
         [CigaretteType::OldGold, CigaretteType::Kools, CigaretteType::Chesterfields, CigaretteType::LuckyStrike, CigaretteType::Parliaments].iter()
     }
+    #[allow(dead_code)]
     fn into_iter() -> std::array::IntoIter<CigaretteType, 5> {
         [CigaretteType::OldGold, CigaretteType::Kools, CigaretteType::Chesterfields, CigaretteType::LuckyStrike, CigaretteType::Parliaments].into_iter()
     }
@@ -167,6 +170,7 @@ impl Pet {
     fn iter() -> Iter<'static, Pet> {
         [Pet::Dog, Pet::Snails, Pet::Fox, Pet::Horse, Pet::Zebra].iter()
     }
+    #[allow(dead_code)]
     fn into_iter() -> std::array::IntoIter<Pet, 5> {
         [Pet::Dog, Pet::Snails, Pet::Fox, Pet::Horse, Pet::Zebra].into_iter()
     }
@@ -198,6 +202,7 @@ impl Drink {
     fn iter() -> Iter<'static, Drink> {
         [Drink::Coffee, Drink::Tea, Drink::Milk, Drink::OrangeJuice, Drink::Water].iter()
     }
+    #[allow(dead_code)]
     fn into_iter() -> std::array::IntoIter<Drink, 5> {
         [Drink::Coffee, Drink::Tea, Drink::Milk, Drink::OrangeJuice, Drink::Water].into_iter()
     }
@@ -216,6 +221,7 @@ impl Drink {
 }
 
 /// This enum describes how each information type exists in relation to each other.
+#[allow(dead_code)]
 enum Proximity {
     Same,
     NotSame,
@@ -376,7 +382,7 @@ impl Dependency {
                     // the subject and target match the provided types
 
                     match self.proximity {
-                        Proximity::Index(index) => {
+                        Proximity::Index(_index) => {
                             panic!("Cannot use Index when a target is specified.");
                         },
                         Proximity::ImmediateLeft => {
@@ -389,9 +395,6 @@ impl Dependency {
                             // when the from_house_index is somewhere to the left of to_house_index
                             // TODO do not force the target but instead restrict all other house indexes
                             todo!("need to add another 'is' method for 'is target restricted' and maybe only use that");
-                            if from_house_index < to_house_index {
-                                return true;
-                            }
                         },
                         Proximity::Same => {
                             if from_house_index == to_house_index {
@@ -400,9 +403,6 @@ impl Dependency {
                         },
                         Proximity::RelativeRight => {
                             todo!("need to add another 'is' method for 'is target restricted' and maybe only use that");
-                            if from_house_index > to_house_index {
-                                return true;
-                            }
                         },
                         Proximity::ImmediateRight => {
                             if from_house_index == to_house_index + 1 {
@@ -411,9 +411,6 @@ impl Dependency {
                         }
                         Proximity::NotSame => {
                             todo!("need to add another 'is' method for 'is target restricted' and maybe only use that");
-                            if from_house_index != to_house_index {
-                                return true;
-                            }
                         }
                         Proximity::ImmediateAdjacent => {
                             if from_house_index.abs_diff(to_house_index) == 1 {

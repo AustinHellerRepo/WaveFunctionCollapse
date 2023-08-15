@@ -25,6 +25,7 @@ impl<T: Eq + Hash + Clone + Debug> ProbabilityContainer<T> {
             last_cumulative_probability: 0.0
         }
     }
+    #[allow(dead_code)]
     pub fn new(probability_per_item: HashMap<T, f32>) -> Self {
         let mut probability_total = 0.0;
         let mut items_total: u32 = 0;
@@ -52,6 +53,7 @@ impl<T: Eq + Hash + Clone + Debug> ProbabilityContainer<T> {
         self.probability_per_item.insert(item.clone(), probability);
         self.items.push(item);
     }
+    #[allow(dead_code)]
     pub fn peek_random<R: Rng + ?Sized>(&mut self, random_instance: &mut R) -> Option<T> {
         let item_option: Option<T>;
         if self.items_total == 0 {
@@ -83,7 +85,7 @@ impl<T: Eq + Hash + Clone + Debug> ProbabilityContainer<T> {
                 }
                 else {
                     //debug!("random_value: {:?}", random_value);
-                    let (temp_key, temp_value) = self.item_index_per_cumulative_probability.range(OrderedFloat(random_value)..).next().unwrap();
+                    let (_temp_key, temp_value) = self.item_index_per_cumulative_probability.range(OrderedFloat(random_value)..).next().unwrap();
                     //debug!("found item {:?} with probability {:?}", temp_value, temp_key);
                     item_option = Some(self.items.get(*temp_value).unwrap().clone());
                 }

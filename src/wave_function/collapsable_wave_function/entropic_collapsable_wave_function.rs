@@ -1,13 +1,11 @@
 use std::ops::{BitOr, BitOrAssign};
-use std::{cell::RefCell, collections::VecDeque};
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::marker::PhantomData;
 use std::rc::Rc;
-
 use bitvec::vec::BitVec;
 use indexmap::IndexMap;
-use rand::Rng;
 
 use super::collapsable_wave_function::{CollapsableNode, CollapsableWaveFunction, CollapsedNodeState, CollapsedWaveFunction};
 

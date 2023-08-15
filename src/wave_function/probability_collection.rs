@@ -1,8 +1,9 @@
-use std::{collections::{HashMap}, fmt::Debug};
+use std::{fmt::Debug, collections::HashMap};
 use rand::Rng;
 use std::hash::Hash;
 
 /// This struct is optimized better than ProbabilityContainer to remove a random item but does not permit searching for a random item.
+#[allow(dead_code)]
 pub struct ProbabilityCollection<T> {
     probability_total: f32,
     items_total: u32,
@@ -10,6 +11,7 @@ pub struct ProbabilityCollection<T> {
     items: Vec<T>
 }
 
+#[allow(dead_code)]
 impl<T: Eq + Hash + Clone + Debug> ProbabilityCollection<T> {
     pub fn new(probability_per_item: HashMap<T, f32>) -> Self {
         let mut probability_total = 0.0;

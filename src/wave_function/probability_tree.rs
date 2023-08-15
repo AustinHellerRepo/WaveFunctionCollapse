@@ -4,6 +4,7 @@ use rand::Rng;
 use std::hash::Hash;
 
 /// This struct is optimized better than ProbabilityContainer to search for a random item but does not permit removing a random item.
+#[allow(dead_code)]
 pub struct ProbabilityTree<T> {
     probability_total: f32,
     item_per_cumulative_probability: BTreeMap<OrderedFloat<f32>, T>,
@@ -11,6 +12,7 @@ pub struct ProbabilityTree<T> {
     probability_per_item: HashMap<T, f32>
 }
 
+#[allow(dead_code)]
 impl<T: Eq + Hash + Clone + Debug> ProbabilityTree<T> {
     pub fn new(probability_per_item: HashMap<T, f32>) -> Self {
         let mut probability_total = 0.0;
