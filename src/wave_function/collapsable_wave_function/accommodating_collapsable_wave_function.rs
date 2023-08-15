@@ -1,4 +1,4 @@
-use std::collections::{HashSet};
+use std::collections::HashSet;
 use std::marker::PhantomData;
 use std::{cell::RefCell, rc::Rc, collections::HashMap};
 use std::hash::Hash;
@@ -152,15 +152,14 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingCol
                 let mut current_node_state = original_node_state;
                 let mut is_current_node_state_restrictive = true;
                 while is_current_node_state_restrictive {
-                    let is_current_mask_from_parent_restrictive: bool;
-                    if parent_neighbor_node.mask_per_neighbor_per_state.contains_key(&current_node_state) {
+                    let is_current_mask_from_parent_restrictive: bool = if parent_neighbor_node.mask_per_neighbor_per_state.contains_key(&current_node_state) {
                         let mask_per_neighbor = parent_neighbor_node.mask_per_neighbor_per_state.get(&current_node_state).unwrap();
                         let mask = mask_per_neighbor.get(current_collapsable_node_id).unwrap();
-                        is_current_mask_from_parent_restrictive = current_collapsable_node.is_mask_restrictive_to_current_state(mask);
+                        current_collapsable_node.is_mask_restrictive_to_current_state(mask)
                     }
                     else {
-                        is_current_mask_from_parent_restrictive = false;
-                    }
+                        false
+                    };
                     if !is_current_mask_from_parent_restrictive {
                         debug!("found unrestricted mask (or no mask) for neighbor {:?}", parent_neighbor_node_id);
                         is_current_node_state_restrictive = false;  // leave the while loop for this parent neighbor node
@@ -246,7 +245,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingCol
             node_state_per_node.insert(node, node_state);
         }
         CollapsedWaveFunction {
-            node_state_per_node: node_state_per_node
+            node_state_per_node
         }
     }
 }
@@ -254,8 +253,8 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingCol
 impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveFunction<'a, TNodeState> for AccommodatingCollapsableWaveFunction<'a, TNodeState> {
     fn new(collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a, TNodeState>>>>, collapsable_node_per_id: HashMap<&'a str, Rc<RefCell<CollapsableNode<'a, TNodeState>>>>) -> Self {
         AccommodatingCollapsableWaveFunction {
-            collapsable_nodes: collapsable_nodes,
-            collapsable_node_per_id: collapsable_node_per_id,
+            collapsable_nodes,
+            collapsable_node_per_id,
             accommodate_node_ids: Vec::new(),
             accommodate_node_ids_length: 0,
             accommodate_node_ids_index: 0,

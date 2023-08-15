@@ -109,7 +109,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> EntropicCollapsa
         let wrapped_neighbor_collapsable_node = self.collapsable_node_per_id.get(popped_neighbor_node_id.as_str()).unwrap();
         let mut neighbor_collapsable_node = wrapped_neighbor_collapsable_node.borrow_mut();
         let mask = self.popped_mask.as_ref().unwrap();
-        neighbor_collapsable_node.node_state_indexed_view.add_mask(&mask);
+        neighbor_collapsable_node.node_state_indexed_view.add_mask(mask);
         if neighbor_collapsable_node.is_fully_restricted() {
             debug!("is fully restricted after applying mask");
             false
@@ -214,7 +214,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> EntropicCollapsa
             node_state_per_node.insert(node, node_state);
         }
         CollapsedWaveFunction {
-            node_state_per_node: node_state_per_node
+            node_state_per_node
         }
     }
 }
@@ -226,13 +226,13 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveF
         for _ in 0..collapsable_nodes_length {
             is_node_collapsed.push(false);
         }
-        let collapsable_wave_function = EntropicCollapsableWaveFunction {
-            collapsable_nodes: collapsable_nodes,
-            collapsable_node_per_id: collapsable_node_per_id,
-            collapsable_nodes_length: collapsable_nodes_length,
+        EntropicCollapsableWaveFunction {
+            collapsable_nodes,
+            collapsable_node_per_id,
+            collapsable_nodes_length,
             current_collapsable_node_index: 0,
             collapsed_nodes_total: 0,
-            is_node_collapsed: is_node_collapsed,
+            is_node_collapsed,
             cached_mask_per_neighbor_node_id: IndexMap::new(),
             popped_neighbor_node_id: None,
             popped_mask: None,
@@ -243,9 +243,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveF
             collected_masks_for_each_possible_state_for_currently_explored_neighbor: Vec::new(),
             calculated_flattened_mask: None,
             node_state_type: PhantomData
-        };
-
-        collapsable_wave_function
+        }
     }
     fn collapse_into_steps(&'a mut self) -> Result<Vec<CollapsedNodeState<TNodeState>>, String> {
 

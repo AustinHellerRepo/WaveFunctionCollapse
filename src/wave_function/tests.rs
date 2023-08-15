@@ -10,7 +10,7 @@ struct TestStruct {
 impl TestStruct {
     pub fn new(id: String) -> Self {
         TestStruct {
-            id: id
+            id
         }
     }
     pub fn new_random() -> Self {

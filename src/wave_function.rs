@@ -54,10 +54,10 @@ impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> Node<TNodeState> {
         sort_permutation.apply_slice_in_place(&mut node_state_ratios);
 
         Node {
-            id: id,
-            node_state_collection_ids_per_neighbor_node_id: node_state_collection_ids_per_neighbor_node_id,
-            node_state_ids: node_state_ids,
-            node_state_ratios: node_state_ratios
+            id,
+            node_state_collection_ids_per_neighbor_node_id,
+            node_state_ids,
+            node_state_ratios
         }
     }
     pub fn get_id(&self) -> String {
@@ -83,9 +83,9 @@ pub struct NodeStateCollection<TNodeState: Eq + Hash + Clone + std::fmt::Debug +
 impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> NodeStateCollection<TNodeState> {
     pub fn new(id: String, node_state_id: TNodeState, node_state_ids: Vec<TNodeState>) -> Self {
         NodeStateCollection {
-            id: id,
-            node_state_id: node_state_id,
-            node_state_ids: node_state_ids
+            id,
+            node_state_id,
+            node_state_ids
         }
     }
 }
@@ -100,8 +100,8 @@ pub struct WaveFunction<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> {
 impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord + Serialize + DeserializeOwned> WaveFunction<TNodeState> {
     pub fn new(nodes: Vec<Node<TNodeState>>, node_state_collections: Vec<NodeStateCollection<TNodeState>>) -> Self {
         WaveFunction {
-            nodes: nodes,
-            node_state_collections: node_state_collections
+            nodes,
+            node_state_collections
         }
     }
 
@@ -152,8 +152,7 @@ impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord + Serialize + Deseria
 
                 potential_node_ids.push(&node.id);
 
-                while !potential_node_ids.is_empty() {
-                    let node_id = potential_node_ids.pop().unwrap();
+                while let Some(node_id) = potential_node_ids.pop() {
                     let node = node_per_id.get(node_id).unwrap();
                     for neighbor_node_id_string in node.node_state_collection_ids_per_neighbor_node_id.keys() {
                         let neighbor_node_id: &str = neighbor_node_id_string;
@@ -172,7 +171,7 @@ impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord + Serialize + Deseria
             }
 
             if !at_least_one_node_connects_to_all_other_nodes {
-                error_message = Some(format!("Not all nodes connect together. At least one node must be able to traverse to all other nodes."));
+                error_message = Some(String::from("Not all nodes connect together. At least one node must be able to traverse to all other nodes."));
             }
 
             if error_message.is_none() {
@@ -180,8 +179,8 @@ impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord + Serialize + Deseria
             }
         }
 
-        if error_message.is_some() {
-            Err(error_message.unwrap())
+        if let Some(error_message) = error_message {
+            Err(error_message)
         }
         else {
             Ok(())
@@ -318,7 +317,7 @@ impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord + Serialize + Deseria
 
         for wrapped_collapsable_node in collapsable_nodes.iter() {
             let collapsable_node = wrapped_collapsable_node.borrow();
-            collapsable_node_per_id.insert(&collapsable_node.id, wrapped_collapsable_node.clone());
+            collapsable_node_per_id.insert(collapsable_node.id, wrapped_collapsable_node.clone());
         }
 
         for wrapped_collapsable_node in collapsable_nodes.iter() {

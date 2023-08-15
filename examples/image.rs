@@ -38,7 +38,7 @@ impl ImageFragment {
             }
         }
         ImageFragment {
-            pixels: pixels,
+            pixels,
             width: fragment_width,
             height: fragment_height
         }

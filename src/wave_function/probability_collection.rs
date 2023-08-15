@@ -25,10 +25,10 @@ impl<T: Eq + Hash + Clone + Debug> ProbabilityCollection<T> {
             }
         }
         ProbabilityCollection {
-            probability_total: probability_total,
-            items_total: items_total,
-            probability_per_item: probability_per_item,
-            items: items
+            probability_total,
+            items_total,
+            probability_per_item,
+            items
         }
     }
     pub fn pop_random<R: Rng + ?Sized>(&mut self, random_instance: &mut R) -> Option<T> {
@@ -37,41 +37,39 @@ impl<T: Eq + Hash + Clone + Debug> ProbabilityCollection<T> {
             debug!("no items");
             None
         }
+        else if self.items_total == 1 {
+            //self.item_per_cumulative_probability.remove(&OrderedFloat(self.probability_total))
+            let item_option = self.items.first().cloned();
+            debug!("one item: {:?}", item_option);
+            self.items.clear();
+            self.items_total = 0;
+            self.probability_total = 0.0;
+            item_option
+        }
         else {
-            let mut item_option: Option<T>;
-            if self.items_total == 1 {
-                //self.item_per_cumulative_probability.remove(&OrderedFloat(self.probability_total))
-                item_option = self.items.first().cloned();
-                debug!("one item: {:?}", item_option);
-                self.items.clear();
-                self.items_total = 0;
-                self.probability_total = 0.0;
+            let random_value = random_instance.gen::<f32>() * self.probability_total;
+            debug!("random_value: {:?}", random_value);
+            let mut current_probability = 0.0;
+            let mut found_item_index: Option<usize> = None;
+            let mut item_option = None;
+            for (item_index, item) in self.items.iter().enumerate() {
+                let item_probability = self.probability_per_item.get(item).unwrap();
+                current_probability += item_probability;
+                if current_probability >= random_value {
+                    self.probability_total -= item_probability;
+                    found_item_index = Some(item_index);
+                    item_option = Some(item.clone());
+                    break;
+                }
             }
-            else {
-                let random_value = random_instance.gen::<f32>() * self.probability_total;
-                debug!("random_value: {:?}", random_value);
-                let mut current_probability = 0.0;
-                let mut found_item_index: Option<usize> = None;
-                item_option = None;
-                for (item_index, item) in self.items.iter().enumerate() {
-                    let item_probability = self.probability_per_item.get(item).unwrap();
-                    current_probability += item_probability;
-                    if current_probability >= random_value {
-                        self.probability_total -= item_probability;
-                        found_item_index = Some(item_index);
-                        item_option = Some(item.clone());
-                        break;
-                    }
-                }
-                if item_option.is_none() {
-                    panic!("Failed to find item even though some exists.");
-                }
-                debug!("more than one item: {:?}", item_option);
+            if item_option.is_none() {
+                panic!("Failed to find item even though some exists.");
+            }
+            debug!("more than one item: {:?}", item_option);
 
-                // refresh cache data
-                self.items.remove(found_item_index.unwrap());
-                self.items_total -= 1;
-            }
+            // refresh cache data
+            self.items.remove(found_item_index.unwrap());
+            self.items_total -= 1;
             item_option
         }
     }

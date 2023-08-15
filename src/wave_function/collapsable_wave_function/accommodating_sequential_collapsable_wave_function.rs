@@ -607,7 +607,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingSeq
             node_state_per_node.insert(node, node_state);
         }
         CollapsedWaveFunction {
-            node_state_per_node: node_state_per_node
+            node_state_per_node
         }
     }
 }
@@ -615,8 +615,8 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingSeq
 impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveFunction<'a, TNodeState> for AccommodatingSequentialCollapsableWaveFunction<'a, TNodeState> {
     fn new(collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a, TNodeState>>>>, collapsable_node_per_id: HashMap<&'a str, Rc<RefCell<CollapsableNode<'a, TNodeState>>>>) -> Self {
         AccommodatingSequentialCollapsableWaveFunction {
-            collapsable_nodes: collapsable_nodes,
-            collapsable_node_per_id: collapsable_node_per_id,
+            collapsable_nodes,
+            collapsable_node_per_id,
             spread_node_ids: Vec::new(),
             spread_node_ids_length: 0,
             spread_node_ids_index: 0,
