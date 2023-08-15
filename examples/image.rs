@@ -66,7 +66,7 @@ impl ImageFragment {
                 let color = self.pixels[width_index][height_index];
                 print_pixel(&color);
             }
-            println!("");
+            println!();
         }
     }
     fn rotate(&self) -> Self {
@@ -217,7 +217,7 @@ impl Canvas {
                         height_offset.abs() == 1 && width_offset.abs() == 1) {
                         let mut permitted_node_states: Vec<ImageFragment> = Vec::new();
                         for other_image_fragment in image_fragments.iter() {
-                            if root_image_fragment.is_overlapping(&other_image_fragment, width_offset, height_offset) {
+                            if root_image_fragment.is_overlapping(other_image_fragment, width_offset, height_offset) {
                                 //println!("overlapping at {} {}", width_offset, height_offset);
                                 //other_image_fragment.print();
                                 permitted_node_states.push(other_image_fragment.clone());
@@ -235,13 +235,10 @@ impl Canvas {
         let mut node_state_collection_ids_per_height_offset_per_width_offset: HashMap<i8, HashMap<i8, Vec<String>>> = HashMap::new();
         for (from_node_state, permitted_node_states_per_height_offset_per_width_offset) in permitted_node_states_per_height_offset_per_width_offset_per_node_state.into_iter() {
             for (width_offset, permitted_node_states_per_height_offset) in permitted_node_states_per_height_offset_per_width_offset.into_iter() {
-                if !node_state_collection_ids_per_height_offset_per_width_offset.contains_key(&width_offset) {
-                    node_state_collection_ids_per_height_offset_per_width_offset.insert(width_offset, HashMap::new());
-                }
+                node_state_collection_ids_per_height_offset_per_width_offset.entry(width_offset).or_insert(HashMap::new());
                 for (height_offset, permitted_node_states) in permitted_node_states_per_height_offset.into_iter() {
-                    if !node_state_collection_ids_per_height_offset_per_width_offset.get(&width_offset).unwrap().contains_key(&height_offset) {
-                        node_state_collection_ids_per_height_offset_per_width_offset.get_mut(&width_offset).unwrap().insert(height_offset, Vec::new());
-                    }
+                    node_state_collection_ids_per_height_offset_per_width_offset.get_mut(&width_offset).unwrap().entry(height_offset).or_insert(Vec::new());
+
                     let node_state_collection_id = Uuid::new_v4().to_string();
                     let node_state_collection: NodeStateCollection<ImageFragment> = NodeStateCollection::new(node_state_collection_id.clone(), from_node_state.clone(), permitted_node_states);
                     node_state_collection_ids_per_height_offset_per_width_offset.get_mut(&width_offset).unwrap().get_mut(&height_offset).unwrap().push(node_state_collection_id);
@@ -446,7 +443,7 @@ fn main() {
 
     //================================================
     // NOTE: This can be change for different examples
-    let chosen_image = Image::Plant;
+    let chosen_image = Image::Rooms;
     let draw_each_frame: bool = false;
     //================================================
 
@@ -479,7 +476,7 @@ fn main() {
     file.write(bytes.as_slice()).unwrap();
     let file_path: &str = file.path().to_str().unwrap();
 
-    let canvas = Canvas::new(60, 60);
+    let canvas = Canvas::new(40, 40);
     let fragment_width: u32 = 3;
     let fragment_height: u32 = 3;
     let wave_function = canvas.get_wave_function(file_path, fragment_width, fragment_height, is_reflection_permitted, is_rotation_permitted, is_periodic, contains_ground);
