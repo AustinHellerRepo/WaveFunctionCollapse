@@ -3,7 +3,7 @@ use std::{collections::HashMap, marker::PhantomData};
 use std::rc::Rc;
 use std::cell::RefCell;
 use bitvec::vec::BitVec;
-use rand::Rng;
+use fastrand::Rng;
 use serde::{Serialize, Deserialize};
 use std::hash::Hash;
 use crate::wave_function::indexed_view::IndexedView;
@@ -79,7 +79,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableNode<
             node_state_type: PhantomData
         }
     }
-    pub fn randomize<R: Rng + ?Sized>(&mut self, random_instance: &mut R) {
+    pub fn randomize(&mut self, random_instance: &mut Rng) {
         self.node_state_indexed_view.shuffle(random_instance);
     }
     pub fn is_fully_restricted(&mut self) -> bool {

@@ -255,7 +255,9 @@ fn main() {
     wave_function.validate().unwrap();
 
     let mut rng = rand::thread_rng();
-    let random_seed = Some(rng.gen::<u64>());
+    //let random_seed = Some(rng.gen::<u64>());
+    let random_seed = Some(0);
+    //let random_seed = None;
 
     let collapsed_wave_function = wave_function.get_collapsable_wave_function::<AccommodatingCollapsableWaveFunction<LandscapeElement>>(random_seed).collapse().unwrap();
 

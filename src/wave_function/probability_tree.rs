@@ -13,11 +13,12 @@ pub struct ProbabilityTree<T> {
 }
 
 #[allow(dead_code)]
-impl<T: Eq + Hash + Clone + Debug> ProbabilityTree<T> {
+impl<T: Ord + Eq + Hash + Clone + Debug> ProbabilityTree<T> {
     pub fn new(probability_per_item: HashMap<T, f32>) -> Self {
         let mut probability_total = 0.0;
         let mut item_per_cumulative_probability: BTreeMap<OrderedFloat<f32>, T> = BTreeMap::new();
         let mut items_total: u32 = 0;
+        // TODO fix to not use random order from HashMap.iter()
         for (item, probability) in probability_per_item.iter() {
             if probability != &0.0 {
                 probability_total += probability;

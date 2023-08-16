@@ -938,6 +938,7 @@ dependencies = [
  "base64",
  "bitvec",
  "colored",
+ "fastrand",
  "image",
  "indexmap",
  "log",

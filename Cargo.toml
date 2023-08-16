@@ -22,6 +22,7 @@ pretty_env_logger = { version = "0.4.0" }
 ordered-float = { version = "3.4.0" }
 permutation = { version = "0.4.1" }
 indexmap = { version = "1.9.2" }
+fastrand = { version = "2.0.0" }
 
 [dev-dependencies]
 tempfile = { version = "3.3.0" }

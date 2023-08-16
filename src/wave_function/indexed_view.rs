@@ -3,7 +3,6 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use std::collections::HashMap;
 use bitvec::prelude::*;
-use rand::Rng;
 use crate::wave_function::probability_container::ProbabilityContainer;
 
 /// This struct represents a stashed state of the IndexedView.
@@ -30,7 +29,7 @@ pub struct IndexedView<TNodeState: Clone + Eq + Hash + Debug> {
     entropy: Option<f32>
 }
 
-impl<TNodeState: Clone + Eq + Hash + Debug> IndexedView<TNodeState> {
+impl<TNodeState: Clone + Ord + Eq + Hash + Debug> IndexedView<TNodeState> {
     pub fn new(node_state_ids: Vec<TNodeState>, node_state_ratios: Vec<f32>) -> Self {
         let node_state_ids_length: usize = node_state_ids.len();
         let mut index_per_node_state_id: HashMap<TNodeState, usize> = HashMap::new();
@@ -59,7 +58,7 @@ impl<TNodeState: Clone + Eq + Hash + Debug> IndexedView<TNodeState> {
             entropy: None
         }
     }
-    pub fn shuffle<R: Rng + ?Sized>(&mut self, random_instance: &mut R) {
+    pub fn shuffle(&mut self, random_instance: &mut fastrand::Rng) {
         if self.index.is_some() {
             panic!("Can only be shuffled prior to use.");
         }

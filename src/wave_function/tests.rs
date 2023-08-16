@@ -1,7 +1,7 @@
 mod model {
     use uuid::Uuid;
 
-    #[derive(Eq, PartialEq, Hash, Clone, Debug)]
+    #[derive(PartialOrd, Ord, Eq, PartialEq, Hash, Clone, Debug)]
     pub struct TestStruct {
         pub id: String
     }
@@ -156,8 +156,7 @@ mod probability_collection_unit_tests {
 mod probability_container_unit_tests {
 
     use std::collections::HashMap;
-    use rand::{Rng, SeedableRng};
-    use rand_chacha::ChaCha8Rng;
+    use rand::Rng;
     use uuid::Uuid;
     use crate::wave_function::probability_container::ProbabilityContainer;
     use super::model::TestStruct;
@@ -165,6 +164,11 @@ mod probability_container_unit_tests {
     fn init() {
         std::env::set_var("RUST_LOG", "trace");
         //pretty_env_logger::try_init();
+    }
+
+    fn get_random_instance(random_seed: u64) -> fastrand::Rng {
+        //ChaCha8Rng::seed_from_u64(random_seed)
+        fastrand::Rng::with_seed(random_seed)
     }
 
     #[test]
@@ -178,7 +182,7 @@ mod probability_container_unit_tests {
 
         let mut rng = rand::thread_rng();
         let random_seed = rng.gen::<u64>();
-        let mut random_instance = ChaCha8Rng::seed_from_u64(random_seed);
+        let mut random_instance = get_random_instance(random_seed);
         
         for _ in 0..100 {
             let probability_per_item: HashMap<TestStruct, f32> = HashMap::new();
@@ -197,7 +201,7 @@ mod probability_container_unit_tests {
         
         let mut rng = rand::thread_rng();
         let random_seed = rng.gen::<u64>();
-        let mut random_instance = ChaCha8Rng::seed_from_u64(random_seed);
+        let mut random_instance = get_random_instance(random_seed);
         
         for _ in 0..100 {
             let mut probability_per_item: HashMap<TestStruct, f32> = HashMap::new();
@@ -219,7 +223,7 @@ mod probability_container_unit_tests {
         
         let mut rng = rand::thread_rng();
         let random_seed = rng.gen::<u64>();
-        let mut random_instance = ChaCha8Rng::seed_from_u64(random_seed);
+        let mut random_instance = get_random_instance(random_seed);
         
         for _ in 0..100 {
             let mut probability_per_item: HashMap<TestStruct, f32> = HashMap::new();
@@ -250,7 +254,7 @@ mod probability_container_unit_tests {
 
         let mut rng = rand::thread_rng();
         let random_seed = rng.gen::<u64>();
-        let mut random_instance = ChaCha8Rng::seed_from_u64(random_seed);
+        let mut random_instance = get_random_instance(random_seed);
         
         for _ in 0..100 {
             let mut probability_per_item: HashMap<TestStruct, f32> = HashMap::new();
@@ -289,7 +293,7 @@ mod probability_container_unit_tests {
 
         let mut rng = rand::thread_rng();
         let random_seed = rng.gen::<u64>();
-        let mut random_instance = ChaCha8Rng::seed_from_u64(random_seed);
+        let mut random_instance = get_random_instance(random_seed);
         let mut probability_per_item: HashMap<TestStruct, f32> = HashMap::new();
         let number_of_items = 100;
         let mut instances_per_index: Vec<u32> = Vec::new();
@@ -324,7 +328,7 @@ mod probability_container_unit_tests {
 
         let mut rng = rand::thread_rng();
         let random_seed = rng.gen::<u64>();
-        let mut random_instance = ChaCha8Rng::seed_from_u64(random_seed);
+        let mut random_instance = get_random_instance(random_seed);
 
         let mut probability_container: ProbabilityContainer<TestStruct> = ProbabilityContainer::default();
 
@@ -344,7 +348,7 @@ mod probability_container_unit_tests {
 
         let mut rng = rand::thread_rng();
         let random_seed = rng.gen::<u64>();
-        let mut random_instance = ChaCha8Rng::seed_from_u64(random_seed);
+        let mut random_instance = get_random_instance(random_seed);
 
         let mut probability_container: ProbabilityContainer<TestStruct> = ProbabilityContainer::default();
 
@@ -414,7 +418,7 @@ mod probability_container_unit_tests {
 
         let mut rng = rand::thread_rng();
         let random_seed = rng.gen::<u64>();
-        let mut random_instance = ChaCha8Rng::seed_from_u64(random_seed);
+        let mut random_instance = get_random_instance(random_seed);
         let number_of_items = 20;
         
         let mut probability_per_item: HashMap<TestStruct, f32> = HashMap::new();
@@ -470,7 +474,7 @@ mod probability_container_unit_tests {
 
         let mut rng = rand::thread_rng();
         let random_seed = rng.gen::<u64>();
-        let mut random_instance = ChaCha8Rng::seed_from_u64(random_seed);
+        let mut random_instance = get_random_instance(random_seed);
         let number_of_nodes = 100000;
         let number_of_items = 5;
 
@@ -525,7 +529,7 @@ mod probability_container_unit_tests {
 
         let mut rng = rand::thread_rng();
         let random_seed = rng.gen::<u64>();
-        let mut random_instance = ChaCha8Rng::seed_from_u64(random_seed);
+        let mut random_instance = get_random_instance(random_seed);
         let number_of_nodes = 100000;
         let number_of_items = 3;
 
@@ -3639,48 +3643,6 @@ mod wave_function_unit_tests {
     }
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 #[cfg(test)]
 mod indexed_view_unit_tests {
 
@@ -3692,6 +3654,11 @@ mod indexed_view_unit_tests {
     fn init() {
         std::env::set_var("RUST_LOG", "trace");
         //pretty_env_logger::try_init();
+    }
+
+    fn get_random_instance(random_seed: u64) -> fastrand::Rng {
+        //ChaCha8Rng::seed_from_u64(random_seed)
+        fastrand::Rng::with_seed(random_seed)
     }
 
     #[test]
@@ -3856,7 +3823,7 @@ mod indexed_view_unit_tests {
         let number_of_items: u32 = 10000;
         let mut rng = rand::thread_rng();
         let random_seed = rng.gen::<u64>();
-        let mut random_instance = ChaCha8Rng::seed_from_u64(random_seed);
+        let mut random_instance = get_random_instance(random_seed);
 
         let mut node_state_ids: Vec<String> = Vec::new();
         let mut node_state_probabilities: Vec<f32> = Vec::new();
@@ -3864,7 +3831,7 @@ mod indexed_view_unit_tests {
             node_state_ids.push(Uuid::new_v4().to_string());
             node_state_probabilities.push(1.0);
         }
-        node_state_ids.shuffle(&mut random_instance);
+        random_instance.shuffle(node_state_ids.as_mut_slice());
 
         let mut indexed_view = IndexedView::new(node_state_ids, node_state_probabilities);
         
