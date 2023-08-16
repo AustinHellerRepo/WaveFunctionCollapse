@@ -1,50 +1,25 @@
+mod model {
+    use uuid::Uuid;
 
-use uuid::Uuid;
+    #[derive(Eq, PartialEq, Hash, Clone, Debug)]
+    pub struct TestStruct {
+        pub id: String
+    }
 
-#[derive(Eq, PartialEq, Hash, Clone, Debug)]
-struct TestStruct {
-    id: String
-}
-
-#[allow(dead_code)]
-impl TestStruct {
-    pub fn new(id: String) -> Self {
-        TestStruct {
-            id
+    #[allow(dead_code)]
+    impl TestStruct {
+        pub fn new(id: String) -> Self {
+            TestStruct {
+                id
+            }
+        }
+        pub fn new_random() -> Self {
+            TestStruct {
+                id: Uuid::new_v4().to_string()
+            }
         }
     }
-    pub fn new_random() -> Self {
-        TestStruct {
-            id: Uuid::new_v4().to_string()
-        }
-    }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 #[cfg(test)]
 mod probability_collection_unit_tests {
@@ -53,7 +28,7 @@ mod probability_collection_unit_tests {
     use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha8Rng;
     use crate::wave_function::probability_collection::ProbabilityCollection;
-    use super::*;
+    use super::model::TestStruct;
 
     fn init() {
         std::env::set_var("RUST_LOG", "trace");
@@ -177,41 +152,15 @@ mod probability_collection_unit_tests {
     }
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 #[cfg(test)]
 mod probability_container_unit_tests {
 
     use std::collections::HashMap;
     use rand::{Rng, SeedableRng};
     use rand_chacha::ChaCha8Rng;
+    use uuid::Uuid;
     use crate::wave_function::probability_container::ProbabilityContainer;
-    use super::*;
+    use super::model::TestStruct;
 
     fn init() {
         std::env::set_var("RUST_LOG", "trace");
@@ -635,56 +584,13 @@ mod probability_container_unit_tests {
     }
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 #[cfg(test)]
 mod wave_function_unit_tests {
 
     use std::collections::HashMap;
     use rand::{RngCore, Rng};
+    use uuid::Uuid;
     use crate::wave_function::{Node, WaveFunction, NodeStateCollection, NodeStateProbability, collapsable_wave_function::{sequential_collapsable_wave_function::SequentialCollapsableWaveFunction, collapsable_wave_function::{CollapsedWaveFunction, CollapsedNodeState, CollapsableWaveFunction}, accommodating_collapsable_wave_function::AccommodatingCollapsableWaveFunction, accommodating_sequential_collapsable_wave_function::AccommodatingSequentialCollapsableWaveFunction}};
-    use super::*;
 
     fn init() {
         std::env::set_var("RUST_LOG", "trace");

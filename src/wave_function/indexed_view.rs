@@ -221,14 +221,12 @@ impl<TNodeState: Clone + Eq + Hash + Debug> IndexedView<TNodeState> {
         // NOTE: the mask_counter should not be fully reverted to ensure that the neighbor restrictions are still being considered
     }
     pub fn is_current_state_restricted(&self) -> bool {
-        let is_restricted: bool;
         if let Some(index) = self.index {
-            is_restricted = !self.is_unmasked_at_index(index);
+            !self.is_unmasked_at_index(index)
         }
         else {
-            is_restricted = false;
+            false
         }
-        is_restricted
     }
     pub fn is_fully_restricted(&mut self) -> bool {
         if self.is_mask_dirty {
