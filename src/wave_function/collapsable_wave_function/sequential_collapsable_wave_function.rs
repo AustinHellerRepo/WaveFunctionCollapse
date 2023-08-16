@@ -159,7 +159,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> SequentialCollap
 }
 
 impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveFunction<'a, TNodeState> for SequentialCollapsableWaveFunction<'a, TNodeState> {
-    fn new(collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a, TNodeState>>>>, collapsable_node_per_id: HashMap<&'a str, Rc<RefCell<CollapsableNode<'a, TNodeState>>>>, random_instance: Rc<RefCell<fastrand::Rng>>) -> Self {
+    fn new(collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a, TNodeState>>>>, collapsable_node_per_id: HashMap<&'a str, Rc<RefCell<CollapsableNode<'a, TNodeState>>>>, _random_instance: Rc<RefCell<fastrand::Rng>>) -> Self {
         let collapsable_nodes_length: usize = collapsable_nodes.len();
 
         SequentialCollapsableWaveFunction {

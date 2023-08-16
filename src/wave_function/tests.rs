@@ -155,11 +155,6 @@ mod probability_container_unit_tests {
         //pretty_env_logger::try_init();
     }
 
-    fn get_random_instance(random_seed: u64) -> fastrand::Rng {
-        //ChaCha8Rng::seed_from_u64(random_seed)
-        fastrand::Rng::with_seed(random_seed)
-    }
-
     #[test]
     fn initialize() {
         let _probability_container: ProbabilityContainer<TestStruct> = ProbabilityContainer::new(HashMap::new());
@@ -3624,11 +3619,6 @@ mod indexed_view_unit_tests {
     fn init() {
         std::env::set_var("RUST_LOG", "trace");
         //pretty_env_logger::try_init();
-    }
-
-    fn get_random_instance(random_seed: u64) -> fastrand::Rng {
-        //ChaCha8Rng::seed_from_u64(random_seed)
-        fastrand::Rng::with_seed(random_seed)
     }
 
     #[test]
