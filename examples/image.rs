@@ -1,5 +1,4 @@
 use std::{collections::{HashSet, HashMap}, io::Write, time::{Instant, Duration}};
-use rand::Rng;
 use serde::{Serialize, Deserialize};
 use uuid::Uuid;
 use wave_function_collapse::wave_function::{WaveFunction, NodeStateCollection, Node, collapsable_wave_function::{collapsable_wave_function::{CollapsableWaveFunction, CollapsedWaveFunction, CollapsedNodeState}, entropic_collapsable_wave_function::EntropicCollapsableWaveFunction}};
@@ -485,8 +484,8 @@ fn main() {
 
     wave_function.validate().unwrap();
 
-    let mut rng = rand::thread_rng();
-    let random_seed = Some(rng.gen::<u64>());
+    let mut random_instance = fastrand::Rng::new();
+    let random_seed = Some(random_instance.u64(..));
 
     let mut collapsable_wave_function = wave_function.get_collapsable_wave_function::<EntropicCollapsableWaveFunction<ImageFragment>>(random_seed);
     

@@ -2,9 +2,7 @@ use std::{slice::Iter, collections::HashMap, time::Instant};
 use colored::{Colorize, ColoredString};
 use log::debug;
 extern crate pretty_env_logger;
-use rand::Rng;
 use serde::{Serialize, Deserialize};
-use uuid::Uuid;
 use wave_function_collapse::wave_function::{
     Node,
     NodeStateCollection,
@@ -94,43 +92,43 @@ impl Landscape {
         let mut node_state_collections: Vec<NodeStateCollection<LandscapeElement>> = Vec::new();
         // water
         node_state_collections.push(NodeStateCollection::new(
-            Uuid::new_v4().to_string(),
+            String::from("water"),
             LandscapeElement::Water,
             vec![LandscapeElement::Water, LandscapeElement::Sand]
         ));
         // sand
         node_state_collections.push(NodeStateCollection::new(
-            Uuid::new_v4().to_string(),
+            String::from("sand"),
             LandscapeElement::Sand,
             vec![LandscapeElement::Water, LandscapeElement::Sand, LandscapeElement::Grass]
         ));
         // grass
         node_state_collections.push(NodeStateCollection::new(
-            Uuid::new_v4().to_string(),
+            String::from("grass"),
             LandscapeElement::Grass,
             vec![LandscapeElement::Sand, LandscapeElement::Grass, LandscapeElement::Tree, LandscapeElement::Hill]
         ));
         // tree
         node_state_collections.push(NodeStateCollection::new(
-            Uuid::new_v4().to_string(),
+            String::from("tree"),
             LandscapeElement::Tree,
             vec![LandscapeElement::Grass, LandscapeElement::Tree, LandscapeElement::Forest]
         ));
         // forest
         node_state_collections.push(NodeStateCollection::new(
-            Uuid::new_v4().to_string(),
+            String::from("forest"),
             LandscapeElement::Forest,
             vec![LandscapeElement::Tree, LandscapeElement::Forest]
         ));
         // hill
         node_state_collections.push(NodeStateCollection::new(
-            Uuid::new_v4().to_string(),
+            String::from("hill"),
             LandscapeElement::Hill,
             vec![LandscapeElement::Grass, LandscapeElement::Hill, LandscapeElement::Mountain]
         ));
         // mountain
         node_state_collections.push(NodeStateCollection::new(
-            Uuid::new_v4().to_string(),
+            String::from("mountain"),
             LandscapeElement::Mountain,
             vec![LandscapeElement::Hill, LandscapeElement::Mountain]
         ));
@@ -246,17 +244,17 @@ fn main() {
 
     let start = Instant::now();
 
-    let width: u32 = 60;
-    let height: u32 = 60;
+    let width: u32 = 50;
+    let height: u32 = 50;
     let landscape = Landscape::new(width, height);
 
     let wave_function = landscape.get_wave_function();
 
     wave_function.validate().unwrap();
 
-    let mut rng = rand::thread_rng();
-    //let random_seed = Some(rng.gen::<u64>());
-    let random_seed = Some(0);
+    let mut random_instance = fastrand::Rng::new();
+    let random_seed = Some(random_instance.u64(..));
+    //let random_seed = Some(0);
     //let random_seed = None;
 
     let collapsed_wave_function = wave_function.get_collapsable_wave_function::<AccommodatingCollapsableWaveFunction<LandscapeElement>>(random_seed).collapse().unwrap();

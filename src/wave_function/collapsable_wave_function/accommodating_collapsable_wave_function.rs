@@ -3,7 +3,6 @@ use std::marker::PhantomData;
 use std::{cell::RefCell, rc::Rc, collections::HashMap};
 use std::hash::Hash;
 use bitvec::vec::BitVec;
-use rand::seq::SliceRandom;
 use super::collapsable_wave_function::{CollapsableWaveFunction, CollapsableNode, CollapsedNodeState, CollapsedWaveFunction};
 
 /// This struct represents a CollapsableWaveFunction that picks a random node, tries to get each parent to accommodate to the current state of the random node, repeating until all nodes are unrestricted. This is best for finding solutions when the condition problem has many possible solutions and you want a more random solution. If there are very few solutions, the wave function is uncollapsable by design, or there are certain types of cycles in the graph, this algorithm with perform poorly or never complete.
@@ -15,6 +14,7 @@ pub struct AccommodatingCollapsableWaveFunction<'a, TNodeState: Eq + Hash + Clon
     accommodate_node_ids_index: usize,
     accommodated_total: usize,
     impacted_node_ids: HashSet<&'a str>,
+    random_instance: Rc<RefCell<fastrand::Rng>>,
     node_state_type: PhantomData<TNodeState>
 }
 
@@ -79,7 +79,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingCol
         debug!("prior to being prepared: {:?}", self.accommodate_node_ids);
 
         self.accommodate_node_ids_index = 0;
-        self.accommodate_node_ids.shuffle(&mut rand::thread_rng());  // TODO use a provided random instance for deterministic results
+        self.random_instance.borrow_mut().shuffle(self.accommodate_node_ids.as_mut_slice());
         self.accommodated_total = 0;
         self.impacted_node_ids.clear();
      
@@ -251,7 +251,11 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingCol
 }
 
 impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveFunction<'a, TNodeState> for AccommodatingCollapsableWaveFunction<'a, TNodeState> {
-    fn new(collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a, TNodeState>>>>, collapsable_node_per_id: HashMap<&'a str, Rc<RefCell<CollapsableNode<'a, TNodeState>>>>) -> Self {
+    fn new(
+        collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a, TNodeState>>>>,
+        collapsable_node_per_id: HashMap<&'a str, Rc<RefCell<CollapsableNode<'a, TNodeState>>>>,
+        random_instance: Rc<RefCell<fastrand::Rng>>
+    ) -> Self {
         AccommodatingCollapsableWaveFunction {
             collapsable_nodes,
             collapsable_node_per_id,
@@ -260,6 +264,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveF
             accommodate_node_ids_index: 0,
             accommodated_total: 0,
             impacted_node_ids: HashSet::new(),
+            random_instance,
             node_state_type: PhantomData
         }
     }

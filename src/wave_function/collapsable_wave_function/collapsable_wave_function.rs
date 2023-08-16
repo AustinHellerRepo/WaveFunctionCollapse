@@ -10,7 +10,7 @@ use crate::wave_function::indexed_view::IndexedView;
 
 /// This trait defines the relationship between collapsable nodes and a collapsed state.
 pub trait CollapsableWaveFunction<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> {
-    fn new(collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a, TNodeState>>>>, collapsable_node_per_id: HashMap<&'a str, Rc<RefCell<CollapsableNode<'a, TNodeState>>>>) -> Self where Self: Sized;
+    fn new(collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a, TNodeState>>>>, collapsable_node_per_id: HashMap<&'a str, Rc<RefCell<CollapsableNode<'a, TNodeState>>>>, random_instance: Rc<RefCell<fastrand::Rng>>) -> Self where Self: Sized;
     fn collapse_into_steps(&'a mut self) -> Result<Vec<CollapsedNodeState<TNodeState>>, String>;
     fn collapse(&'a mut self) -> Result<CollapsedWaveFunction<TNodeState>, String>;
 }

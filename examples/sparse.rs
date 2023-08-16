@@ -1,6 +1,5 @@
 use std::{collections::HashMap, time::Instant};
 use colored::{ColoredString, Colorize};
-use rand::Rng;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use wave_function_collapse::wave_function::{WaveFunction, NodeStateCollection, Node, collapsable_wave_function::{accommodating_collapsable_wave_function::AccommodatingCollapsableWaveFunction, collapsable_wave_function::CollapsableWaveFunction}};
@@ -126,8 +125,8 @@ fn main() {
 
     wave_function.validate().unwrap();
 
-    let mut rng = rand::thread_rng();
-    let random_seed = Some(rng.gen::<u64>());
+    let mut random_instance = fastrand::Rng::new();
+    let random_seed = Some(random_instance.u64(..));
 
     let start = Instant::now();
 

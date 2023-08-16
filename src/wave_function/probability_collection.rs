@@ -1,5 +1,4 @@
 use std::{fmt::Debug, collections::HashMap};
-use rand::Rng;
 use std::hash::Hash;
 
 /// This struct is optimized better than ProbabilityContainer to remove a random item but does not permit searching for a random item.
@@ -12,15 +11,16 @@ pub struct ProbabilityCollection<T> {
 }
 
 #[allow(dead_code)]
-impl<T: Eq + Hash + Clone + Debug> ProbabilityCollection<T> {
+impl<T: Ord + Eq + Hash + Clone + Debug> ProbabilityCollection<T> {
     pub fn new(probability_per_item: HashMap<T, f32>) -> Self {
         let mut probability_total = 0.0;
         let mut items_total: u32 = 0;
-        let mut items: Vec<T> = Vec::new();
-        for (item, probability) in probability_per_item.iter() {
+        let mut items: Vec<T> = probability_per_item.keys().cloned().collect::<Vec<T>>();
+        items.sort();
+        for item in items.iter() {
+            let probability = &probability_per_item[item];
             if probability != &0.0 {
                 probability_total += probability;
-                items.push(item.clone());
                 items_total += 1;
             }
         }
@@ -31,7 +31,7 @@ impl<T: Eq + Hash + Clone + Debug> ProbabilityCollection<T> {
             items
         }
     }
-    pub fn pop_random<R: Rng + ?Sized>(&mut self, random_instance: &mut R) -> Option<T> {
+    pub fn pop_random(&mut self, random_instance: &mut fastrand::Rng) -> Option<T> {
         debug!("current state: {:?}", self.probability_per_item);
         if self.items_total == 0 {
             debug!("no items");
@@ -47,7 +47,7 @@ impl<T: Eq + Hash + Clone + Debug> ProbabilityCollection<T> {
             item_option
         }
         else {
-            let random_value = random_instance.gen::<f32>() * self.probability_total;
+            let random_value = random_instance.f32() * self.probability_total;
             debug!("random_value: {:?}", random_value);
             let mut current_probability = 0.0;
             let mut found_item_index: Option<usize> = None;

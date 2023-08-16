@@ -25,8 +25,6 @@ mod model {
 mod probability_collection_unit_tests {
 
     use std::collections::HashMap;
-    use rand::{Rng, SeedableRng};
-    use rand_chacha::ChaCha8Rng;
     use crate::wave_function::probability_collection::ProbabilityCollection;
     use super::model::TestStruct;
 
@@ -44,10 +42,8 @@ mod probability_collection_unit_tests {
     fn probability_collection_no_items() {
         init();
 
-        let mut rng = rand::thread_rng();
-        let random_seed = rng.gen::<u64>();
-        let mut random_instance = ChaCha8Rng::seed_from_u64(random_seed);
-        
+        let mut random_instance = fastrand::Rng::new();
+
         for _ in 0..100 {
             let probability_per_item: HashMap<TestStruct, f32> = HashMap::new();
             let mut probability_collection: ProbabilityCollection<TestStruct> = ProbabilityCollection::new(probability_per_item);
@@ -62,10 +58,8 @@ mod probability_collection_unit_tests {
     #[test]
     fn probability_collection_one_item() {
         init();
-        
-        let mut rng = rand::thread_rng();
-        let random_seed = rng.gen::<u64>();
-        let mut random_instance = ChaCha8Rng::seed_from_u64(random_seed);
+
+        let mut random_instance = fastrand::Rng::new();
         
         for _ in 0..100 {
             let mut probability_per_item: HashMap<TestStruct, f32> = HashMap::new();
@@ -85,9 +79,7 @@ mod probability_collection_unit_tests {
     fn probability_collection_many_items_equal_probability() {
         init();
         
-        let mut rng = rand::thread_rng();
-        let random_seed = rng.gen::<u64>();
-        let mut random_instance = ChaCha8Rng::seed_from_u64(random_seed);
+        let mut random_instance = fastrand::Rng::new();
         
         for _ in 0..100 {
             let mut probability_per_item: HashMap<TestStruct, f32> = HashMap::new();
@@ -116,9 +108,7 @@ mod probability_collection_unit_tests {
     fn probability_collection_many_items_one_high_probability() {
         init();
 
-        let mut rng = rand::thread_rng();
-        let random_seed = rng.gen::<u64>();
-        let mut random_instance = ChaCha8Rng::seed_from_u64(random_seed);
+        let mut random_instance = fastrand::Rng::new();
         
         for _ in 0..100 {
             let mut probability_per_item: HashMap<TestStruct, f32> = HashMap::new();
@@ -156,7 +146,6 @@ mod probability_collection_unit_tests {
 mod probability_container_unit_tests {
 
     use std::collections::HashMap;
-    use rand::Rng;
     use uuid::Uuid;
     use crate::wave_function::probability_container::ProbabilityContainer;
     use super::model::TestStruct;
@@ -180,9 +169,7 @@ mod probability_container_unit_tests {
     fn probability_container_no_items() {
         init();
 
-        let mut rng = rand::thread_rng();
-        let random_seed = rng.gen::<u64>();
-        let mut random_instance = get_random_instance(random_seed);
+        let mut random_instance = fastrand::Rng::new();
         
         for _ in 0..100 {
             let probability_per_item: HashMap<TestStruct, f32> = HashMap::new();
@@ -199,9 +186,7 @@ mod probability_container_unit_tests {
     fn probability_container_one_item() {
         init();
         
-        let mut rng = rand::thread_rng();
-        let random_seed = rng.gen::<u64>();
-        let mut random_instance = get_random_instance(random_seed);
+        let mut random_instance = fastrand::Rng::new();
         
         for _ in 0..100 {
             let mut probability_per_item: HashMap<TestStruct, f32> = HashMap::new();
@@ -221,9 +206,7 @@ mod probability_container_unit_tests {
     fn probability_container_many_items_equal_probability() {
         init();
         
-        let mut rng = rand::thread_rng();
-        let random_seed = rng.gen::<u64>();
-        let mut random_instance = get_random_instance(random_seed);
+        let mut random_instance = fastrand::Rng::new();
         
         for _ in 0..100 {
             let mut probability_per_item: HashMap<TestStruct, f32> = HashMap::new();
@@ -252,9 +235,7 @@ mod probability_container_unit_tests {
     fn probability_container_many_items_one_high_probability() {
         init();
 
-        let mut rng = rand::thread_rng();
-        let random_seed = rng.gen::<u64>();
-        let mut random_instance = get_random_instance(random_seed);
+        let mut random_instance = fastrand::Rng::new();
         
         for _ in 0..100 {
             let mut probability_per_item: HashMap<TestStruct, f32> = HashMap::new();
@@ -291,9 +272,8 @@ mod probability_container_unit_tests {
     fn probability_container_ensure_get_is_equal_probability() {
         init();
 
-        let mut rng = rand::thread_rng();
-        let random_seed = rng.gen::<u64>();
-        let mut random_instance = get_random_instance(random_seed);
+        let mut random_instance = fastrand::Rng::new();
+
         let mut probability_per_item: HashMap<TestStruct, f32> = HashMap::new();
         let number_of_items = 100;
         let mut instances_per_index: Vec<u32> = Vec::new();
@@ -326,9 +306,7 @@ mod probability_container_unit_tests {
     fn probability_container_push_and_get_and_remove_repeatedly() {
         init();
 
-        let mut rng = rand::thread_rng();
-        let random_seed = rng.gen::<u64>();
-        let mut random_instance = get_random_instance(random_seed);
+        let mut random_instance = fastrand::Rng::new();
 
         let mut probability_container: ProbabilityContainer<TestStruct> = ProbabilityContainer::default();
 
@@ -346,9 +324,7 @@ mod probability_container_unit_tests {
     fn probability_container_push_and_get_and_remove_two_repeatedly() {
         init();
 
-        let mut rng = rand::thread_rng();
-        let random_seed = rng.gen::<u64>();
-        let mut random_instance = get_random_instance(random_seed);
+        let mut random_instance = fastrand::Rng::new();
 
         let mut probability_container: ProbabilityContainer<TestStruct> = ProbabilityContainer::default();
 
@@ -416,9 +392,8 @@ mod probability_container_unit_tests {
         // Conclusion:
         //  getting the random item takes the most time in this test, by far, usually only needing to increment less than 50 times
 
-        let mut rng = rand::thread_rng();
-        let random_seed = rng.gen::<u64>();
-        let mut random_instance = get_random_instance(random_seed);
+        let mut random_instance = fastrand::Rng::new();
+
         let number_of_items = 20;
         
         let mut probability_per_item: HashMap<TestStruct, f32> = HashMap::new();
@@ -472,9 +447,8 @@ mod probability_container_unit_tests {
     fn probability_container_verify_ratio_between_equal_opportunity() {
         init();
 
-        let mut rng = rand::thread_rng();
-        let random_seed = rng.gen::<u64>();
-        let mut random_instance = get_random_instance(random_seed);
+        let mut random_instance = fastrand::Rng::new();
+
         let number_of_nodes = 100000;
         let number_of_items = 5;
 
@@ -527,9 +501,8 @@ mod probability_container_unit_tests {
     fn probability_container_create_many_instances_and_pop_random_all() {
         init();
 
-        let mut rng = rand::thread_rng();
-        let random_seed = rng.gen::<u64>();
-        let mut random_instance = get_random_instance(random_seed);
+        let mut random_instance = fastrand::Rng::new();
+
         let number_of_nodes = 100000;
         let number_of_items = 3;
 
@@ -592,7 +565,6 @@ mod probability_container_unit_tests {
 mod wave_function_unit_tests {
 
     use std::collections::HashMap;
-    use rand::{RngCore, Rng};
     use uuid::Uuid;
     use crate::wave_function::{Node, WaveFunction, NodeStateCollection, NodeStateProbability, collapsable_wave_function::{sequential_collapsable_wave_function::SequentialCollapsableWaveFunction, collapsable_wave_function::{CollapsedWaveFunction, CollapsedNodeState, CollapsableWaveFunction}, accommodating_collapsable_wave_function::AccommodatingCollapsableWaveFunction, accommodating_sequential_collapsable_wave_function::AccommodatingSequentialCollapsableWaveFunction}};
 
@@ -779,10 +751,10 @@ mod wave_function_unit_tests {
         let wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
         
-        let mut rng = rand::thread_rng();
-
+        let mut random_instance = fastrand::Rng::new();
+        
         for _ in 0..100000 {
-            let random_seed = Some(rng.next_u64());
+            let random_seed = Some(random_instance.u64(..));
             let collapsed_wave_function = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(random_seed).collapse().unwrap();
 
             let node_state_id: &str = collapsed_wave_function.node_state_per_node.get(&node_id).unwrap();
@@ -818,10 +790,10 @@ mod wave_function_unit_tests {
         let wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
         
-        let mut rng = rand::thread_rng();
+        let mut random_instance = fastrand::Rng::new();
 
         for _ in 0..100000 {
-            let random_seed = Some(rng.next_u64());
+            let random_seed = Some(random_instance.u64(..));
             let collapsed_wave_function = wave_function.get_collapsable_wave_function::<AccommodatingCollapsableWaveFunction<String>>(random_seed).collapse().unwrap();
 
             let node_state_id: &str = collapsed_wave_function.node_state_per_node.get(&node_id).unwrap();
@@ -857,10 +829,10 @@ mod wave_function_unit_tests {
         let wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
         
-        let mut rng = rand::thread_rng();
+        let mut random_instance = fastrand::Rng::new();
 
         for _ in 0..100000 {
-            let random_seed = Some(rng.next_u64());
+            let random_seed = Some(random_instance.u64(..));
             let collapsed_wave_function = wave_function.get_collapsable_wave_function::<AccommodatingSequentialCollapsableWaveFunction<String>>(random_seed).collapse().unwrap();
 
             let node_state_id: &str = collapsed_wave_function.node_state_per_node.get(&node_id).unwrap();
@@ -869,7 +841,7 @@ mod wave_function_unit_tests {
 
         println!("count_per_node_state_id: {:?}", count_per_node_state_id);
         assert!(count_per_node_state_id.get(one_node_state_id.as_str()).unwrap() > &49000, "The first node state was less than expected.");
-        assert!(count_per_node_state_id.get(two_node_state_id.as_str()).unwrap() > &49000, "The first node state was less than expected.");
+        assert!(count_per_node_state_id.get(two_node_state_id.as_str()).unwrap() > &49000, "The second node state was less than expected.");
     }
 
     #[test]
@@ -1533,7 +1505,7 @@ mod wave_function_unit_tests {
     fn two_nodes_both_as_neighbors_and_different_states_with_random_runs() {
         init();
 
-        let mut rng = rand::thread_rng();
+        let mut random_instance = fastrand::Rng::new();
 
         for _ in 0..10 {
             let mut nodes: Vec<Node<String>> = Vec::new();
@@ -1582,7 +1554,7 @@ mod wave_function_unit_tests {
 
             let wave_function = WaveFunction::new(nodes, node_state_collections);
             wave_function.validate().unwrap();
-            let random_seed = Some(rng.gen::<u64>());
+            let random_seed = Some(random_instance.u64(..));
 
             let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(random_seed).collapse();
 
@@ -1600,7 +1572,7 @@ mod wave_function_unit_tests {
     fn two_nodes_both_as_neighbors_with_conflicting_state_requirements() {
         init();
 
-        let mut rng = rand::thread_rng();
+        let mut random_instance = fastrand::Rng::new();
 
         for _ in 0..10 {
             let mut nodes: Vec<Node<String>> = Vec::new();
@@ -1703,7 +1675,7 @@ mod wave_function_unit_tests {
 
             let wave_function = WaveFunction::new(nodes, node_state_collections);
             wave_function.validate().unwrap();
-            let random_seed = Some(rng.gen::<u64>());
+            let random_seed = Some(random_instance.u64(..));
 
             let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(random_seed).collapse();
 
@@ -2086,7 +2058,7 @@ mod wave_function_unit_tests {
     fn three_nodes_as_dense_neighbors_randomly_all_different_states() {
         init();
 
-        let mut rng = rand::thread_rng();
+        let mut random_instance = fastrand::Rng::new();
 
         for _ in 0..10 {
             
@@ -2170,7 +2142,7 @@ mod wave_function_unit_tests {
 
             let wave_function = WaveFunction::new(nodes, node_state_collections);
             wave_function.validate().unwrap();
-            let random_seed = Some(rng.next_u64());
+            let random_seed = Some(random_instance.u64(..));
 
             let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(random_seed).collapse();
             
@@ -2451,7 +2423,7 @@ mod wave_function_unit_tests {
     fn many_nodes_as_dense_neighbors_randomly_all_different_states() {
         //init();
 
-        let mut rng = rand::thread_rng();
+        let mut random_instance = fastrand::Rng::new();
 
         for _ in 0..10 {
 
@@ -2512,7 +2484,7 @@ mod wave_function_unit_tests {
 
             let collapsed_wave_function_result: Result<CollapsedWaveFunction<String>, String>;
             
-            let random_seed = Some(rng.next_u64());
+            let random_seed = Some(random_instance.u64(..));
             collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(random_seed).collapse();
 
             if let Err(error_message) = collapsed_wave_function_result {
@@ -3093,11 +3065,11 @@ mod wave_function_unit_tests {
     fn four_nodes_as_square_neighbors_randomly() {
         init();
 
-        let mut rng = rand::thread_rng();
+        let mut random_instance = fastrand::Rng::new();
 
         for _ in 0..1000 {
 
-            let random_seed = Some(rng.next_u64());
+            let random_seed = Some(random_instance.u64(..));
 
             let mut nodes: Vec<Node<String>> = Vec::new();
             let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
@@ -3181,11 +3153,11 @@ mod wave_function_unit_tests {
     fn four_nodes_as_square_neighbors_in_cycle_alone() {
         init();
 
-        let mut rng = rand::thread_rng();
+        let mut random_instance = fastrand::Rng::new();
 
         for _ in 0..100 {
 
-            let random_seed = Some(rng.next_u64());
+            let random_seed = Some(random_instance.u64(..));
 
             let mut nodes: Vec<Node<String>> = Vec::new();
             let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
@@ -3269,11 +3241,11 @@ mod wave_function_unit_tests {
     fn four_nodes_as_square_neighbors_in_cycle_affects_another_square_sequential() {
         init();
 
-        let mut rng = rand::thread_rng();
+        let mut random_instance = fastrand::Rng::new();
 
         for _ in 0..100 {
 
-            let random_seed = Some(rng.next_u64());
+            let random_seed = Some(random_instance.u64(..));
 
             let mut nodes: Vec<Node<String>> = Vec::new();
             let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
@@ -3404,11 +3376,11 @@ mod wave_function_unit_tests {
     fn four_nodes_as_square_neighbors_in_cycle_affects_another_square_acc_seq() {
         init();
 
-        let mut rng = rand::thread_rng();
+        let mut random_instance = fastrand::Rng::new();
 
         for _ in 0..100 {
 
-            let random_seed = Some(rng.next_u64());
+            let random_seed = Some(random_instance.u64(..));
 
             let mut nodes: Vec<Node<String>> = Vec::new();
             let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
@@ -3646,8 +3618,6 @@ mod wave_function_unit_tests {
 #[cfg(test)]
 mod indexed_view_unit_tests {
 
-    use rand::{Rng, SeedableRng, seq::SliceRandom};
-    use rand_chacha::ChaCha8Rng;
     use uuid::Uuid;
     use crate::wave_function::indexed_view::IndexedView;
 
@@ -3765,9 +3735,7 @@ mod indexed_view_unit_tests {
         init();
 
         let number_of_items: u32 = 10000;
-        let mut rng = rand::thread_rng();
-        let random_seed = rng.gen::<u64>();
-        let mut random_instance = ChaCha8Rng::seed_from_u64(random_seed);
+        let mut random_instance = fastrand::Rng::new();
 
         let mut node_state_ids: Vec<u32> = Vec::new();
         let mut node_state_probabilities: Vec<f32> = Vec::new();
@@ -3775,7 +3743,7 @@ mod indexed_view_unit_tests {
             node_state_ids.push(node_state_id);
             node_state_probabilities.push(1.0);
         }
-        node_state_ids.shuffle(&mut random_instance);
+        random_instance.shuffle(node_state_ids.as_mut_slice());
 
         let mut indexed_view = IndexedView::new(node_state_ids, node_state_probabilities);
         let mut popped_node_state_ids: Vec<u32> = Vec::new();
@@ -3793,9 +3761,7 @@ mod indexed_view_unit_tests {
         init();
 
         let number_of_items: u32 = 10000;
-        let mut rng = rand::thread_rng();
-        let random_seed = rng.gen::<u64>();
-        let mut random_instance = ChaCha8Rng::seed_from_u64(random_seed);
+        let mut random_instance = fastrand::Rng::new();
 
         let mut node_state_ids: Vec<String> = Vec::new();
         let mut node_state_probabilities: Vec<f32> = Vec::new();
@@ -3803,7 +3769,7 @@ mod indexed_view_unit_tests {
             node_state_ids.push(Uuid::new_v4().to_string());
             node_state_probabilities.push(1.0);
         }
-        node_state_ids.shuffle(&mut random_instance);
+        random_instance.shuffle(node_state_ids.as_mut_slice());
 
         let mut indexed_view = IndexedView::new(node_state_ids, node_state_probabilities);
         let mut popped_node_state_ids: Vec<String> = Vec::new();
@@ -3821,9 +3787,7 @@ mod indexed_view_unit_tests {
         init();
 
         let number_of_items: u32 = 10000;
-        let mut rng = rand::thread_rng();
-        let random_seed = rng.gen::<u64>();
-        let mut random_instance = get_random_instance(random_seed);
+        let mut random_instance = fastrand::Rng::new();
 
         let mut node_state_ids: Vec<String> = Vec::new();
         let mut node_state_probabilities: Vec<f32> = Vec::new();

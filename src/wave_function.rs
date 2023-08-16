@@ -277,10 +277,10 @@ impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord + Serialize + Deseria
         let mut collapsable_node_per_id: HashMap<&str, Rc<RefCell<CollapsableNode<TNodeState>>>> = HashMap::new();
         // contains the mask to apply to the neighbor when this node is in a specific state
         let random_instance = if let Some(seed) = random_seed {
-            Some(Rc::new(RefCell::new(fastrand::Rng::with_seed(seed))))
+            Rc::new(RefCell::new(fastrand::Rng::with_seed(seed)))
         }
         else {
-            None
+            Rc::new(RefCell::new(fastrand::Rng::new()))
         };
         for node in self.nodes.iter() {
             let node_id: &str = node.id.as_str();
@@ -290,7 +290,7 @@ impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord + Serialize + Deseria
 
             let mut collapsable_node = CollapsableNode::new(&node.id, &node.node_state_collection_ids_per_neighbor_node_id, mask_per_neighbor_per_state, node_state_indexed_view);
 
-            if let Some(random_instance) = random_instance.clone() {
+            if random_seed.is_some() {
                 collapsable_node.randomize(&mut random_instance.borrow_mut());
             }
 
@@ -311,7 +311,7 @@ impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord + Serialize + Deseria
                 for parent_neighbor_node_id in mask_per_parent_state_per_parent_neighbor.keys() {
                     collapsable_node.parent_neighbor_node_ids.push(parent_neighbor_node_id);
                 }
-                if let Some(random_instance) = random_instance.clone() {
+                if random_seed.is_some() {
                     random_instance.borrow_mut().shuffle(collapsable_node.parent_neighbor_node_ids.as_mut_slice());
                 }
                 else {
@@ -320,7 +320,7 @@ impl<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord + Serialize + Deseria
             }
         }
 
-        TCollapsableWaveFunction::new(collapsable_nodes, collapsable_node_per_id)
+        TCollapsableWaveFunction::new(collapsable_nodes, collapsable_node_per_id, random_instance)
     }
 
     pub fn save_to_file(&self, file_path: &str) {
