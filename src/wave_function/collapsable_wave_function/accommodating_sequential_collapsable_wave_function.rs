@@ -1,7 +1,6 @@
 use std::{rc::Rc, cell::RefCell, collections::{HashMap, HashSet}, marker::PhantomData};
 use std::hash::Hash;
 use bitvec::vec::BitVec;
-use rand::seq::SliceRandom;
 use crate::wave_function::indexed_view::IndexedViewMaskState;
 use super::collapsable_wave_function::{CollapsableNode, CollapsedNodeState, CollapsedWaveFunction, CollapsableWaveFunction};
 
@@ -21,6 +20,7 @@ pub struct AccommodatingSequentialCollapsableWaveFunction<'a, TNodeState: Eq + H
     current_neighbor_node_ids_length: usize,
     is_current_neighbor_node_cycle_required: bool,
     is_current_node_neighbors_collapse_possible: bool,
+    random_instance: Rc<RefCell<fastrand::Rng>>,
     node_state_type: PhantomData<TNodeState>
 }
 
@@ -95,7 +95,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingSeq
         debug!("prior to being prepared: {:?}", self.spread_node_ids);
 
         self.spread_node_ids_index = 0;
-        self.spread_node_ids.shuffle(&mut rand::thread_rng());  // TODO use a provided random instance for deterministic results
+        self.random_instance.borrow_mut().shuffle(self.spread_node_ids.as_mut_slice());
         self.impacted_node_ids.clear();
      
         debug!("after being prepared: {:?}", self.spread_node_ids);
@@ -282,7 +282,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingSeq
         }
 
         // randomize order of neighbor nodes
-        self.current_neighbor_node_ids.shuffle(&mut rand::thread_rng());
+        self.random_instance.borrow_mut().shuffle(self.current_neighbor_node_ids.as_mut_slice());
         debug!("shuffled neighbors: {:?}", self.current_neighbor_node_ids);
 
         // cache great neighbor node ids per neighbor (excluding other nodes)
@@ -579,7 +579,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingSeq
             }
         }
 
-        for (neighbor_node_id, mut mask_state) in self.stash_per_neighbor_node_id.iter_mut() {
+        for (neighbor_node_id, mask_state) in self.stash_per_neighbor_node_id.iter_mut() {
             let wrapped_neighbor_collapsable_node = self.collapsable_node_per_id.get(neighbor_node_id).unwrap();
             let mut neighbor_collapsable_node = wrapped_neighbor_collapsable_node.borrow_mut();
             neighbor_collapsable_node.node_state_indexed_view.unstash_mask_state(mask_state);
@@ -607,16 +607,16 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingSeq
             node_state_per_node.insert(node, node_state);
         }
         CollapsedWaveFunction {
-            node_state_per_node: node_state_per_node
+            node_state_per_node
         }
     }
 }
 
 impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveFunction<'a, TNodeState> for AccommodatingSequentialCollapsableWaveFunction<'a, TNodeState> {
-    fn new(collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a, TNodeState>>>>, collapsable_node_per_id: HashMap<&'a str, Rc<RefCell<CollapsableNode<'a, TNodeState>>>>) -> Self {
+    fn new(collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a, TNodeState>>>>, collapsable_node_per_id: HashMap<&'a str, Rc<RefCell<CollapsableNode<'a, TNodeState>>>>, random_instance: Rc<RefCell<fastrand::Rng>>) -> Self {
         AccommodatingSequentialCollapsableWaveFunction {
-            collapsable_nodes: collapsable_nodes,
-            collapsable_node_per_id: collapsable_node_per_id,
+            collapsable_nodes,
+            collapsable_node_per_id,
             spread_node_ids: Vec::new(),
             spread_node_ids_length: 0,
             spread_node_ids_index: 0,
@@ -630,6 +630,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveF
             current_neighbor_node_ids_length: 0,
             is_current_neighbor_node_cycle_required: false,
             is_current_node_neighbors_collapse_possible: true,
+            random_instance,
             node_state_type: PhantomData
         }
     }

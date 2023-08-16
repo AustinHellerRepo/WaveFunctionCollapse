@@ -1,58 +1,32 @@
+mod model {
+    use uuid::Uuid;
 
-use uuid::Uuid;
+    #[derive(PartialOrd, Ord, Eq, PartialEq, Hash, Clone, Debug)]
+    pub struct TestStruct {
+        pub id: String
+    }
 
-#[derive(Eq, PartialEq, Hash, Clone, Debug)]
-struct TestStruct {
-    id: String
-}
-
-impl TestStruct {
-    pub fn new(id: String) -> Self {
-        TestStruct {
-            id: id
+    #[allow(dead_code)]
+    impl TestStruct {
+        pub fn new(id: String) -> Self {
+            TestStruct {
+                id
+            }
+        }
+        pub fn new_random() -> Self {
+            TestStruct {
+                id: Uuid::new_v4().to_string()
+            }
         }
     }
-    pub fn new_random() -> Self {
-        TestStruct {
-            id: Uuid::new_v4().to_string()
-        }
-    }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 #[cfg(test)]
 mod probability_collection_unit_tests {
 
     use std::collections::HashMap;
-    use rand::{Rng, SeedableRng};
-    use rand_chacha::ChaCha8Rng;
     use crate::wave_function::probability_collection::ProbabilityCollection;
-    use super::*;
+    use super::model::TestStruct;
 
     fn init() {
         std::env::set_var("RUST_LOG", "trace");
@@ -61,17 +35,15 @@ mod probability_collection_unit_tests {
 
     #[test]
     fn initialize() {
-        let probability_collection: ProbabilityCollection<TestStruct> = ProbabilityCollection::new(HashMap::new());
+        let _probability_collection: ProbabilityCollection<TestStruct> = ProbabilityCollection::new(HashMap::new());
     }
 
     #[test]
     fn probability_collection_no_items() {
         init();
 
-        let mut rng = rand::thread_rng();
-        let random_seed = rng.gen::<u64>();
-        let mut random_instance = ChaCha8Rng::seed_from_u64(random_seed);
-        
+        let mut random_instance = fastrand::Rng::new();
+
         for _ in 0..100 {
             let probability_per_item: HashMap<TestStruct, f32> = HashMap::new();
             let mut probability_collection: ProbabilityCollection<TestStruct> = ProbabilityCollection::new(probability_per_item);
@@ -86,10 +58,8 @@ mod probability_collection_unit_tests {
     #[test]
     fn probability_collection_one_item() {
         init();
-        
-        let mut rng = rand::thread_rng();
-        let random_seed = rng.gen::<u64>();
-        let mut random_instance = ChaCha8Rng::seed_from_u64(random_seed);
+
+        let mut random_instance = fastrand::Rng::new();
         
         for _ in 0..100 {
             let mut probability_per_item: HashMap<TestStruct, f32> = HashMap::new();
@@ -109,9 +79,7 @@ mod probability_collection_unit_tests {
     fn probability_collection_many_items_equal_probability() {
         init();
         
-        let mut rng = rand::thread_rng();
-        let random_seed = rng.gen::<u64>();
-        let mut random_instance = ChaCha8Rng::seed_from_u64(random_seed);
+        let mut random_instance = fastrand::Rng::new();
         
         for _ in 0..100 {
             let mut probability_per_item: HashMap<TestStruct, f32> = HashMap::new();
@@ -140,9 +108,7 @@ mod probability_collection_unit_tests {
     fn probability_collection_many_items_one_high_probability() {
         init();
 
-        let mut rng = rand::thread_rng();
-        let random_seed = rng.gen::<u64>();
-        let mut random_instance = ChaCha8Rng::seed_from_u64(random_seed);
+        let mut random_instance = fastrand::Rng::new();
         
         for _ in 0..100 {
             let mut probability_per_item: HashMap<TestStruct, f32> = HashMap::new();
@@ -176,41 +142,13 @@ mod probability_collection_unit_tests {
     }
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 #[cfg(test)]
 mod probability_container_unit_tests {
 
     use std::collections::HashMap;
-    use rand::{Rng, SeedableRng};
-    use rand_chacha::ChaCha8Rng;
+    use uuid::Uuid;
     use crate::wave_function::probability_container::ProbabilityContainer;
-    use super::*;
+    use super::model::TestStruct;
 
     fn init() {
         std::env::set_var("RUST_LOG", "trace");
@@ -219,16 +157,14 @@ mod probability_container_unit_tests {
 
     #[test]
     fn initialize() {
-        let probability_container: ProbabilityContainer<TestStruct> = ProbabilityContainer::new(HashMap::new());
+        let _probability_container: ProbabilityContainer<TestStruct> = ProbabilityContainer::new(HashMap::new());
     }
 
     #[test]
     fn probability_container_no_items() {
         init();
 
-        let mut rng = rand::thread_rng();
-        let random_seed = rng.gen::<u64>();
-        let mut random_instance = ChaCha8Rng::seed_from_u64(random_seed);
+        let mut random_instance = fastrand::Rng::new();
         
         for _ in 0..100 {
             let probability_per_item: HashMap<TestStruct, f32> = HashMap::new();
@@ -245,9 +181,7 @@ mod probability_container_unit_tests {
     fn probability_container_one_item() {
         init();
         
-        let mut rng = rand::thread_rng();
-        let random_seed = rng.gen::<u64>();
-        let mut random_instance = ChaCha8Rng::seed_from_u64(random_seed);
+        let mut random_instance = fastrand::Rng::new();
         
         for _ in 0..100 {
             let mut probability_per_item: HashMap<TestStruct, f32> = HashMap::new();
@@ -267,9 +201,7 @@ mod probability_container_unit_tests {
     fn probability_container_many_items_equal_probability() {
         init();
         
-        let mut rng = rand::thread_rng();
-        let random_seed = rng.gen::<u64>();
-        let mut random_instance = ChaCha8Rng::seed_from_u64(random_seed);
+        let mut random_instance = fastrand::Rng::new();
         
         for _ in 0..100 {
             let mut probability_per_item: HashMap<TestStruct, f32> = HashMap::new();
@@ -298,9 +230,7 @@ mod probability_container_unit_tests {
     fn probability_container_many_items_one_high_probability() {
         init();
 
-        let mut rng = rand::thread_rng();
-        let random_seed = rng.gen::<u64>();
-        let mut random_instance = ChaCha8Rng::seed_from_u64(random_seed);
+        let mut random_instance = fastrand::Rng::new();
         
         for _ in 0..100 {
             let mut probability_per_item: HashMap<TestStruct, f32> = HashMap::new();
@@ -337,9 +267,8 @@ mod probability_container_unit_tests {
     fn probability_container_ensure_get_is_equal_probability() {
         init();
 
-        let mut rng = rand::thread_rng();
-        let random_seed = rng.gen::<u64>();
-        let mut random_instance = ChaCha8Rng::seed_from_u64(random_seed);
+        let mut random_instance = fastrand::Rng::new();
+
         let mut probability_per_item: HashMap<TestStruct, f32> = HashMap::new();
         let number_of_items = 100;
         let mut instances_per_index: Vec<u32> = Vec::new();
@@ -372,9 +301,7 @@ mod probability_container_unit_tests {
     fn probability_container_push_and_get_and_remove_repeatedly() {
         init();
 
-        let mut rng = rand::thread_rng();
-        let random_seed = rng.gen::<u64>();
-        let mut random_instance = ChaCha8Rng::seed_from_u64(random_seed);
+        let mut random_instance = fastrand::Rng::new();
 
         let mut probability_container: ProbabilityContainer<TestStruct> = ProbabilityContainer::default();
 
@@ -392,9 +319,7 @@ mod probability_container_unit_tests {
     fn probability_container_push_and_get_and_remove_two_repeatedly() {
         init();
 
-        let mut rng = rand::thread_rng();
-        let random_seed = rng.gen::<u64>();
-        let mut random_instance = ChaCha8Rng::seed_from_u64(random_seed);
+        let mut random_instance = fastrand::Rng::new();
 
         let mut probability_container: ProbabilityContainer<TestStruct> = ProbabilityContainer::default();
 
@@ -462,9 +387,8 @@ mod probability_container_unit_tests {
         // Conclusion:
         //  getting the random item takes the most time in this test, by far, usually only needing to increment less than 50 times
 
-        let mut rng = rand::thread_rng();
-        let random_seed = rng.gen::<u64>();
-        let mut random_instance = ChaCha8Rng::seed_from_u64(random_seed);
+        let mut random_instance = fastrand::Rng::new();
+
         let number_of_items = 20;
         
         let mut probability_per_item: HashMap<TestStruct, f32> = HashMap::new();
@@ -518,10 +442,8 @@ mod probability_container_unit_tests {
     fn probability_container_verify_ratio_between_equal_opportunity() {
         init();
 
-        let mut rng = rand::thread_rng();
-        let random_seed = rng.gen::<u64>();
-        let mut random_instance = ChaCha8Rng::seed_from_u64(random_seed);
-        let mut probability_per_item: HashMap<TestStruct, f32> = HashMap::new();
+        let mut random_instance = fastrand::Rng::new();
+
         let number_of_nodes = 100000;
         let number_of_items = 5;
 
@@ -574,10 +496,8 @@ mod probability_container_unit_tests {
     fn probability_container_create_many_instances_and_pop_random_all() {
         init();
 
-        let mut rng = rand::thread_rng();
-        let random_seed = rng.gen::<u64>();
-        let mut random_instance = ChaCha8Rng::seed_from_u64(random_seed);
-        let mut probability_per_item: HashMap<TestStruct, f32> = HashMap::new();
+        let mut random_instance = fastrand::Rng::new();
+
         let number_of_nodes = 100000;
         let number_of_items = 3;
 
@@ -636,56 +556,12 @@ mod probability_container_unit_tests {
     }
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 #[cfg(test)]
 mod wave_function_unit_tests {
 
     use std::collections::HashMap;
-    use rand::{RngCore, Rng};
+    use uuid::Uuid;
     use crate::wave_function::{Node, WaveFunction, NodeStateCollection, NodeStateProbability, collapsable_wave_function::{sequential_collapsable_wave_function::SequentialCollapsableWaveFunction, collapsable_wave_function::{CollapsedWaveFunction, CollapsedNodeState, CollapsableWaveFunction}, accommodating_collapsable_wave_function::AccommodatingCollapsableWaveFunction, accommodating_sequential_collapsable_wave_function::AccommodatingSequentialCollapsableWaveFunction}};
-    use super::*;
 
     fn init() {
         std::env::set_var("RUST_LOG", "trace");
@@ -698,7 +574,7 @@ mod wave_function_unit_tests {
 
         let nodes: Vec<Node<String>> = Vec::new();
         let node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
-        let wave_function = WaveFunction::new(nodes, node_state_collections);
+        let _wave_function = WaveFunction::new(nodes, node_state_collections);
         debug!("Succeeded to initialize WaveFunction instance.");
     }
 
@@ -870,10 +746,10 @@ mod wave_function_unit_tests {
         let wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
         
-        let mut rng = rand::thread_rng();
-
+        let mut random_instance = fastrand::Rng::new();
+        
         for _ in 0..100000 {
-            let random_seed = Some(rng.next_u64());
+            let random_seed = Some(random_instance.u64(..));
             let collapsed_wave_function = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(random_seed).collapse().unwrap();
 
             let node_state_id: &str = collapsed_wave_function.node_state_per_node.get(&node_id).unwrap();
@@ -909,10 +785,10 @@ mod wave_function_unit_tests {
         let wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
         
-        let mut rng = rand::thread_rng();
+        let mut random_instance = fastrand::Rng::new();
 
         for _ in 0..100000 {
-            let random_seed = Some(rng.next_u64());
+            let random_seed = Some(random_instance.u64(..));
             let collapsed_wave_function = wave_function.get_collapsable_wave_function::<AccommodatingCollapsableWaveFunction<String>>(random_seed).collapse().unwrap();
 
             let node_state_id: &str = collapsed_wave_function.node_state_per_node.get(&node_id).unwrap();
@@ -948,10 +824,10 @@ mod wave_function_unit_tests {
         let wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
         
-        let mut rng = rand::thread_rng();
+        let mut random_instance = fastrand::Rng::new();
 
         for _ in 0..100000 {
-            let random_seed = Some(rng.next_u64());
+            let random_seed = Some(random_instance.u64(..));
             let collapsed_wave_function = wave_function.get_collapsable_wave_function::<AccommodatingSequentialCollapsableWaveFunction<String>>(random_seed).collapse().unwrap();
 
             let node_state_id: &str = collapsed_wave_function.node_state_per_node.get(&node_id).unwrap();
@@ -960,7 +836,7 @@ mod wave_function_unit_tests {
 
         println!("count_per_node_state_id: {:?}", count_per_node_state_id);
         assert!(count_per_node_state_id.get(one_node_state_id.as_str()).unwrap() > &49000, "The first node state was less than expected.");
-        assert!(count_per_node_state_id.get(two_node_state_id.as_str()).unwrap() > &49000, "The first node state was less than expected.");
+        assert!(count_per_node_state_id.get(two_node_state_id.as_str()).unwrap() > &49000, "The second node state was less than expected.");
     }
 
     #[test]
@@ -1023,7 +899,7 @@ mod wave_function_unit_tests {
         nodes[0].node_state_collection_ids_per_neighbor_node_id.insert(second_node_id.clone(), Vec::new());
         nodes[0].node_state_collection_ids_per_neighbor_node_id.get_mut(&second_node_id).unwrap().push(restrictive_node_state_collection_id.clone());
 
-        let mut wave_function = WaveFunction::new(nodes, node_state_collections);
+        let wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
         let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse();
@@ -1070,7 +946,7 @@ mod wave_function_unit_tests {
         nodes[0].node_state_collection_ids_per_neighbor_node_id.insert(second_node_id.clone(), Vec::new());
         nodes[0].node_state_collection_ids_per_neighbor_node_id.get_mut(&second_node_id).unwrap().push(restrictive_node_state_collection_id.clone());
 
-        let mut wave_function = WaveFunction::new(nodes, node_state_collections);
+        let wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
         let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<AccommodatingCollapsableWaveFunction<String>>(None).collapse();
@@ -1117,7 +993,7 @@ mod wave_function_unit_tests {
         nodes[0].node_state_collection_ids_per_neighbor_node_id.insert(second_node_id.clone(), Vec::new());
         nodes[0].node_state_collection_ids_per_neighbor_node_id.get_mut(&second_node_id).unwrap().push(restrictive_node_state_collection_id.clone());
 
-        let mut wave_function = WaveFunction::new(nodes, node_state_collections);
+        let wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
         let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<AccommodatingSequentialCollapsableWaveFunction<String>>(None).collapse();
@@ -1173,7 +1049,7 @@ mod wave_function_unit_tests {
         nodes[0].node_state_collection_ids_per_neighbor_node_id.get_mut(&second_node_id).unwrap().push(restrictive_node_state_collection_id.clone());
         nodes[0].node_state_collection_ids_per_neighbor_node_id.get_mut(&second_node_id).unwrap().push(permitted_node_state_collection_id.clone());
 
-        let mut wave_function = WaveFunction::new(nodes, node_state_collections);
+        let wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
         let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse();
@@ -1229,7 +1105,7 @@ mod wave_function_unit_tests {
         nodes[0].node_state_collection_ids_per_neighbor_node_id.get_mut(&second_node_id).unwrap().push(restrictive_node_state_collection_id.clone());
         nodes[0].node_state_collection_ids_per_neighbor_node_id.get_mut(&second_node_id).unwrap().push(permitted_node_state_collection_id.clone());
 
-        let mut wave_function = WaveFunction::new(nodes, node_state_collections);
+        let wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
         let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<AccommodatingSequentialCollapsableWaveFunction<String>>(None).collapse();
@@ -1276,7 +1152,7 @@ mod wave_function_unit_tests {
         nodes[0].node_state_collection_ids_per_neighbor_node_id.insert(second_node_id.clone(), Vec::new());
         nodes[0].node_state_collection_ids_per_neighbor_node_id.get_mut(&second_node_id).unwrap().push(restrictive_node_state_collection_id.clone());
 
-        let mut wave_function = WaveFunction::new(nodes, node_state_collections);
+        let wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
         let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse();
@@ -1323,7 +1199,7 @@ mod wave_function_unit_tests {
         nodes[0].node_state_collection_ids_per_neighbor_node_id.insert(second_node_id.clone(), Vec::new());
         nodes[0].node_state_collection_ids_per_neighbor_node_id.get_mut(&second_node_id).unwrap().push(restrictive_node_state_collection_id.clone());
 
-        let mut wave_function = WaveFunction::new(nodes, node_state_collections);
+        let wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
         let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<AccommodatingSequentialCollapsableWaveFunction<String>>(None).collapse();
@@ -1374,7 +1250,7 @@ mod wave_function_unit_tests {
         nodes[0].node_state_collection_ids_per_neighbor_node_id.insert(second_node_id.clone(), Vec::new());
         nodes[0].node_state_collection_ids_per_neighbor_node_id.get_mut(&second_node_id).unwrap().push(same_node_state_collection_id.clone());
 
-        let mut wave_function = WaveFunction::new(nodes, node_state_collections);
+        let wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
         let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse();
@@ -1425,7 +1301,7 @@ mod wave_function_unit_tests {
         nodes[1].node_state_collection_ids_per_neighbor_node_id.insert(second_node_id.clone(), Vec::new());
         nodes[1].node_state_collection_ids_per_neighbor_node_id.get_mut(&second_node_id).unwrap().push(same_node_state_collection_id.clone());
 
-        let mut wave_function = WaveFunction::new(nodes, node_state_collections);
+        let wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
         let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse();
@@ -1479,7 +1355,7 @@ mod wave_function_unit_tests {
         nodes[1].node_state_collection_ids_per_neighbor_node_id.insert(first_node_id.clone(), Vec::new());
         nodes[1].node_state_collection_ids_per_neighbor_node_id.get_mut(&first_node_id).unwrap().push(same_node_state_collection_id.clone());
 
-        let mut wave_function = WaveFunction::new(nodes, node_state_collections);
+        let wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
         let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse();
@@ -1538,7 +1414,7 @@ mod wave_function_unit_tests {
         nodes[1].node_state_collection_ids_per_neighbor_node_id.insert(first_node_id.clone(), Vec::new());
         nodes[1].node_state_collection_ids_per_neighbor_node_id.get_mut(&first_node_id).unwrap().push(same_node_state_collection_id.clone());
 
-        let mut wave_function = WaveFunction::new(nodes, node_state_collections);
+        let wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
         let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse();
@@ -1602,7 +1478,7 @@ mod wave_function_unit_tests {
         nodes[1].node_state_collection_ids_per_neighbor_node_id.get_mut(&first_node_id).unwrap().push(if_one_not_two_node_state_collection_id.clone());
         nodes[1].node_state_collection_ids_per_neighbor_node_id.get_mut(&first_node_id).unwrap().push(if_two_not_one_node_state_collection_id.clone());
 
-        let mut wave_function = WaveFunction::new(nodes, node_state_collections);
+        let wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
         let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse();
@@ -1624,7 +1500,7 @@ mod wave_function_unit_tests {
     fn two_nodes_both_as_neighbors_and_different_states_with_random_runs() {
         init();
 
-        let mut rng = rand::thread_rng();
+        let mut random_instance = fastrand::Rng::new();
 
         for _ in 0..10 {
             let mut nodes: Vec<Node<String>> = Vec::new();
@@ -1671,9 +1547,9 @@ mod wave_function_unit_tests {
             nodes[1].node_state_collection_ids_per_neighbor_node_id.get_mut(&first_node_id).unwrap().push(if_one_not_two_node_state_collection_id.clone());
             nodes[1].node_state_collection_ids_per_neighbor_node_id.get_mut(&first_node_id).unwrap().push(if_two_not_one_node_state_collection_id.clone());
 
-            let mut wave_function = WaveFunction::new(nodes, node_state_collections);
+            let wave_function = WaveFunction::new(nodes, node_state_collections);
             wave_function.validate().unwrap();
-            let random_seed = Some(rng.gen::<u64>());
+            let random_seed = Some(random_instance.u64(..));
 
             let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(random_seed).collapse();
 
@@ -1691,7 +1567,7 @@ mod wave_function_unit_tests {
     fn two_nodes_both_as_neighbors_with_conflicting_state_requirements() {
         init();
 
-        let mut rng = rand::thread_rng();
+        let mut random_instance = fastrand::Rng::new();
 
         for _ in 0..10 {
             let mut nodes: Vec<Node<String>> = Vec::new();
@@ -1792,9 +1668,9 @@ mod wave_function_unit_tests {
             nodes[1].node_state_collection_ids_per_neighbor_node_id.get_mut(&first_node_id).unwrap().push(if_one_then_no_node_state_collection_id.clone());
             nodes[1].node_state_collection_ids_per_neighbor_node_id.get_mut(&first_node_id).unwrap().push(if_two_then_no_node_state_collection_id.clone());
 
-            let mut wave_function = WaveFunction::new(nodes, node_state_collections);
+            let wave_function = WaveFunction::new(nodes, node_state_collections);
             wave_function.validate().unwrap();
-            let random_seed = Some(rng.gen::<u64>());
+            let random_seed = Some(random_instance.u64(..));
 
             let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(random_seed).collapse();
 
@@ -1848,7 +1724,7 @@ mod wave_function_unit_tests {
         nodes[2].node_state_collection_ids_per_neighbor_node_id.insert(first_node_id.clone(), Vec::new());
         nodes[2].node_state_collection_ids_per_neighbor_node_id.get_mut(&first_node_id).unwrap().push(same_node_state_collection_id.clone());
 
-        let mut wave_function = WaveFunction::new(nodes, node_state_collections);
+        let wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
         let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse();
@@ -1946,7 +1822,7 @@ mod wave_function_unit_tests {
         nodes[2].node_state_collection_ids_per_neighbor_node_id.get_mut(&second_node_id).unwrap().push(all_but_second_node_state_collection_id.clone());
         nodes[2].node_state_collection_ids_per_neighbor_node_id.get_mut(&second_node_id).unwrap().push(all_but_third_node_state_collection_id.clone());
 
-        let mut wave_function = WaveFunction::new(nodes, node_state_collections);
+        let wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
         let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse();
@@ -2049,7 +1925,7 @@ mod wave_function_unit_tests {
         nodes[2].node_state_collection_ids_per_neighbor_node_id.get_mut(&second_node_id).unwrap().push(all_but_second_node_state_collection_id.clone());
         nodes[2].node_state_collection_ids_per_neighbor_node_id.get_mut(&second_node_id).unwrap().push(all_but_third_node_state_collection_id.clone());
 
-        let mut wave_function = WaveFunction::new(nodes, node_state_collections);
+        let wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
         let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<AccommodatingCollapsableWaveFunction<String>>(None).collapse();
@@ -2152,7 +2028,7 @@ mod wave_function_unit_tests {
         nodes[2].node_state_collection_ids_per_neighbor_node_id.get_mut(&second_node_id).unwrap().push(all_but_second_node_state_collection_id.clone());
         nodes[2].node_state_collection_ids_per_neighbor_node_id.get_mut(&second_node_id).unwrap().push(all_but_third_node_state_collection_id.clone());
 
-        let mut wave_function = WaveFunction::new(nodes, node_state_collections);
+        let wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
         let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<AccommodatingSequentialCollapsableWaveFunction<String>>(None).collapse();
@@ -2177,7 +2053,7 @@ mod wave_function_unit_tests {
     fn three_nodes_as_dense_neighbors_randomly_all_different_states() {
         init();
 
-        let mut rng = rand::thread_rng();
+        let mut random_instance = fastrand::Rng::new();
 
         for _ in 0..10 {
             
@@ -2259,9 +2135,9 @@ mod wave_function_unit_tests {
             nodes[2].node_state_collection_ids_per_neighbor_node_id.get_mut(&second_node_id).unwrap().push(all_but_second_node_state_collection_id.clone());
             nodes[2].node_state_collection_ids_per_neighbor_node_id.get_mut(&second_node_id).unwrap().push(all_but_third_node_state_collection_id.clone());
 
-            let mut wave_function = WaveFunction::new(nodes, node_state_collections);
+            let wave_function = WaveFunction::new(nodes, node_state_collections);
             wave_function.validate().unwrap();
-            let random_seed = Some(rng.next_u64());
+            let random_seed = Some(random_instance.u64(..));
 
             let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(random_seed).collapse();
             
@@ -2299,7 +2175,7 @@ mod wave_function_unit_tests {
             node_state_ids.push(Uuid::new_v4().to_string());
         }
 
-        for index in 0..nodes_total {
+        for _index in 0..nodes_total {
             let node_id: String = Uuid::new_v4().to_string();
             node_ids.push(node_id.clone());
             let node = Node::new(
@@ -2336,7 +2212,7 @@ mod wave_function_unit_tests {
             }
         }
 
-        let mut wave_function: WaveFunction<String>;
+        let wave_function: WaveFunction<String>;
 
         wave_function = WaveFunction::new(nodes, node_state_collections);
 
@@ -2384,7 +2260,7 @@ mod wave_function_unit_tests {
             node_state_ids.push(Uuid::new_v4().to_string());
         }
 
-        for index in 0..nodes_total {
+        for _index in 0..nodes_total {
             let node_id: String = Uuid::new_v4().to_string();
             node_ids.push(node_id.clone());
             let node = Node::new(
@@ -2421,7 +2297,7 @@ mod wave_function_unit_tests {
             }
         }
 
-        let mut wave_function: WaveFunction<String>;
+        let wave_function: WaveFunction<String>;
 
         wave_function = WaveFunction::new(nodes, node_state_collections);
 
@@ -2469,7 +2345,7 @@ mod wave_function_unit_tests {
             node_state_ids.push(Uuid::new_v4().to_string());
         }
 
-        for index in 0..nodes_total {
+        for _index in 0..nodes_total {
             let node_id: String = Uuid::new_v4().to_string();
             node_ids.push(node_id.clone());
             let node = Node::new(
@@ -2506,7 +2382,7 @@ mod wave_function_unit_tests {
             }
         }
 
-        let mut wave_function: WaveFunction<String>;
+        let wave_function: WaveFunction<String>;
 
         wave_function = WaveFunction::new(nodes, node_state_collections);
 
@@ -2542,7 +2418,7 @@ mod wave_function_unit_tests {
     fn many_nodes_as_dense_neighbors_randomly_all_different_states() {
         //init();
 
-        let mut rng = rand::thread_rng();
+        let mut random_instance = fastrand::Rng::new();
 
         for _ in 0..10 {
 
@@ -2558,7 +2434,7 @@ mod wave_function_unit_tests {
                 node_state_ids.push(Uuid::new_v4().to_string());
             }
 
-            for index in 0..nodes_total {
+            for _index in 0..nodes_total {
                 let node_id: String = Uuid::new_v4().to_string();
                 node_ids.push(node_id.clone());
                 let node = Node::new(
@@ -2595,7 +2471,7 @@ mod wave_function_unit_tests {
                 }
             }
 
-            let mut wave_function: WaveFunction<String>;
+            let wave_function: WaveFunction<String>;
 
             wave_function = WaveFunction::new(nodes, node_state_collections);
 
@@ -2603,17 +2479,17 @@ mod wave_function_unit_tests {
 
             let collapsed_wave_function_result: Result<CollapsedWaveFunction<String>, String>;
             
-            let random_seed = Some(rng.next_u64());
+            let random_seed = Some(random_instance.u64(..));
             collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(random_seed).collapse();
 
             if let Err(error_message) = collapsed_wave_function_result {
                 panic!("Error: {error_message}");
             }
 
-            let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
+            let _collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
 
             let mut all_node_state_ids: Vec<String> = Vec::new();
-            for (node_state_id, node_id) in std::iter::zip(&node_state_ids, &node_ids) {
+            for (node_state_id, _node_id) in std::iter::zip(&node_state_ids, &node_ids) {
                 if !all_node_state_ids.contains(&node_state_id) {
                     all_node_state_ids.push(node_state_id.clone());
                 }
@@ -2624,6 +2500,7 @@ mod wave_function_unit_tests {
     }
 
     #[test]
+    #[allow(non_snake_case)]
     fn many_nodes_as_3D_grid_all_different_states_sequential() {
         init();
 
@@ -2675,7 +2552,6 @@ mod wave_function_unit_tests {
             let node_x: i32 = node_index % nodes_width;
             let node_y: i32 = (node_index / nodes_width) % nodes_height;
             let node_z: i32 = (node_index / (nodes_width * nodes_height)) % nodes_depth;
-            let mut neighbors_total = 0;
             //debug!("processing node {node_x}, {node_y}, {node_z}.");
             for (other_node_index, other_node_id) in std::iter::zip(0..nodes_total, node_ids.iter()) {
                 let other_node_x: i32 = other_node_index % nodes_width;
@@ -2684,13 +2560,11 @@ mod wave_function_unit_tests {
                 if node_index != other_node_index && (node_x - other_node_x).abs() <= 1 && (node_y - other_node_y).abs() <= 1 && (node_z - other_node_z).abs() <= 1 {
                     //debug!("found neighbor at {other_node_x}, {other_node_y}, {other_node_z}.");
                     node.node_state_collection_ids_per_neighbor_node_id.insert(other_node_id.clone(), node_state_collection_ids.clone());
-                    neighbors_total += 1;
                 }
             }
-            //debug!("neighbors: {neighbors_total}.");
         }
 
-        let mut wave_function: WaveFunction<String>;
+        let wave_function: WaveFunction<String>;
 
         wave_function = WaveFunction::new(nodes, node_state_collections);
 
@@ -2723,6 +2597,7 @@ mod wave_function_unit_tests {
     }
 
     #[test]
+    #[allow(non_snake_case)]
     fn many_nodes_as_3D_grid_all_different_states_accommodating() {
         init();
 
@@ -2774,7 +2649,6 @@ mod wave_function_unit_tests {
             let node_x: i32 = node_index % nodes_width;
             let node_y: i32 = (node_index / nodes_width) % nodes_height;
             let node_z: i32 = (node_index / (nodes_width * nodes_height)) % nodes_depth;
-            let mut neighbors_total = 0;
             //debug!("processing node {node_x}, {node_y}, {node_z}.");
             for (other_node_index, other_node_id) in std::iter::zip(0..nodes_total, node_ids.iter()) {
                 let other_node_x: i32 = other_node_index % nodes_width;
@@ -2783,13 +2657,11 @@ mod wave_function_unit_tests {
                 if node_index != other_node_index && (node_x - other_node_x).abs() <= 1 && (node_y - other_node_y).abs() <= 1 && (node_z - other_node_z).abs() <= 1 {
                     //debug!("found neighbor at {other_node_x}, {other_node_y}, {other_node_z}.");
                     node.node_state_collection_ids_per_neighbor_node_id.insert(other_node_id.clone(), node_state_collection_ids.clone());
-                    neighbors_total += 1;
                 }
             }
-            //debug!("neighbors: {neighbors_total}.");
         }
 
-        let mut wave_function: WaveFunction<String>;
+        let wave_function: WaveFunction<String>;
 
         wave_function = WaveFunction::new(nodes, node_state_collections);
 
@@ -2822,6 +2694,7 @@ mod wave_function_unit_tests {
     }
 
     #[test]
+    #[allow(non_snake_case)]
     fn many_nodes_as_3D_grid_all_different_states_acc_seq() {
         init();
 
@@ -2873,7 +2746,6 @@ mod wave_function_unit_tests {
             let node_x: i32 = node_index % nodes_width;
             let node_y: i32 = (node_index / nodes_width) % nodes_height;
             let node_z: i32 = (node_index / (nodes_width * nodes_height)) % nodes_depth;
-            let mut neighbors_total = 0;
             //debug!("processing node {node_x}, {node_y}, {node_z}.");
             for (other_node_index, other_node_id) in std::iter::zip(0..nodes_total, node_ids.iter()) {
                 let other_node_x: i32 = other_node_index % nodes_width;
@@ -2882,13 +2754,11 @@ mod wave_function_unit_tests {
                 if node_index != other_node_index && (node_x - other_node_x).abs() <= 1 && (node_y - other_node_y).abs() <= 1 && (node_z - other_node_z).abs() <= 1 {
                     //debug!("found neighbor at {other_node_x}, {other_node_y}, {other_node_z}.");
                     node.node_state_collection_ids_per_neighbor_node_id.insert(other_node_id.clone(), node_state_collection_ids.clone());
-                    neighbors_total += 1;
                 }
             }
-            //debug!("neighbors: {neighbors_total}.");
         }
 
-        let mut wave_function: WaveFunction<String>;
+        let wave_function: WaveFunction<String>;
 
         wave_function = WaveFunction::new(nodes, node_state_collections);
 
@@ -2921,16 +2791,16 @@ mod wave_function_unit_tests {
     }
 
     #[test]
+    #[allow(non_snake_case)]
     fn many_nodes_as_3D_grid_randomly_all_different_states_getting_collapsed_function() {
         init();
 
-        let mut rng = rand::thread_rng();
         let random_seed = Some(15177947778026677010);
         //let random_seed = None;
 
         let max_runs = 1;
 
-        for index in 0..max_runs {
+        for _index in 0..max_runs {
 
             //let random_seed = Some(rng.next_u64());
 
@@ -2983,7 +2853,6 @@ mod wave_function_unit_tests {
                 let node_x: i32 = node_index % nodes_width;
                 let node_y: i32 = (node_index / nodes_width) % nodes_height;
                 let node_z: i32 = (node_index / (nodes_width * nodes_height)) % nodes_depth;
-                let mut neighbors_total = 0;
                 //debug!("processing node {node_x}, {node_y}, {node_z}.");
                 for (other_node_index, other_node_id) in std::iter::zip(0..nodes_total, node_ids.iter()) {
                     let other_node_x: i32 = other_node_index % nodes_width;
@@ -2992,13 +2861,11 @@ mod wave_function_unit_tests {
                     if node_index != other_node_index && (node_x - other_node_x).abs() <= 1 && (node_y - other_node_y).abs() <= 1 && (node_z - other_node_z).abs() <= 1 {
                         //debug!("found neighbor at {other_node_x}, {other_node_y}, {other_node_z}.");
                         node.node_state_collection_ids_per_neighbor_node_id.insert(other_node_id.clone(), node_state_collection_ids.clone());
-                        neighbors_total += 1;
                     }
                 }
-                //debug!("neighbors: {neighbors_total}.");
             }
 
-            let mut wave_function: WaveFunction<String>;
+            let wave_function: WaveFunction<String>;
 
             wave_function = WaveFunction::new(nodes, node_state_collections);
 
@@ -3033,10 +2900,9 @@ mod wave_function_unit_tests {
     }
 
     #[test]
+    #[allow(non_snake_case)]
     fn many_nodes_as_3D_grid_randomly_all_different_states_uncollapsed_wave_functions() {
         init();
-
-        let mut rng = rand::thread_rng();
 
         for _ in 0..1 {
 
@@ -3097,7 +2963,6 @@ mod wave_function_unit_tests {
                 let node_x: i32 = node_index % nodes_width;
                 let node_y: i32 = (node_index / nodes_width) % nodes_height;
                 let node_z: i32 = (node_index / (nodes_width * nodes_height)) % nodes_depth;
-                let mut neighbors_total = 0;
                 //debug!("processing node {node_x}, {node_y}, {node_z}.");
                 for (other_node_index, other_node_id) in std::iter::zip(0..nodes_total, node_ids.iter()) {
                     let other_node_x: i32 = other_node_index % nodes_width;
@@ -3106,13 +2971,11 @@ mod wave_function_unit_tests {
                     if node_index != other_node_index && (node_x - other_node_x).abs() <= 1 && (node_y - other_node_y).abs() <= 1 && (node_z - other_node_z).abs() <= 1 {
                         //debug!("found neighbor at {other_node_x}, {other_node_y}, {other_node_z}.");
                         node.node_state_collection_ids_per_neighbor_node_id.insert(other_node_id.clone(), node_state_collection_ids.clone());
-                        neighbors_total += 1;
                     }
                 }
-                //debug!("neighbors: {neighbors_total}.");
             }
 
-            let mut wave_function: WaveFunction<String>;
+            let wave_function: WaveFunction<String>;
 
             wave_function = WaveFunction::new(nodes, node_state_collections);
 
@@ -3197,11 +3060,11 @@ mod wave_function_unit_tests {
     fn four_nodes_as_square_neighbors_randomly() {
         init();
 
-        let mut rng = rand::thread_rng();
+        let mut random_instance = fastrand::Rng::new();
 
         for _ in 0..1000 {
 
-            let random_seed = Some(rng.next_u64());
+            let random_seed = Some(random_instance.u64(..));
 
             let mut nodes: Vec<Node<String>> = Vec::new();
             let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
@@ -3255,7 +3118,7 @@ mod wave_function_unit_tests {
                 }
             }
 
-            let mut wave_function = WaveFunction::new(nodes, node_state_collections);
+            let wave_function = WaveFunction::new(nodes, node_state_collections);
             wave_function.validate().unwrap();
 
             let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(random_seed).collapse();
@@ -3285,11 +3148,11 @@ mod wave_function_unit_tests {
     fn four_nodes_as_square_neighbors_in_cycle_alone() {
         init();
 
-        let mut rng = rand::thread_rng();
+        let mut random_instance = fastrand::Rng::new();
 
         for _ in 0..100 {
 
-            let random_seed = Some(rng.next_u64());
+            let random_seed = Some(random_instance.u64(..));
 
             let mut nodes: Vec<Node<String>> = Vec::new();
             let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
@@ -3343,7 +3206,7 @@ mod wave_function_unit_tests {
                 }
             }
 
-            let mut wave_function = WaveFunction::new(nodes, node_state_collections);
+            let wave_function = WaveFunction::new(nodes, node_state_collections);
             wave_function.validate().unwrap();
 
             let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(random_seed).collapse();
@@ -3373,11 +3236,11 @@ mod wave_function_unit_tests {
     fn four_nodes_as_square_neighbors_in_cycle_affects_another_square_sequential() {
         init();
 
-        let mut rng = rand::thread_rng();
+        let mut random_instance = fastrand::Rng::new();
 
         for _ in 0..100 {
 
-            let random_seed = Some(rng.next_u64());
+            let random_seed = Some(random_instance.u64(..));
 
             let mut nodes: Vec<Node<String>> = Vec::new();
             let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
@@ -3465,7 +3328,7 @@ mod wave_function_unit_tests {
 
             nodes[0].node_state_collection_ids_per_neighbor_node_id.insert(String::from("node_1b"), vec![one_forces_two_node_state_collection_id]);
 
-            let mut wave_function = WaveFunction::new(nodes, node_state_collections);
+            let wave_function = WaveFunction::new(nodes, node_state_collections);
             wave_function.validate().unwrap();
 
             let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(random_seed).collapse();
@@ -3508,11 +3371,11 @@ mod wave_function_unit_tests {
     fn four_nodes_as_square_neighbors_in_cycle_affects_another_square_acc_seq() {
         init();
 
-        let mut rng = rand::thread_rng();
+        let mut random_instance = fastrand::Rng::new();
 
         for _ in 0..100 {
 
-            let random_seed = Some(rng.next_u64());
+            let random_seed = Some(random_instance.u64(..));
 
             let mut nodes: Vec<Node<String>> = Vec::new();
             let mut node_state_collections: Vec<NodeStateCollection<String>> = Vec::new();
@@ -3600,7 +3463,7 @@ mod wave_function_unit_tests {
 
             nodes[0].node_state_collection_ids_per_neighbor_node_id.insert(String::from("node_1b"), vec![one_forces_two_node_state_collection_id]);
 
-            let mut wave_function = WaveFunction::new(nodes, node_state_collections);
+            let wave_function = WaveFunction::new(nodes, node_state_collections);
             wave_function.validate().unwrap();
 
             let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<AccommodatingSequentialCollapsableWaveFunction<String>>(random_seed).collapse();
@@ -3729,7 +3592,7 @@ mod wave_function_unit_tests {
         nodes[3].node_state_collection_ids_per_neighbor_node_id.insert(two_node_id.clone(), vec![one_permits_two_node_state_collection_id.clone(), two_permits_one_node_state_collection_id.clone()]);
         nodes[3].node_state_collection_ids_per_neighbor_node_id.insert(three_node_id.clone(), vec![one_permits_two_node_state_collection_id.clone(), two_permits_one_node_state_collection_id.clone()]);
 
-        let mut wave_function = WaveFunction::new(nodes, node_state_collections);
+        let wave_function = WaveFunction::new(nodes, node_state_collections);
         wave_function.validate().unwrap();
 
         let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse();
@@ -3747,53 +3610,9 @@ mod wave_function_unit_tests {
     }
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 #[cfg(test)]
 mod indexed_view_unit_tests {
 
-    use rand::{Rng, SeedableRng, seq::SliceRandom};
-    use rand_chacha::ChaCha8Rng;
     use uuid::Uuid;
     use crate::wave_function::indexed_view::IndexedView;
 
@@ -3808,7 +3627,7 @@ mod indexed_view_unit_tests {
 
         let node_state_ids: Vec<u32> = Vec::new();
         let node_state_probabilities: Vec<f32> = Vec::new();
-        let indexed_view = IndexedView::new(node_state_ids, node_state_probabilities);
+        let _indexed_view = IndexedView::new(node_state_ids, node_state_probabilities);
         
         debug!("Succeeded to initialize IndexedView instance.");
     }
@@ -3906,9 +3725,7 @@ mod indexed_view_unit_tests {
         init();
 
         let number_of_items: u32 = 10000;
-        let mut rng = rand::thread_rng();
-        let random_seed = rng.gen::<u64>();
-        let mut random_instance = ChaCha8Rng::seed_from_u64(random_seed);
+        let mut random_instance = fastrand::Rng::new();
 
         let mut node_state_ids: Vec<u32> = Vec::new();
         let mut node_state_probabilities: Vec<f32> = Vec::new();
@@ -3916,7 +3733,7 @@ mod indexed_view_unit_tests {
             node_state_ids.push(node_state_id);
             node_state_probabilities.push(1.0);
         }
-        node_state_ids.shuffle(&mut random_instance);
+        random_instance.shuffle(node_state_ids.as_mut_slice());
 
         let mut indexed_view = IndexedView::new(node_state_ids, node_state_probabilities);
         let mut popped_node_state_ids: Vec<u32> = Vec::new();
@@ -3934,9 +3751,7 @@ mod indexed_view_unit_tests {
         init();
 
         let number_of_items: u32 = 10000;
-        let mut rng = rand::thread_rng();
-        let random_seed = rng.gen::<u64>();
-        let mut random_instance = ChaCha8Rng::seed_from_u64(random_seed);
+        let mut random_instance = fastrand::Rng::new();
 
         let mut node_state_ids: Vec<String> = Vec::new();
         let mut node_state_probabilities: Vec<f32> = Vec::new();
@@ -3944,7 +3759,7 @@ mod indexed_view_unit_tests {
             node_state_ids.push(Uuid::new_v4().to_string());
             node_state_probabilities.push(1.0);
         }
-        node_state_ids.shuffle(&mut random_instance);
+        random_instance.shuffle(node_state_ids.as_mut_slice());
 
         let mut indexed_view = IndexedView::new(node_state_ids, node_state_probabilities);
         let mut popped_node_state_ids: Vec<String> = Vec::new();
@@ -3962,9 +3777,7 @@ mod indexed_view_unit_tests {
         init();
 
         let number_of_items: u32 = 10000;
-        let mut rng = rand::thread_rng();
-        let random_seed = rng.gen::<u64>();
-        let mut random_instance = ChaCha8Rng::seed_from_u64(random_seed);
+        let mut random_instance = fastrand::Rng::new();
 
         let mut node_state_ids: Vec<String> = Vec::new();
         let mut node_state_probabilities: Vec<f32> = Vec::new();
@@ -3972,7 +3785,7 @@ mod indexed_view_unit_tests {
             node_state_ids.push(Uuid::new_v4().to_string());
             node_state_probabilities.push(1.0);
         }
-        node_state_ids.shuffle(&mut random_instance);
+        random_instance.shuffle(node_state_ids.as_mut_slice());
 
         let mut indexed_view = IndexedView::new(node_state_ids, node_state_probabilities);
         

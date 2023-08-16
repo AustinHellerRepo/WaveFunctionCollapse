@@ -1,9 +1,8 @@
-use std::collections::{HashSet};
+use std::collections::HashSet;
 use std::marker::PhantomData;
 use std::{cell::RefCell, rc::Rc, collections::HashMap};
 use std::hash::Hash;
 use bitvec::vec::BitVec;
-use rand::seq::SliceRandom;
 use super::collapsable_wave_function::{CollapsableWaveFunction, CollapsableNode, CollapsedNodeState, CollapsedWaveFunction};
 
 /// This struct represents a CollapsableWaveFunction that picks a random node, tries to get each parent to accommodate to the current state of the random node, repeating until all nodes are unrestricted. This is best for finding solutions when the condition problem has many possible solutions and you want a more random solution. If there are very few solutions, the wave function is uncollapsable by design, or there are certain types of cycles in the graph, this algorithm with perform poorly or never complete.
@@ -15,6 +14,7 @@ pub struct AccommodatingCollapsableWaveFunction<'a, TNodeState: Eq + Hash + Clon
     accommodate_node_ids_index: usize,
     accommodated_total: usize,
     impacted_node_ids: HashSet<&'a str>,
+    random_instance: Rc<RefCell<fastrand::Rng>>,
     node_state_type: PhantomData<TNodeState>
 }
 
@@ -79,7 +79,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingCol
         debug!("prior to being prepared: {:?}", self.accommodate_node_ids);
 
         self.accommodate_node_ids_index = 0;
-        self.accommodate_node_ids.shuffle(&mut rand::thread_rng());  // TODO use a provided random instance for deterministic results
+        self.random_instance.borrow_mut().shuffle(self.accommodate_node_ids.as_mut_slice());
         self.accommodated_total = 0;
         self.impacted_node_ids.clear();
      
@@ -152,15 +152,14 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingCol
                 let mut current_node_state = original_node_state;
                 let mut is_current_node_state_restrictive = true;
                 while is_current_node_state_restrictive {
-                    let is_current_mask_from_parent_restrictive: bool;
-                    if parent_neighbor_node.mask_per_neighbor_per_state.contains_key(&current_node_state) {
+                    let is_current_mask_from_parent_restrictive: bool = if parent_neighbor_node.mask_per_neighbor_per_state.contains_key(&current_node_state) {
                         let mask_per_neighbor = parent_neighbor_node.mask_per_neighbor_per_state.get(&current_node_state).unwrap();
                         let mask = mask_per_neighbor.get(current_collapsable_node_id).unwrap();
-                        is_current_mask_from_parent_restrictive = current_collapsable_node.is_mask_restrictive_to_current_state(mask);
+                        current_collapsable_node.is_mask_restrictive_to_current_state(mask)
                     }
                     else {
-                        is_current_mask_from_parent_restrictive = false;
-                    }
+                        false
+                    };
                     if !is_current_mask_from_parent_restrictive {
                         debug!("found unrestricted mask (or no mask) for neighbor {:?}", parent_neighbor_node_id);
                         is_current_node_state_restrictive = false;  // leave the while loop for this parent neighbor node
@@ -246,21 +245,26 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingCol
             node_state_per_node.insert(node, node_state);
         }
         CollapsedWaveFunction {
-            node_state_per_node: node_state_per_node
+            node_state_per_node
         }
     }
 }
 
 impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveFunction<'a, TNodeState> for AccommodatingCollapsableWaveFunction<'a, TNodeState> {
-    fn new(collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a, TNodeState>>>>, collapsable_node_per_id: HashMap<&'a str, Rc<RefCell<CollapsableNode<'a, TNodeState>>>>) -> Self {
+    fn new(
+        collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a, TNodeState>>>>,
+        collapsable_node_per_id: HashMap<&'a str, Rc<RefCell<CollapsableNode<'a, TNodeState>>>>,
+        random_instance: Rc<RefCell<fastrand::Rng>>
+    ) -> Self {
         AccommodatingCollapsableWaveFunction {
-            collapsable_nodes: collapsable_nodes,
-            collapsable_node_per_id: collapsable_node_per_id,
+            collapsable_nodes,
+            collapsable_node_per_id,
             accommodate_node_ids: Vec::new(),
             accommodate_node_ids_length: 0,
             accommodate_node_ids_index: 0,
             accommodated_total: 0,
             impacted_node_ids: HashSet::new(),
+            random_instance,
             node_state_type: PhantomData
         }
     }

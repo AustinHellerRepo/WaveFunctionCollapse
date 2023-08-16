@@ -1,9 +1,8 @@
 use std::collections::VecDeque;
-use std::fmt::{Debug};
+use std::fmt::Debug;
 use std::hash::Hash;
-use std::{collections::HashMap};
+use std::collections::HashMap;
 use bitvec::prelude::*;
-use rand::{Rng};
 use crate::wave_function::probability_container::ProbabilityContainer;
 
 /// This struct represents a stashed state of the IndexedView.
@@ -30,7 +29,7 @@ pub struct IndexedView<TNodeState: Clone + Eq + Hash + Debug> {
     entropy: Option<f32>
 }
 
-impl<TNodeState: Clone + Eq + Hash + Debug> IndexedView<TNodeState> {
+impl<TNodeState: Clone + Ord + Eq + Hash + Debug> IndexedView<TNodeState> {
     pub fn new(node_state_ids: Vec<TNodeState>, node_state_ratios: Vec<f32>) -> Self {
         let node_state_ids_length: usize = node_state_ids.len();
         let mut index_per_node_state_id: HashMap<TNodeState, usize> = HashMap::new();
@@ -44,14 +43,14 @@ impl<TNodeState: Clone + Eq + Hash + Debug> IndexedView<TNodeState> {
             is_restricted_at_index.push(false);
         }
         IndexedView {
-            node_state_ids: node_state_ids,
-            node_state_ratios: node_state_ratios,
-            index_per_node_state_id: index_per_node_state_id,
-            node_state_ids_length: node_state_ids_length,
+            node_state_ids,
+            node_state_ratios,
+            index_per_node_state_id,
+            node_state_ids_length,
             index: Option::None,
-            index_mapping: index_mapping,
-            mask_counter: mask_counter,
-            is_restricted_at_index: is_restricted_at_index,
+            index_mapping,
+            mask_counter,
+            is_restricted_at_index,
             is_mask_dirty: true,
             is_fully_restricted: false,
             previous_mask_counters: VecDeque::new(),
@@ -59,7 +58,7 @@ impl<TNodeState: Clone + Eq + Hash + Debug> IndexedView<TNodeState> {
             entropy: None
         }
     }
-    pub fn shuffle<R: Rng + ?Sized>(&mut self, random_instance: &mut R) {
+    pub fn shuffle(&mut self, random_instance: &mut fastrand::Rng) {
         if self.index.is_some() {
             panic!("Can only be shuffled prior to use.");
         }
@@ -72,7 +71,7 @@ impl<TNodeState: Clone + Eq + Hash + Debug> IndexedView<TNodeState> {
 
         for _ in 0..self.node_state_ids_length {
             let node_state_id = probability_container.pop_random(random_instance).unwrap();
-            self.index_mapping.push(*self.index_per_node_state_id.get(&node_state_id).unwrap());
+            self.index_mapping.push(*self.index_per_node_state_id.get(node_state_id).unwrap());
         }
 
         debug!("randomized index mapping to {:?}.", self.index_mapping);
@@ -192,14 +191,7 @@ impl<TNodeState: Clone + Eq + Hash + Debug> IndexedView<TNodeState> {
     pub fn is_mask_restrictive_to_current_state(&self, mask: &BitVec) -> bool {
         if let Some(index) = self.index {
             let mapped_index = self.index_mapping[index];
-            let is_restrictive = !mask[mapped_index];
-            /*if is_restrictive {
-                debug!("mask is restrictive at index {:?} after mapping to index {:?} for mask {:?}", index, mapped_index, mask);
-            }
-            else {
-                debug!("mask is not restrictive at index {:?} after mapping to index {:?} for mask {:?}", index, mapped_index, mask);
-            }*/
-            is_restrictive
+            !mask[mapped_index]
         }
         else {
             debug!("was not restrictive because not currently in a state");
@@ -228,14 +220,12 @@ impl<TNodeState: Clone + Eq + Hash + Debug> IndexedView<TNodeState> {
         // NOTE: the mask_counter should not be fully reverted to ensure that the neighbor restrictions are still being considered
     }
     pub fn is_current_state_restricted(&self) -> bool {
-        let is_restricted: bool;
         if let Some(index) = self.index {
-            is_restricted = !self.is_unmasked_at_index(index);
+            !self.is_unmasked_at_index(index)
         }
         else {
-            is_restricted = false;
+            false
         }
-        is_restricted
     }
     pub fn is_fully_restricted(&mut self) -> bool {
         if self.is_mask_dirty {
@@ -344,14 +334,12 @@ impl<TNodeState: Clone + Eq + Hash + Debug> IndexedView<TNodeState> {
         if self.entropy.is_none() {
             let mut weights_total: f32 = 0.0;
             let mut weights_times_log_weights_total: f32 = 0.0;
-            let mut checked_total: u32 = 0;
             for index in 0..self.node_state_ids_length {
                 if !self.is_restricted_at_index[index] {
                     let weight = self.node_state_ratios[index];
                     let log_weight = weight.ln();
                     weights_total += weight;
                     weights_times_log_weights_total += weight * log_weight;
-                    checked_total += 1;
                 }
             }
             self.entropy = Some(weights_total.ln() - weights_times_log_weights_total / weights_total);

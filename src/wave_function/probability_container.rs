@@ -1,6 +1,5 @@
 use std::{collections::{BTreeMap, HashMap}, fmt::Debug};
 use ordered_float::OrderedFloat;
-use rand::Rng;
 use std::hash::Hash;
 
 pub struct ProbabilityContainer<T> {
@@ -13,34 +12,37 @@ pub struct ProbabilityContainer<T> {
     last_cumulative_probability: f32
 }
 
-impl<T: Eq + Hash + Clone + Debug> ProbabilityContainer<T> {
+impl<T: Ord + Eq + Hash + Clone + Debug> ProbabilityContainer<T> {
     pub fn default() -> Self {
+        let probability_per_item: HashMap<T, f32> = HashMap::new();
         ProbabilityContainer {
             probability_total: 0.0,
             items_total: 0,
-            probability_per_item: HashMap::new(),
+            probability_per_item,
             items: Vec::new(),
             item_index_per_cumulative_probability: BTreeMap::new(),
             last_item_index_to_apply_to_item_index_per_cumulative_probability: 0,
             last_cumulative_probability: 0.0
         }
     }
+    #[allow(dead_code)]
     pub fn new(probability_per_item: HashMap<T, f32>) -> Self {
         let mut probability_total = 0.0;
         let mut items_total: u32 = 0;
-        let mut items: Vec<T> = Vec::new();
-        for (item, probability) in probability_per_item.iter() {
+        let mut items: Vec<T> = probability_per_item.keys().cloned().collect::<Vec<T>>();
+        items.sort();
+        for item in items.iter() {
+            let probability = &probability_per_item[item];
             if probability != &0.0 {
                 probability_total += probability;
-                items.push(item.clone());
                 items_total += 1;
             }
         }
         ProbabilityContainer {
-            probability_total: probability_total,
-            items_total: items_total,
-            probability_per_item: probability_per_item,
-            items: items,
+            probability_total,
+            items_total,
+            probability_per_item,
+            items,
             item_index_per_cumulative_probability: BTreeMap::new(),
             last_item_index_to_apply_to_item_index_per_cumulative_probability: 0,
             last_cumulative_probability: 0.0
@@ -52,46 +54,45 @@ impl<T: Eq + Hash + Clone + Debug> ProbabilityContainer<T> {
         self.probability_per_item.insert(item.clone(), probability);
         self.items.push(item);
     }
-    pub fn peek_random<R: Rng + ?Sized>(&mut self, random_instance: &mut R) -> Option<T> {
+    #[allow(dead_code)]
+    pub fn peek_random(&mut self, random_instance: &mut fastrand::Rng) -> Option<T> {
         let item_option: Option<T>;
         if self.items_total == 0 {
             //debug!("no items");
             item_option = None;
         }
+        else if self.items_total == 1 {
+            item_option = Some(self.items.first().unwrap().clone());
+            //debug!("one item: {:?}", item_option);
+        }
         else {
-            if self.items_total == 1 {
-                item_option = Some(self.items.iter().next().unwrap().clone());
-                //debug!("one item: {:?}", item_option);
+            let random_value = random_instance.f32() * self.probability_total;
+            if random_value > self.last_cumulative_probability {
+                let mut current_item: Option<&T> = None;
+                while random_value > self.last_cumulative_probability {
+                    current_item = Some(self.items.get(self.last_item_index_to_apply_to_item_index_per_cumulative_probability).unwrap());
+                    let item_probability = self.probability_per_item.get(current_item.unwrap()).unwrap();
+                    if item_probability != &0.0 {
+                        self.last_cumulative_probability += item_probability;
+                        //debug!("inserting {:?} with cumulative probability {:?}", self.last_item_index_to_apply_to_item_index_per_cumulative_probability, self.last_cumulative_probability);
+                        self.item_index_per_cumulative_probability.insert(OrderedFloat(self.last_cumulative_probability), self.last_item_index_to_apply_to_item_index_per_cumulative_probability);
+                    }
+                    self.last_item_index_to_apply_to_item_index_per_cumulative_probability += 1;
+                }
+                let current_item = current_item.unwrap().clone();
+                //debug!("found item {:?}", current_item);
+                item_option = Some(current_item.clone());
             }
             else {
-                let random_value = random_instance.gen::<f32>() * self.probability_total;
-                if random_value > self.last_cumulative_probability {
-                    let mut current_item: Option<&T> = None;
-                    while random_value > self.last_cumulative_probability {
-                        current_item = Some(self.items.get(self.last_item_index_to_apply_to_item_index_per_cumulative_probability).unwrap());
-                        let item_probability = self.probability_per_item.get(current_item.unwrap()).unwrap();
-                        if item_probability != &0.0 {
-                            self.last_cumulative_probability += item_probability;
-                            //debug!("inserting {:?} with cumulative probability {:?}", self.last_item_index_to_apply_to_item_index_per_cumulative_probability, self.last_cumulative_probability);
-                            self.item_index_per_cumulative_probability.insert(OrderedFloat(self.last_cumulative_probability), self.last_item_index_to_apply_to_item_index_per_cumulative_probability);
-                        }
-                        self.last_item_index_to_apply_to_item_index_per_cumulative_probability += 1;
-                    }
-                    let current_item = current_item.unwrap().clone();
-                    //debug!("found item {:?}", current_item);
-                    item_option = Some(current_item.clone());
-                }
-                else {
-                    //debug!("random_value: {:?}", random_value);
-                    let (temp_key, temp_value) = self.item_index_per_cumulative_probability.range(OrderedFloat(random_value)..).next().unwrap();
-                    //debug!("found item {:?} with probability {:?}", temp_value, temp_key);
-                    item_option = Some(self.items.get(*temp_value).unwrap().clone());
-                }
+                //debug!("random_value: {:?}", random_value);
+                let (_temp_key, temp_value) = self.item_index_per_cumulative_probability.range(OrderedFloat(random_value)..).next().unwrap();
+                //debug!("found item {:?} with probability {:?}", temp_value, temp_key);
+                item_option = Some(self.items.get(*temp_value).unwrap().clone());
             }
         }
         item_option
     }
-    pub fn pop_random<R: Rng + ?Sized>(&mut self, random_instance: &mut R) -> Option<T> {
+    pub fn pop_random(&mut self, random_instance: &mut fastrand::Rng) -> Option<T> {
         //debug!("current state: {:?}", self.probability_per_item);
         if self.items_total == 0 {
             //debug!("no items");
@@ -112,25 +113,22 @@ impl<T: Eq + Hash + Clone + Debug> ProbabilityContainer<T> {
                 self.probability_per_item.clear();
             }
             else {
-                let random_value = random_instance.gen::<f32>() * self.probability_total;
+                //let random_value = random_instance.gen::<f32>() * self.probability_total;
+                let random_value = random_instance.f32() * self.probability_total;
                 //debug!("random_value: {:?}", random_value);
                 //debug!("self.probability_total: {:?}", self.probability_total);
                 //debug!("self.last_cumulative_probability: {:?}", self.last_cumulative_probability);
                 //debug!("self.last_item_index_to_apply_to_item_index_per_cumulative_probability: {:?}", self.last_item_index_to_apply_to_item_index_per_cumulative_probability);
                 
-                let mut is_item_outside_random_value: bool;
-                if self.last_item_index_to_apply_to_item_index_per_cumulative_probability as u32 == self.items_total {
-                    is_item_outside_random_value = false;
+                let mut is_item_outside_random_value: bool = if self.last_item_index_to_apply_to_item_index_per_cumulative_probability as u32 == self.items_total {
+                    false
                 }
                 else if random_value == 0.0 && self.last_item_index_to_apply_to_item_index_per_cumulative_probability == 0 {
-                    is_item_outside_random_value = true;
-                }
-                else if random_value > self.last_cumulative_probability {
-                    is_item_outside_random_value = true;
+                    true
                 }
                 else {
-                    is_item_outside_random_value = false;
-                }
+                    random_value > self.last_cumulative_probability
+                };
 
                 if is_item_outside_random_value {
                     let mut current_item: &T;

@@ -1,13 +1,11 @@
 use std::ops::{BitOr, BitOrAssign};
-use std::{cell::RefCell, collections::VecDeque};
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::marker::PhantomData;
 use std::rc::Rc;
-
 use bitvec::vec::BitVec;
 use indexmap::IndexMap;
-use rand::Rng;
 
 use super::collapsable_wave_function::{CollapsableNode, CollapsableWaveFunction, CollapsedNodeState, CollapsedWaveFunction};
 
@@ -90,8 +88,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> EntropicCollapsa
         let mask_per_neighbor_per_state: &HashMap<&TNodeState, HashMap<&str, BitVec>> = &current_collapsable_node.mask_per_neighbor_per_state;
         if let Some(mask_per_neighbor) = mask_per_neighbor_per_state.get(current_possible_state) {
             for neighbor_node_id in neighbor_node_ids.iter() {
-                if mask_per_neighbor.contains_key(neighbor_node_id) {
-                    let mask = mask_per_neighbor.get(neighbor_node_id).unwrap();
+                if let Some(mask) = mask_per_neighbor.get(neighbor_node_id) {
                     self.cached_mask_per_neighbor_node_id.insert(String::from(*neighbor_node_id), mask.clone());
                 }
             }
@@ -111,7 +108,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> EntropicCollapsa
         let wrapped_neighbor_collapsable_node = self.collapsable_node_per_id.get(popped_neighbor_node_id.as_str()).unwrap();
         let mut neighbor_collapsable_node = wrapped_neighbor_collapsable_node.borrow_mut();
         let mask = self.popped_mask.as_ref().unwrap();
-        neighbor_collapsable_node.node_state_indexed_view.add_mask(&mask);
+        neighbor_collapsable_node.node_state_indexed_view.add_mask(mask);
         if neighbor_collapsable_node.is_fully_restricted() {
             debug!("is fully restricted after applying mask");
             false
@@ -155,8 +152,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> EntropicCollapsa
         for possible_state in self.possible_states_from_popped_neighbor.iter() {
             if popped_neighbor_collapsable_node.mask_per_neighbor_per_state.contains_key(possible_state) {
                 let mask_per_neighbor = popped_neighbor_collapsable_node.mask_per_neighbor_per_state.get(possible_state).unwrap();
-                if mask_per_neighbor.contains_key(explored_great_neighbor_node_id) {
-                    let mask = mask_per_neighbor.get(explored_great_neighbor_node_id).unwrap();
+                if let Some(mask) = mask_per_neighbor.get(explored_great_neighbor_node_id) {
                     self.collected_masks_for_each_possible_state_for_currently_explored_neighbor.push(mask.clone());
                 }
             }
@@ -195,8 +191,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> EntropicCollapsa
     }
     fn append_explored_neighbor_and_flattened_mask_to_cache_of_neighbor_node_and_mask_pairs(&mut self) {
         let explored_great_neighbor_node_id = String::from(self.great_neighbors_from_popped_neighbor[self.explored_great_neighbor_node_index.unwrap()]);
-        if self.cached_mask_per_neighbor_node_id.contains_key(&explored_great_neighbor_node_id) {
-            let mut existing_mask = self.cached_mask_per_neighbor_node_id.remove(&explored_great_neighbor_node_id).unwrap();
+        if let Some(mut existing_mask) = self.cached_mask_per_neighbor_node_id.remove(&explored_great_neighbor_node_id) {
             existing_mask.bitor_assign(self.calculated_flattened_mask.as_ref().unwrap());
             self.cached_mask_per_neighbor_node_id.insert(explored_great_neighbor_node_id, existing_mask);
         }
@@ -216,25 +211,25 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> EntropicCollapsa
             node_state_per_node.insert(node, node_state);
         }
         CollapsedWaveFunction {
-            node_state_per_node: node_state_per_node
+            node_state_per_node
         }
     }
 }
 
 impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveFunction<'a, TNodeState> for EntropicCollapsableWaveFunction<'a, TNodeState> {
-    fn new(collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a, TNodeState>>>>, collapsable_node_per_id: HashMap<&'a str, Rc<RefCell<CollapsableNode<'a, TNodeState>>>>) -> Self {
+    fn new(collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a, TNodeState>>>>, collapsable_node_per_id: HashMap<&'a str, Rc<RefCell<CollapsableNode<'a, TNodeState>>>>, _random_instance: Rc<RefCell<fastrand::Rng>>) -> Self {
         let collapsable_nodes_length: usize = collapsable_nodes.len();
         let mut is_node_collapsed: BitVec = BitVec::new();
         for _ in 0..collapsable_nodes_length {
             is_node_collapsed.push(false);
         }
-        let collapsable_wave_function = EntropicCollapsableWaveFunction {
-            collapsable_nodes: collapsable_nodes,
-            collapsable_node_per_id: collapsable_node_per_id,
-            collapsable_nodes_length: collapsable_nodes_length,
+        EntropicCollapsableWaveFunction {
+            collapsable_nodes,
+            collapsable_node_per_id,
+            collapsable_nodes_length,
             current_collapsable_node_index: 0,
             collapsed_nodes_total: 0,
-            is_node_collapsed: is_node_collapsed,
+            is_node_collapsed,
             cached_mask_per_neighbor_node_id: IndexMap::new(),
             popped_neighbor_node_id: None,
             popped_mask: None,
@@ -245,9 +240,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveF
             collected_masks_for_each_possible_state_for_currently_explored_neighbor: Vec::new(),
             calculated_flattened_mask: None,
             node_state_type: PhantomData
-        };
-
-        collapsable_wave_function
+        }
     }
     fn collapse_into_steps(&'a mut self) -> Result<Vec<CollapsedNodeState<TNodeState>>, String> {
 
