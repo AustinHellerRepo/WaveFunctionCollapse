@@ -88,8 +88,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> EntropicCollapsa
         let mask_per_neighbor_per_state: &HashMap<&TNodeState, HashMap<&str, BitVec>> = &current_collapsable_node.mask_per_neighbor_per_state;
         if let Some(mask_per_neighbor) = mask_per_neighbor_per_state.get(current_possible_state) {
             for neighbor_node_id in neighbor_node_ids.iter() {
-                if mask_per_neighbor.contains_key(neighbor_node_id) {
-                    let mask = mask_per_neighbor.get(neighbor_node_id).unwrap();
+                if let Some(mask) = mask_per_neighbor.get(neighbor_node_id) {
                     self.cached_mask_per_neighbor_node_id.insert(String::from(*neighbor_node_id), mask.clone());
                 }
             }
@@ -153,8 +152,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> EntropicCollapsa
         for possible_state in self.possible_states_from_popped_neighbor.iter() {
             if popped_neighbor_collapsable_node.mask_per_neighbor_per_state.contains_key(possible_state) {
                 let mask_per_neighbor = popped_neighbor_collapsable_node.mask_per_neighbor_per_state.get(possible_state).unwrap();
-                if mask_per_neighbor.contains_key(explored_great_neighbor_node_id) {
-                    let mask = mask_per_neighbor.get(explored_great_neighbor_node_id).unwrap();
+                if let Some(mask) = mask_per_neighbor.get(explored_great_neighbor_node_id) {
                     self.collected_masks_for_each_possible_state_for_currently_explored_neighbor.push(mask.clone());
                 }
             }
@@ -193,8 +191,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> EntropicCollapsa
     }
     fn append_explored_neighbor_and_flattened_mask_to_cache_of_neighbor_node_and_mask_pairs(&mut self) {
         let explored_great_neighbor_node_id = String::from(self.great_neighbors_from_popped_neighbor[self.explored_great_neighbor_node_index.unwrap()]);
-        if self.cached_mask_per_neighbor_node_id.contains_key(&explored_great_neighbor_node_id) {
-            let mut existing_mask = self.cached_mask_per_neighbor_node_id.remove(&explored_great_neighbor_node_id).unwrap();
+        if let Some(mut existing_mask) = self.cached_mask_per_neighbor_node_id.remove(&explored_great_neighbor_node_id) {
             existing_mask.bitor_assign(self.calculated_flattened_mask.as_ref().unwrap());
             self.cached_mask_per_neighbor_node_id.insert(explored_great_neighbor_node_id, existing_mask);
         }
