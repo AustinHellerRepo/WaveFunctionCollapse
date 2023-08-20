@@ -276,10 +276,12 @@ fn run() {
 
     wave_function.validate().unwrap();
 
-    let mut random_instance = fastrand::Rng::new();
-    let random_seed = Some(random_instance.u64(..));
-    //let random_seed = Some(0);
+    //let mut random_instance = fastrand::Rng::new();
+    //let random_seed = Some(random_instance.u64(..));
     //let random_seed = None;
+
+    // using a fixed seed for randomness to increase comparaibility of the results
+    let random_seed = Some(0);
 
     let collapsed_wave_function = wave_function
         .get_collapsable_wave_function::<AccommodatingCollapsableWaveFunction<LandscapeElement>>(
