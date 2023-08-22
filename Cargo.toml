@@ -27,3 +27,9 @@ tempfile = { version = "3.3.0" }
 colored = { version = "2.0.0" }
 image = { version = "0.24.7" }
 base64 = { version = "0.13.1" }
+# deps below are used for benchmarks only
+criterion = { version = "0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "landscape"
+harness = false
