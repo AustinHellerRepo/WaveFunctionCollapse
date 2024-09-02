@@ -1,6 +1,6 @@
 [package]
 name = "wave-function-collapse"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 authors = ["Austin Heller"]
 description = "Converts nodes and their restrictions into a collapsed node state based on the selected algorithm."
@@ -21,6 +21,7 @@ ordered-float = { version = "3.4.0" }
 permutation = { version = "0.4.1" }
 indexmap = { version = "1.9.2" }
 fastrand = { version = "2.0.0" }
+shiftnanigans = { version = "0.3.4" }
 
 [dev-dependencies]
 tempfile = { version = "3.3.0" }

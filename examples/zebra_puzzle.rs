@@ -858,7 +858,7 @@ impl ZebraPuzzle {
 
                 let node = Node::new(
                     String::from(node_id),
-                    NodeStateProbability::get_equal_probability(node_state_ids),
+                    NodeStateProbability::get_equal_probability(&node_state_ids),
                     node_state_collection_ids_per_neighbor_node_id
                 );
                 nodes.push(node);
@@ -886,7 +886,7 @@ impl ZebraSolution {
             node_state_per_column_per_row.push(node_state_per_column);
         }
 
-        for (node, node_state) in self.collapsed_wave_function.node_state_per_node.iter() {
+        for (node, node_state) in self.collapsed_wave_function.node_state_per_node_id.iter() {
             let node_split = node.split("_").collect::<Vec<&str>>();
             let collapsed_node_house_index: usize = node_split[0].parse::<u8>().unwrap() as usize;
             let collapsed_node_information_type: &str = node_split[1];

@@ -607,7 +607,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingSeq
             node_state_per_node.insert(node, node_state);
         }
         CollapsedWaveFunction {
-            node_state_per_node
+            node_state_per_node_id: node_state_per_node
         }
     }
 }

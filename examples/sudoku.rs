@@ -207,7 +207,7 @@ impl SudokuPuzzle {
                 }
                 let node = Node::new(
                     node_id_per_y_per_x.get(&from_x_index).unwrap().get(&from_y_index).unwrap().clone(),
-                    NodeStateProbability::get_equal_probability(node_state_ids),
+                    NodeStateProbability::get_equal_probability(&node_state_ids),
                     node_state_collection_ids_per_neighbor_node_id
                 );
                 nodes.push(node);
@@ -227,7 +227,7 @@ impl SudokuPuzzle {
                     state_per_row_per_column[(index as usize) - 1].push(None);
                 }
             }
-            for (node, node_state) in collapsed_wave_function.node_state_per_node.iter() {
+            for (node, node_state) in collapsed_wave_function.node_state_per_node_id.iter() {
                 let node_string_split = node.split("_").collect::<Vec<&str>>();
                 let x_index = node_string_split[2].parse::<u8>().unwrap();
                 let y_index = node_string_split[1].parse::<u8>().unwrap();

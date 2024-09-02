@@ -1,27 +1,37 @@
+use std::collections::{HashMap, HashSet};
 use std::marker::PhantomData;
-use std::{cell::RefCell, rc::Rc, collections::HashMap};
+use std::{cell::RefCell, rc::Rc};
 use std::hash::Hash;
 use bitvec::vec::BitVec;
-use super::collapsable_wave_function::{CollapsableWaveFunction, CollapsableNode, CollapsedNodeState, CollapsedWaveFunction};
 
-/// This struct represents a CollapsableWaveFunction that sequentially searches every possible state systematically. This is best for finding solutions when the condition problem has very few, one, or no solutions.
-pub struct SequentialCollapsableWaveFunction<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> {
-    // represents a wave function with all of the necessary steps to collapse
+use super::collapsable_wave_function::{CollapsableNode, CollapsableWaveFunction, CollapsedNodeState, CollapsedWaveFunction};
+
+// This keeps track of the tree traversal of the collapsable nodes
+struct VisitedCollapsableNode<'a> {
+    node_id: &'a str,
+    // None: we have not traversed to a neighbor yet, the last valid visited node will never have a need for a non-None neighbor_index
+    // Some(_): the next node (that we just popped back from) was at this index
+    neighbor_index: Option<usize>,
+}
+
+pub struct SequentialAdjacentCollapsableWaveFunction<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> {
     collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a, TNodeState>>>>,
     collapsable_node_per_id: HashMap<&'a str, Rc<RefCell<CollapsableNode<'a, TNodeState>>>>,
     collapsable_nodes_length: usize,
-    current_collapsable_node_index: usize,
-    node_state_type: PhantomData<TNodeState>
+    node_state_type: PhantomData<TNodeState>,
+    current_visited_collapsable_nodes: Vec<VisitedCollapsableNode<'a>>,
+    current_visited_collapsable_node_ids: HashSet<&'a str>,
+    is_able_to_move_to_next_collapsable_node: bool,
 }
 
-impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> SequentialCollapsableWaveFunction<'a, TNodeState> {
+impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> SequentialAdjacentCollapsableWaveFunction<'a, TNodeState> {
     fn try_increment_current_collapsable_node_state(&mut self) -> CollapsedNodeState<TNodeState> {
-        let wrapped_current_collapsable_node = self.collapsable_nodes.get(self.current_collapsable_node_index).unwrap();
+        let wrapped_current_collapsable_node = self.collapsable_node_per_id.get(self.current_visited_collapsable_nodes.last().unwrap().node_id).unwrap();
         let mut current_collapsable_node = wrapped_current_collapsable_node.borrow_mut();
 
         let is_successful = current_collapsable_node.node_state_indexed_view.try_move_next();
         if is_successful {
-            current_collapsable_node.current_chosen_from_sort_index = Some(self.current_collapsable_node_index);
+            current_collapsable_node.current_chosen_from_sort_index = Some(self.current_visited_collapsable_nodes.len() - 1);
             CollapsedNodeState {
                 node_id: String::from(current_collapsable_node.id),
                 node_state_id: Some((*current_collapsable_node.node_state_indexed_view.get().unwrap()).clone())
@@ -37,7 +47,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> SequentialCollap
     }
     fn try_alter_reference_to_current_collapsable_node_mask(&mut self) -> bool {
         let mut is_successful: bool = true;
-        let wrapped_current_collapsable_node = self.collapsable_nodes.get_mut(self.current_collapsable_node_index).expect("The collapsable node should exist at this index.");
+        let wrapped_current_collapsable_node = self.collapsable_node_per_id.get(self.current_visited_collapsable_nodes.last().unwrap().node_id).unwrap();
         let current_collapsable_node = wrapped_current_collapsable_node.borrow();
         if let Some(current_possible_state) = current_collapsable_node.node_state_indexed_view.get() {
             let neighbor_node_ids: &Vec<&str> = &current_collapsable_node.neighbor_node_ids;
@@ -73,33 +83,57 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> SequentialCollap
         }
         is_successful
     }
+    // select a next neighbor for the current leaf node
     fn move_to_next_collapsable_node(&mut self) {
-        let wrapped_current_collapsable_node = self.collapsable_nodes.get(self.current_collapsable_node_index).unwrap();
-        let current_node_id: &str = wrapped_current_collapsable_node.borrow().id;
-        let current_collapsable_node_index: &usize = &self.current_collapsable_node_index;
-        debug!("moving from {current_node_id} at index {current_collapsable_node_index}");
 
-        self.current_collapsable_node_index += 1;
+        if self.current_visited_collapsable_nodes.len() == self.collapsable_nodes_length {
+            // if we've already reached the very end of the first solution, we're done
+            self.is_able_to_move_to_next_collapsable_node = false;
+        }
+        else {
+            'try_to_visit_next_node: {
+                let mut visited_node_index = self.current_visited_collapsable_nodes.len() - 1;
+                while visited_node_index > 0 {
+                    // look for a next valid neighbor index
+                    let visited_collapsable_node_id = self.current_visited_collapsable_nodes[visited_node_index].node_id;
+                    let wrapped_collapsable_node = self.collapsable_node_per_id.get(visited_collapsable_node_id).unwrap();
+                    let collapsable_node = wrapped_collapsable_node.borrow();
+                    let next_neighbor_index = if let Some(current_neighbor_index) = self.current_visited_collapsable_nodes[visited_node_index].neighbor_index {
+                        current_neighbor_index + 1
+                    }
+                    else {
+                        0
+                    };
 
-        if cfg!(debug_assertions) {
-            let next_collapsable_node_index: &usize = &self.current_collapsable_node_index;
-            if self.current_collapsable_node_index == self.collapsable_nodes_length {
-                debug!("moved outside of bounds at index {next_collapsable_node_index}");
-            }
-            else {
-                let wrapped_current_collapsable_node = self.collapsable_nodes.get(self.current_collapsable_node_index).unwrap();
-                let next_node_id: &str = wrapped_current_collapsable_node.borrow().id;
-                debug!("moved to {next_node_id} at index {next_collapsable_node_index}");
+                    while next_neighbor_index < collapsable_node.neighbor_node_ids.len() {
+                        let neighbor_node_id = collapsable_node.neighbor_node_ids[next_neighbor_index];
+
+                        // if this neighbor to the current leaf node has not been visited, we should visit it next
+                        if self.current_visited_collapsable_node_ids.insert(neighbor_node_id) {
+                            self.current_visited_collapsable_nodes.push(VisitedCollapsableNode {
+                                node_id: &neighbor_node_id,
+                                neighbor_index: None,
+                            });
+                            break 'try_to_visit_next_node;
+                        }
+                    }
+
+                    // we failed to find the next neighbor of the leaf node, so backtrack and try again on the previously visited node
+                    visited_node_index -= 1;
+                }
+
+                // we've visited all of the nodes and could not find a valid neighbor or next node to move to
+                self.is_able_to_move_to_next_collapsable_node = false;
             }
         }
     }
     fn is_fully_collapsed(&self) -> bool {
-        self.current_collapsable_node_index == self.collapsable_nodes_length
+        self.current_visited_collapsable_nodes.len() == self.collapsable_nodes_length && !self.is_able_to_move_to_next_collapsable_node
     }
     fn try_move_to_previous_collapsable_node_neighbor(&mut self) {
 
         {
-            let wrapped_current_collapsable_node = self.collapsable_nodes.get_mut(self.current_collapsable_node_index).expect("The collapsable node should exist at this index.");
+            let wrapped_current_collapsable_node = self.collapsable_node_per_id.get(self.current_visited_collapsable_nodes.last().unwrap().node_id).unwrap();
             let mut current_collapsable_node = wrapped_current_collapsable_node.borrow_mut();
 
             // reset the node state index for the current node
@@ -109,12 +143,13 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> SequentialCollap
         }
         
         // move to the previously chosen node
-        if self.current_collapsable_node_index != 0 {
-            self.current_collapsable_node_index -= 1;
+        if !self.current_visited_collapsable_nodes.is_empty() {
+            let leaf_visited_collapsable_node = self.current_visited_collapsable_nodes.pop().unwrap();
+            self.current_visited_collapsable_node_ids.remove(leaf_visited_collapsable_node.node_id);
 
             // revert the masks of the new current collapsable node prior to the next state change/increment
             {
-                let wrapped_current_collapsable_node = self.collapsable_nodes.get_mut(self.current_collapsable_node_index).expect("The collapsable node should exist at this index.");
+                let wrapped_current_collapsable_node = self.collapsable_node_per_id.get(leaf_visited_collapsable_node.node_id).unwrap();
                 let current_collapsable_node = wrapped_current_collapsable_node.borrow_mut();
 
                 let neighbor_node_ids: &Vec<&str>;
@@ -136,10 +171,10 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> SequentialCollap
             
     }
     fn is_fully_reset(&self) -> bool {
-        if self.current_collapsable_node_index != 0 {
+        if !self.current_visited_collapsable_nodes.is_empty() {
             return false;
         }
-        let wrapped_current_collapsable_node = self.collapsable_nodes.get(self.current_collapsable_node_index).unwrap();
+        let wrapped_current_collapsable_node = self.collapsable_node_per_id.get(self.current_visited_collapsable_nodes.last().unwrap().node_id).unwrap();
         let current_collapsable_node = wrapped_current_collapsable_node.borrow();
         return current_collapsable_node.current_chosen_from_sort_index.is_none();
     }
@@ -158,16 +193,18 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> SequentialCollap
     }
 }
 
-impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveFunction<'a, TNodeState> for SequentialCollapsableWaveFunction<'a, TNodeState> {
+impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveFunction<'a, TNodeState> for SequentialAdjacentCollapsableWaveFunction<'a, TNodeState> {
     fn new(collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a, TNodeState>>>>, collapsable_node_per_id: HashMap<&'a str, Rc<RefCell<CollapsableNode<'a, TNodeState>>>>, _random_instance: Rc<RefCell<fastrand::Rng>>) -> Self {
         let collapsable_nodes_length: usize = collapsable_nodes.len();
 
-        SequentialCollapsableWaveFunction {
+        SequentialAdjacentCollapsableWaveFunction {
             collapsable_nodes,
             collapsable_node_per_id,
             collapsable_nodes_length,
-            current_collapsable_node_index: 0,
-            node_state_type: PhantomData
+            current_visited_collapsable_nodes: Vec::new(),
+            current_visited_collapsable_node_ids: HashSet::new(),
+            node_state_type: PhantomData,
+            is_able_to_move_to_next_collapsable_node: true,
         }
     }
     fn collapse_into_steps(&'a mut self) -> Result<Vec<CollapsedNodeState<TNodeState>>, String> {

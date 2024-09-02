@@ -336,7 +336,7 @@ impl Canvas {
             node_state_per_height_index_per_width_index.insert(width_index, node_state_per_height_index);
         }
 
-        for (node_id, node_state) in collapsed_wave_function.node_state_per_node.into_iter() {
+        for (node_id, node_state) in collapsed_wave_function.node_state_per_node_id.into_iter() {
             let node_id_split = node_id.split("_").collect::<Vec<&str>>();
             let node_width_index = node_id_split[1].parse::<usize>().unwrap();
             let node_height_index = node_id_split[2].parse::<usize>().unwrap();

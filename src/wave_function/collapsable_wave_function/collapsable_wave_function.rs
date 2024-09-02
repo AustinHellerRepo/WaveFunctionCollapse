@@ -23,7 +23,7 @@ pub struct CollapsedNodeState<TNodeState: Eq + Hash + Clone + std::fmt::Debug + 
 
 #[derive(Serialize)]
 pub struct CollapsedWaveFunction<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> {
-    pub node_state_per_node: HashMap<String, TNodeState>
+    pub node_state_per_node_id: HashMap<String, TNodeState>
 }
 
 #[derive(Clone, Eq, PartialEq, Debug)]
