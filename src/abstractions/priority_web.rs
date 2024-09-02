@@ -2,12 +2,9 @@
 // you can imagine a game needing points of interest that are nearby each other - you would not want quest-adjacent locations to be physically distant
 
 use std::collections::HashMap;
-use std::{cell::RefCell, rc::Rc};
 use std::hash::Hash;
 use serde::{Deserialize, Serialize};
-use shiftnanigans::incrementer::fixed_binary_density_incrementer::FixedBinaryDensityIncrementer;
-use shiftnanigans::incrementer::Incrementer;
-use crate::wave_function::collapsable_wave_function::collapsable_wave_function::{CollapsableNode, CollapsableWaveFunction, CollapsedWaveFunction};
+use crate::wave_function::collapsable_wave_function::collapsable_wave_function::{CollapsableWaveFunction, CollapsedWaveFunction};
 use crate::wave_function::collapsable_wave_function::sequential_collapsable_wave_function::SequentialCollapsableWaveFunction;
 use crate::wave_function::{Node, NodeStateCollection, NodeStateProbability, WaveFunction};
 
@@ -24,7 +21,7 @@ pub enum Proximity {
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Serialize)]
 enum NodeState<TValue>
 where
-    TValue: PriorityWebNodeValue,
+    TValue: ProximityGraphNodeValue,
 {
     // the states that make up the web states
     Primary {
@@ -39,7 +36,7 @@ where
 
 impl<'de, TValue> Deserialize<'de> for NodeState<TValue>
 where
-    TValue: PriorityWebNodeValue, // Ensure TValue implements Deserialize
+    TValue: ProximityGraphNodeValue, // Ensure TValue implements Deserialize
 {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -51,7 +48,7 @@ where
         // Implement Visitor for NodeStateVisitor
         impl<'de, TValue> serde::de::Visitor<'de> for NodeStateVisitor<TValue>
         where
-            TValue: PriorityWebNodeValue,
+            TValue: ProximityGraphNodeValue,
         {
             type Value = NodeState<TValue>;
 
@@ -105,67 +102,44 @@ where
     }
 }
 
-trait PriorityWebNodeValue: Eq + Hash + Clone + std::fmt::Debug + Ord + Serialize + for<'de> Deserialize<'de> {
+pub trait ProximityGraphNodeValue: Eq + Hash + Clone + std::fmt::Debug + Ord + Serialize + for<'de> Deserialize<'de> {
     fn get_proximity(&self, other: &Self) -> Proximity where Self: Sized;
 }
 
-pub struct PriorityWebNode {
-    priority_web_node_id: String,
+pub struct ProximityGraphNode {
+    proximity_graph_node_id: String,
     distance_per_node_index: Vec<f32>,
 }
 
-pub enum PriorityWebError {
+pub enum ProximityGraphError {
     FailedToMapValuesToNodesAtAnyDistance,
 }
 
-pub struct PriorityWeb<TValue: PriorityWebNodeValue> {
+pub struct ProximityGraph<TValue: ProximityGraphNodeValue> {
     values: Vec<TValue>,
-    nodes: Vec<PriorityWebNode>,
+    nodes: Vec<ProximityGraphNode>,
 }
 
-impl<TValue: PriorityWebNodeValue> PriorityWeb<TValue> {
-    pub fn new(values: Vec<TValue>, nodes: Vec<PriorityWebNode>) -> Self {
+impl<TValue: ProximityGraphNodeValue> ProximityGraph<TValue> {
+    pub fn new(values: Vec<TValue>, nodes: Vec<ProximityGraphNode>) -> Self {
         Self {
             values,
             nodes,
         }
     }
-    pub fn get_value_per_priority_web_node_id(&self, random_instance: Rc<RefCell<fastrand::Rng>>) -> Result<HashMap<String, TValue>, PriorityWebError> {
-        let maximum_value_proximity = {
-            let mut maximum_value_proximity = 0.0;
-            for i in 0..(self.values.len() - 1) {
-                for j in (i + 1)..self.values.len() {
-                    maximum_value_proximity += match self.values[i].get_proximity(&self.values[j]) {
-                        Proximity::NeverMoreThanOne => 0.0,
-                        Proximity::SomeDistanceAway { distance } => distance,
-                        Proximity::InAnotherDimensionEntirely => 0.0,
-                    };
-                }
-            }
-            maximum_value_proximity
-        };
-
-        let maximum_node_distance = {
-            let mut maximum_node_distance = 0.0;
-            for node in self.nodes.iter() {
-                for distance in node.distance_per_node_index.iter() {
-                    let distance = *distance;
-                    if distance > maximum_node_distance {
-                        maximum_node_distance = distance;
-                    }
-                }
-            }
-            maximum_node_distance
-        };
+    pub fn get_value_per_proximity_graph_node_id(&self, maximum_acceptable_distance_variance_factor: f32, acceptable_distance_variance_factor_difference: f32) -> Result<HashMap<String, TValue>, ProximityGraphError> {
 
         // iterate over the construction and collapsing of the wave function until the best solution is found
         // first start with the maximum distance being acceptable to ensure that the values can collapse at all
         // if they can collapse, then begin to binary-search for the optimal configuration by restricting what is an acceptable maximum proximity
         //      ex: divide in half first, too low? then make it 75% of original maximum, still too low? make it between 75%-100%, etc.
 
-        let distance_variance_factor = 0.0;
+        let mut distance_variance_factor = 0.0;
+        let mut distance_variance_factor_minimum = 0.0;
+        let mut distance_variance_factor_maximum = 0.0;
         let mut best_collapsed_wave_function = None;
-        while best_collapsed_wave_function.is_none() {
+        let mut is_distance_variance_factor_acceptable = false;
+        while best_collapsed_wave_function.is_none() || is_distance_variance_factor_acceptable {
             let primary_node_state_ratio_per_node_state_id = {
                 let node_state_ids = self.values.iter()
                     .map(|value| {
@@ -180,10 +154,10 @@ impl<TValue: PriorityWebNodeValue> PriorityWeb<TValue> {
             let (nodes, node_state_collections) = {
                 let mut nodes = Vec::new();
                 let mut node_state_collections = Vec::new();
-                for (priority_web_node_index, priority_web_node) in self.nodes.iter().enumerate() {
+                for (proximity_graph_node_index, proximity_graph_node) in self.nodes.iter().enumerate() {
                     // setup the NodeStateCollections per neighbor
                     let mut node_state_collection_ids_per_neighbor_node_id: HashMap<String, Vec<String>> = HashMap::new();
-                    for (neighbor_distance_index, neighbor_distance) in priority_web_node.distance_per_node_index.iter().enumerate() {
+                    for (neighbor_distance_index, neighbor_distance) in proximity_graph_node.distance_per_node_index.iter().enumerate() {
                         let neighbor_distance = *neighbor_distance;
 
                         let mut node_state_collection_ids: Vec<String> = Vec::new();
@@ -229,7 +203,7 @@ impl<TValue: PriorityWebNodeValue> PriorityWeb<TValue> {
                                 }
 
                                 // store the results
-                                let node_state_collection_id: String = format!("primary_{}_{}_{}", priority_web_node_index, neighbor_distance_index, current_value_index);
+                                let node_state_collection_id: String = format!("primary_{}_{}_{}", proximity_graph_node_index, neighbor_distance_index, current_value_index);
 
                                 let node_state_collection = NodeStateCollection::new(
                                     node_state_collection_id.clone(),
@@ -247,7 +221,7 @@ impl<TValue: PriorityWebNodeValue> PriorityWeb<TValue> {
                     }
 
                     let node = Node::new(
-                        format!("primary_{}", priority_web_node.priority_web_node_id),
+                        format!("primary_{}", proximity_graph_node.proximity_graph_node_id),
                         primary_node_state_ratio_per_node_state_id.clone(),
                         node_state_collection_ids_per_neighbor_node_id,
                     );
@@ -255,31 +229,53 @@ impl<TValue: PriorityWebNodeValue> PriorityWeb<TValue> {
                 }
                 (nodes, node_state_collections)
             };
-            {
-                let wave_function = WaveFunction::new(nodes, node_state_collections);
-                let mut collapsable_wave_function = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<NodeState<TValue>>>(None);
-                match collapsable_wave_function.collapse() {
-                    Ok(collapsed_wave_function) => {
-                        // TODO store this as the best collapsed wave function
-                        // TODO expand or retract the distance variance
-                        todo!();
-                    },
-                    Err(_) => {
-                        // TODO expand or retract the distance variance
-                        // TODO if the distance variance is beyond some measure of the maximum value proximity versus the maximum node distance, return Err
-                        todo!();
-                    },
-                }
+
+            let wave_function = WaveFunction::new(nodes, node_state_collections);
+            let mut collapsable_wave_function = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<NodeState<TValue>>>(None);
+            match collapsable_wave_function.collapse() {
+                Ok(collapsed_wave_function) => {
+                    // store this as the best collapsed wave function
+                    best_collapsed_wave_function = Some(collapsed_wave_function);
+
+                    if distance_variance_factor_maximum - distance_variance_factor <= acceptable_distance_variance_factor_difference &&
+                        distance_variance_factor - distance_variance_factor_minimum >= acceptable_distance_variance_factor_difference {
+
+                        // we've found an acceptable distance variance
+                        is_distance_variance_factor_acceptable = true;
+                    }
+                    else {
+                        // we need to reduce the variances to better isolate an ideal solution
+                        distance_variance_factor_maximum = distance_variance_factor;
+                        distance_variance_factor = (distance_variance_factor_maximum + distance_variance_factor_minimum) * 0.5;
+                    }
+                },
+                Err(_) => {
+                    // expand or retract the distance variance
+                    // if the distance variance is beyond some measure of the maximum value proximity versus the maximum node distance, return Err
+                    if distance_variance_factor_maximum == 0.0 {
+                        // if we haven't expanded yet, let's start at the maximum acceptable variance
+                        distance_variance_factor_maximum = maximum_acceptable_distance_variance_factor;
+                        distance_variance_factor = maximum_acceptable_distance_variance_factor;
+                    }
+                    else if distance_variance_factor_maximum == maximum_acceptable_distance_variance_factor {
+                        // if we just tried the maximum acceptable distance difference factor, we will never find an acceptable factor
+                        return Err(ProximityGraphError::FailedToMapValuesToNodesAtAnyDistance);
+                    }
+                    else {
+                        distance_variance_factor_minimum = distance_variance_factor;
+                        distance_variance_factor = (distance_variance_factor_maximum + distance_variance_factor_minimum) * 0.5;
+                    }
+                },
             }
         }
         
         let best_collapsed_wave_function: CollapsedWaveFunction<NodeState<TValue>> = best_collapsed_wave_function.unwrap();
-        let mut value_per_priority_web_node_id = HashMap::new();
+        let mut value_per_proximity_graph_node_id = HashMap::new();
         for (node_id, node_state) in best_collapsed_wave_function.node_state_per_node_id {
             match node_state {
                 NodeState::Primary { state } => {
-                    if let Some(priority_web_node_id) = node_id.strip_prefix("primary_") {
-                        value_per_priority_web_node_id.insert(String::from(priority_web_node_id), state);
+                    if let Some(proximity_graph_node_id) = node_id.strip_prefix("primary_") {
+                        value_per_proximity_graph_node_id.insert(String::from(proximity_graph_node_id), state);
                     }
                     else {
                         panic!("Unexpected non-primary node ID when node state is in a primary state.");
@@ -292,6 +288,11 @@ impl<TValue: PriorityWebNodeValue> PriorityWeb<TValue> {
                 },
             }
         }
-        Ok(value_per_priority_web_node_id)
+        Ok(value_per_proximity_graph_node_id)
     }
+}
+
+#[cfg(test)]
+mod proximity_graph_tests {
+    // TODO create unit tests
 }
