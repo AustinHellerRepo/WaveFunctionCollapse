@@ -4,12 +4,13 @@
 use std::collections::HashMap;
 use std::hash::Hash;
 use serde::{Deserialize, Serialize};
-use crate::wave_function::collapsable_wave_function::collapsable_wave_function::{CollapsableWaveFunction, CollapsedWaveFunction};
+use crate::wave_function::collapsable_wave_function::collapsable_wave_function::CollapsableWaveFunction;
 use crate::wave_function::collapsable_wave_function::sequential_collapsable_wave_function::SequentialCollapsableWaveFunction;
 use crate::wave_function::{Node, NodeStateCollection, NodeStateProbability, WaveFunction};
 
 pub enum Proximity {
-    NeverMoreThanOne,
+    // this indicates that more than one cannot exist
+    ExclusiveExistence,
     // the values are different from each other in a quantifiable way
     SomeDistanceAway {
         distance: f32,
@@ -21,7 +22,7 @@ pub enum Proximity {
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Clone, Serialize)]
 enum NodeState<TValue>
 where
-    TValue: ProximityGraphNodeValue,
+    TValue: HasProximity,
 {
     // the states that make up the web states
     Primary {
@@ -36,7 +37,7 @@ where
 
 impl<'de, TValue> Deserialize<'de> for NodeState<TValue>
 where
-    TValue: ProximityGraphNodeValue, // Ensure TValue implements Deserialize
+    TValue: HasProximity, // Ensure TValue implements Deserialize
 {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -48,7 +49,7 @@ where
         // Implement Visitor for NodeStateVisitor
         impl<'de, TValue> serde::de::Visitor<'de> for NodeStateVisitor<TValue>
         where
-            TValue: ProximityGraphNodeValue,
+            TValue: HasProximity,
         {
             type Value = NodeState<TValue>;
 
@@ -102,32 +103,41 @@ where
     }
 }
 
-pub trait ProximityGraphNodeValue: Eq + Hash + Clone + std::fmt::Debug + Ord + Serialize + for<'de> Deserialize<'de> {
+pub trait HasProximity: Eq + Hash + Clone + std::fmt::Debug + Ord + Serialize + for<'de> Deserialize<'de> {
     fn get_proximity(&self, other: &Self) -> Proximity where Self: Sized;
 }
 
+#[derive(std::fmt::Debug)]
 pub struct ProximityGraphNode {
     proximity_graph_node_id: String,
-    distance_per_node_index: Vec<f32>,
+    distance_per_proximity_graph_node_id: HashMap<String, f32>,
 }
 
+impl ProximityGraphNode {
+    pub fn new(proximity_graph_node_id: String, distance_per_proximity_graph_node_id: HashMap<String, f32>) -> Self {
+        Self {
+            proximity_graph_node_id,
+            distance_per_proximity_graph_node_id,
+        }
+    }
+}
+
+#[derive(std::fmt::Debug, Clone)]
 pub enum ProximityGraphError {
     FailedToMapValuesToNodesAtAnyDistance,
 }
 
-pub struct ProximityGraph<TValue: ProximityGraphNodeValue> {
-    values: Vec<TValue>,
+pub struct ProximityGraph {
     nodes: Vec<ProximityGraphNode>,
 }
 
-impl<TValue: ProximityGraphNodeValue> ProximityGraph<TValue> {
-    pub fn new(values: Vec<TValue>, nodes: Vec<ProximityGraphNode>) -> Self {
+impl ProximityGraph {
+    pub fn new(nodes: Vec<ProximityGraphNode>) -> Self {
         Self {
-            values,
             nodes,
         }
     }
-    pub fn get_value_per_proximity_graph_node_id(&self, maximum_acceptable_distance_variance_factor: f32, acceptable_distance_variance_factor_difference: f32) -> Result<HashMap<String, TValue>, ProximityGraphError> {
+    pub fn get_value_per_proximity_graph_node_id<TValue: HasProximity>(&self, values: Vec<TValue>, maximum_acceptable_distance_variance_factor: f32, acceptable_distance_variance_factor_difference: f32) -> Result<HashMap<String, TValue>, ProximityGraphError> {
 
         // iterate over the construction and collapsing of the wave function until the best solution is found
         // first start with the maximum distance being acceptable to ensure that the values can collapse at all
@@ -139,9 +149,18 @@ impl<TValue: ProximityGraphNodeValue> ProximityGraph<TValue> {
         let mut distance_variance_factor_maximum = 0.0;
         let mut best_collapsed_wave_function = None;
         let mut is_distance_variance_factor_acceptable = false;
-        while best_collapsed_wave_function.is_none() || is_distance_variance_factor_acceptable {
+        while best_collapsed_wave_function.is_none() || !is_distance_variance_factor_acceptable {
+            {
+                let best_is_what = if best_collapsed_wave_function.is_some() {
+                    "some"
+                }
+                else {
+                    "none"
+                };
+                println!("best is {} from {} to {} while at {}", best_is_what, distance_variance_factor_minimum, distance_variance_factor_maximum, distance_variance_factor);
+            }
             let primary_node_state_ratio_per_node_state_id = {
-                let node_state_ids = self.values.iter()
+                let node_state_ids = values.iter()
                     .map(|value| {
                         NodeState::Primary {
                             state: value.clone(),
@@ -154,31 +173,27 @@ impl<TValue: ProximityGraphNodeValue> ProximityGraph<TValue> {
             let (nodes, node_state_collections) = {
                 let mut nodes = Vec::new();
                 let mut node_state_collections = Vec::new();
-                for (proximity_graph_node_index, proximity_graph_node) in self.nodes.iter().enumerate() {
+
+                // create primary nodes
+                for proximity_graph_node in self.nodes.iter() {
                     // setup the NodeStateCollections per neighbor
                     let mut node_state_collection_ids_per_neighbor_node_id: HashMap<String, Vec<String>> = HashMap::new();
-                    for (neighbor_distance_index, neighbor_distance) in proximity_graph_node.distance_per_node_index.iter().enumerate() {
+                    for (neighbor_proximity_graph_node_id, neighbor_distance) in proximity_graph_node.distance_per_proximity_graph_node_id.iter() {
                         let neighbor_distance = *neighbor_distance;
 
                         let mut node_state_collection_ids: Vec<String> = Vec::new();
-                        if neighbor_distance_index != neighbor_distance_index {
+                        if &proximity_graph_node.proximity_graph_node_id != neighbor_proximity_graph_node_id {
                             // collect up each node state
-                            for (current_value_index, current_value) in self.values.iter().enumerate() {
+                            for (current_value_index, current_value) in values.iter().enumerate() {
                                 let current_node_state = NodeState::Primary {
                                     state: current_value.clone(),
                                 };
                                 let mut other_node_states = Vec::new();
-                                for (other_value_index, other_value) in self.values.iter().enumerate() {
+                                for other_value in values.iter() {
                                     match current_value.get_proximity(other_value) {
-                                        Proximity::NeverMoreThanOne => {
-                                            // do not add this other value as a possible value if they are the same index
-                                            if current_value_index != other_value_index {
-                                                let other_node_state = NodeState::Primary {
-                                                    state: other_value.clone(),
-                                                };
-                                                other_node_states.push(other_node_state);
-                                            }
-                                        }
+                                        Proximity::ExclusiveExistence => {
+                                            // do not add the current node state as being able to be in the same final result as this other node state
+                                        },
                                         Proximity::SomeDistanceAway { distance } => {
                                             let distance_variance = distance * distance_variance_factor;
                                             let from_distance = distance - distance_variance;
@@ -203,7 +218,7 @@ impl<TValue: ProximityGraphNodeValue> ProximityGraph<TValue> {
                                 }
 
                                 // store the results
-                                let node_state_collection_id: String = format!("primary_{}_{}_{}", proximity_graph_node_index, neighbor_distance_index, current_value_index);
+                                let node_state_collection_id: String = format!("primary_{}_{}_{}", proximity_graph_node.proximity_graph_node_id, neighbor_proximity_graph_node_id, current_value_index);
 
                                 let node_state_collection = NodeStateCollection::new(
                                     node_state_collection_id.clone(),
@@ -216,7 +231,7 @@ impl<TValue: ProximityGraphNodeValue> ProximityGraph<TValue> {
                             }
                         }
 
-                        let neighbor_node_id = format!("primary_{}", neighbor_distance_index);
+                        let neighbor_node_id = format!("primary_{}", neighbor_proximity_graph_node_id);
                         node_state_collection_ids_per_neighbor_node_id.insert(neighbor_node_id, node_state_collection_ids);
                     }
 
@@ -227,6 +242,53 @@ impl<TValue: ProximityGraphNodeValue> ProximityGraph<TValue> {
                     );
                     nodes.push(node);
                 }
+
+                // create secondary nodes
+                for (value_index, value) in values.iter().enumerate() {
+                    if let Proximity::ExclusiveExistence = value.get_proximity(&value) {
+                        // this value needs to only exist exactly once
+                        let secondary_node_state_ratio_per_node_state_id = {
+                            let mut node_states = Vec::new();
+                            for (node_index, _) in self.nodes.iter().enumerate() {
+                                node_states.push(
+                                    NodeState::Secondary {
+                                        node_index,
+                                        state: value.clone(),
+                                    }
+                                );
+                            };
+                            NodeStateProbability::get_equal_probability(&node_states)
+                        };
+                        let node_state_collection_ids_per_neighbor_node_id = {
+                            let mut node_state_collection_ids_per_neighbor_node_id = HashMap::new();
+                            for (proximity_graph_node_index, proximity_graph_node) in self.nodes.iter().enumerate() {
+                                let node_state_collection_id = format!("secondary_{}_{}", value_index, proximity_graph_node.proximity_graph_node_id);
+                                let node_state_collection = NodeStateCollection::new(
+                                    node_state_collection_id.clone(),
+                                    NodeState::Secondary {
+                                        node_index: proximity_graph_node_index,
+                                        state: value.clone(),
+                                    },
+                                    vec![NodeState::Primary {
+                                        state: value.clone(),
+                                    }],
+                                );
+                                node_state_collections.push(node_state_collection);
+                                let neighbor_node_id = format!("primary_{}", proximity_graph_node.proximity_graph_node_id);
+                                node_state_collection_ids_per_neighbor_node_id.insert(neighbor_node_id, vec![node_state_collection_id]);
+                            }
+                            node_state_collection_ids_per_neighbor_node_id
+                        };
+                        let node = Node::new(
+                            format!("secondary_{}", value_index),
+                            secondary_node_state_ratio_per_node_state_id,
+                            node_state_collection_ids_per_neighbor_node_id,
+                        );
+                        nodes.push(node);
+                    }
+                }
+
+                // return results
                 (nodes, node_state_collections)
             };
 
@@ -237,16 +299,13 @@ impl<TValue: ProximityGraphNodeValue> ProximityGraph<TValue> {
                     // store this as the best collapsed wave function
                     best_collapsed_wave_function = Some(collapsed_wave_function);
 
-                    if distance_variance_factor_maximum - distance_variance_factor <= acceptable_distance_variance_factor_difference &&
-                        distance_variance_factor - distance_variance_factor_minimum >= acceptable_distance_variance_factor_difference {
+                    // we need to reduce the variances to better isolate an ideal solution
+                    distance_variance_factor_maximum = distance_variance_factor;
+                    distance_variance_factor = (distance_variance_factor_maximum + distance_variance_factor_minimum) * 0.5;
 
-                        // we've found an acceptable distance variance
+                    if distance_variance_factor_maximum - distance_variance_factor_minimum <= acceptable_distance_variance_factor_difference {
                         is_distance_variance_factor_acceptable = true;
-                    }
-                    else {
-                        // we need to reduce the variances to better isolate an ideal solution
-                        distance_variance_factor_maximum = distance_variance_factor;
-                        distance_variance_factor = (distance_variance_factor_maximum + distance_variance_factor_minimum) * 0.5;
+                        println!("found at ({}-{}) at {}", distance_variance_factor_minimum, distance_variance_factor_maximum, distance_variance_factor);
                     }
                 },
                 Err(_) => {
@@ -265,11 +324,16 @@ impl<TValue: ProximityGraphNodeValue> ProximityGraph<TValue> {
                         distance_variance_factor_minimum = distance_variance_factor;
                         distance_variance_factor = (distance_variance_factor_maximum + distance_variance_factor_minimum) * 0.5;
                     }
+
+                    if distance_variance_factor_maximum - distance_variance_factor_minimum <= acceptable_distance_variance_factor_difference {
+                        is_distance_variance_factor_acceptable = true;
+                        println!("found at ({}-{}) at {}", distance_variance_factor_minimum, distance_variance_factor_maximum, distance_variance_factor);
+                    }
                 },
             }
         }
         
-        let best_collapsed_wave_function: CollapsedWaveFunction<NodeState<TValue>> = best_collapsed_wave_function.unwrap();
+        let best_collapsed_wave_function = best_collapsed_wave_function.expect("We should have already failed when both extremes were tested earlier in the logic.");
         let mut value_per_proximity_graph_node_id = HashMap::new();
         for (node_id, node_state) in best_collapsed_wave_function.node_state_per_node_id {
             match node_state {
@@ -295,4 +359,217 @@ impl<TValue: ProximityGraphNodeValue> ProximityGraph<TValue> {
 #[cfg(test)]
 mod proximity_graph_tests {
     // TODO create unit tests
+
+    use std::collections::HashMap;
+
+    use serde::{Deserialize, Serialize};
+
+    use super::{HasProximity, Proximity, ProximityGraph, ProximityGraphNode};
+
+    fn get_x_by_y_grid_proximity_graph(x: usize, y: usize) -> ProximityGraph {
+        let mut proximity_graph_nodes = Vec::new();
+        for i in 0..x {
+            for j in 0..y {
+                let mut distance_per_proximity_graph_node_id = HashMap::new();
+                for i_other in 0..x {
+                    for j_other in 0..y {
+                        if i != i_other || j != j_other {
+                            let other_proximity_graph_node_id = format!("node_{}_{}", i_other, j_other);
+                            let distance = (
+                                if i < i_other {
+                                    i_other - i
+                                }
+                                else {
+                                    i - i_other
+                                } + if j < j_other {
+                                    j_other - j
+                                }
+                                else {
+                                    j - j_other
+                                }
+                            ) as f32;
+                            distance_per_proximity_graph_node_id.insert(other_proximity_graph_node_id, distance);
+                        }
+                    }
+                }
+                let proximity_graph_node = ProximityGraphNode {
+                    proximity_graph_node_id: format!("node_{}_{}", i, j),
+                    distance_per_proximity_graph_node_id,
+                };
+                proximity_graph_nodes.push(proximity_graph_node);
+            }
+        }
+        ProximityGraph::new(proximity_graph_nodes)
+    }
+
+    fn get_values(total_values: usize) -> Vec<IceCreamShop> {
+        let mut values = Vec::with_capacity(total_values);
+        for index in 0..total_values {
+            match index {
+                0 => values.push(IceCreamShop::AppleCream),
+                1 => values.push(IceCreamShop::BananaBoost),
+                2 => values.push(IceCreamShop::CaramelJuice),
+                3 => values.push(IceCreamShop::DarkDestiny),
+                4 => values.push(IceCreamShop::EternalJoy),
+                _ => values.push(IceCreamShop::None),
+            }
+        }
+        values
+    }
+
+    fn println_value_per_proximity_graph_node_id(x: usize, y: usize, value_per_proximity_graph_node_id: &HashMap<String, IceCreamShop>) {
+        let mut character_per_y_per_x = HashMap::new();
+        for i in 0..x {
+            let mut character_per_y = HashMap::new();
+            for j in 0..y {
+                character_per_y.insert(j, None);
+            }
+            character_per_y_per_x.insert(i, character_per_y);
+        }
+        for (proximity_graph_node_id, ice_cream_shop) in value_per_proximity_graph_node_id.iter() {
+            let x_and_y: Vec<&str> = proximity_graph_node_id.strip_prefix("node_")
+                .unwrap()
+                .split('_')
+                .collect();
+            let x: usize = x_and_y[0].parse().unwrap();
+            let y: usize = x_and_y[1].parse().unwrap();
+            let character = match ice_cream_shop {
+                IceCreamShop::AppleCream => "A",
+                IceCreamShop::BananaBoost => "B",
+                IceCreamShop::CaramelJuice => "C",
+                IceCreamShop::DarkDestiny => "D",
+                IceCreamShop::EternalJoy => "E",
+                IceCreamShop::None => "_",
+            };
+            *character_per_y_per_x.get_mut(&x)
+                .unwrap()
+                .get_mut(&y)
+                .unwrap() = Some(character);
+        }
+
+        for j in 0..y {
+            let mut line = String::new();
+            for i in 0..x {
+                let character = character_per_y_per_x.get(&i)
+                    .unwrap()
+                    .get(&j)
+                    .unwrap()
+                    .unwrap();
+                line.push_str(character);
+            }
+            println!("{}", line);
+        }
+    }
+
+    #[derive(Clone, std::fmt::Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+    enum IceCreamShop {
+        AppleCream,
+        BananaBoost,
+        CaramelJuice,
+        DarkDestiny,
+        EternalJoy,
+        None,
+    }
+
+    impl HasProximity for IceCreamShop {
+        fn get_proximity(&self, other: &Self) -> Proximity where Self: Sized {
+            match self {
+                Self::AppleCream => {
+                    match other {
+                        Self::AppleCream => Proximity::ExclusiveExistence,
+                        Self::BananaBoost => Proximity::SomeDistanceAway { distance: 4.0 },
+                        Self::CaramelJuice => Proximity::SomeDistanceAway { distance: 8.0 },
+                        Self::DarkDestiny => Proximity::SomeDistanceAway { distance: 1.0 },
+                        Self::EternalJoy => Proximity::SomeDistanceAway { distance: 4.0 },
+                        Self::None => Proximity::InAnotherDimensionEntirely,
+                    }
+                },
+                Self::BananaBoost => {
+                    match other {
+                        Self::AppleCream => Proximity::SomeDistanceAway { distance: 4.0 },
+                        Self::BananaBoost => Proximity::ExclusiveExistence,
+                        Self::CaramelJuice => Proximity::SomeDistanceAway { distance: 4.0 },
+                        Self::DarkDestiny => Proximity::SomeDistanceAway { distance: 5.0 },
+                        Self::EternalJoy => Proximity::SomeDistanceAway { distance: 8.0 },
+                        Self::None => Proximity::InAnotherDimensionEntirely,
+                    }
+                },
+                Self::CaramelJuice => {
+                    match other {
+                        Self::AppleCream => Proximity::SomeDistanceAway { distance: 8.0 },
+                        Self::BananaBoost => Proximity::SomeDistanceAway { distance: 4.0 },
+                        Self::CaramelJuice => Proximity::ExclusiveExistence,
+                        Self::DarkDestiny => Proximity::SomeDistanceAway { distance: 7.0 },
+                        Self::EternalJoy => Proximity::SomeDistanceAway { distance: 4.0 },
+                        Self::None => Proximity::InAnotherDimensionEntirely,
+                    }
+                },
+                Self::DarkDestiny => {
+                    match other {
+                        Self::AppleCream => Proximity::SomeDistanceAway { distance: 1.0 },
+                        Self::BananaBoost => Proximity::SomeDistanceAway { distance: 5.0 },
+                        Self::CaramelJuice => Proximity::SomeDistanceAway { distance: 7.0 },
+                        Self::DarkDestiny => Proximity::ExclusiveExistence,
+                        Self::EternalJoy => Proximity::SomeDistanceAway { distance: 3.0 },
+                        Self::None => Proximity::InAnotherDimensionEntirely,
+                    }
+                },
+                Self::EternalJoy => {
+                    match other {
+                        Self::AppleCream => Proximity::SomeDistanceAway { distance: 4.0 },
+                        Self::BananaBoost => Proximity::SomeDistanceAway { distance: 8.0 },
+                        Self::CaramelJuice => Proximity::SomeDistanceAway { distance: 4.0 },
+                        Self::DarkDestiny => Proximity::SomeDistanceAway { distance: 3.0 },
+                        Self::EternalJoy => Proximity::ExclusiveExistence,
+                        Self::None => Proximity::InAnotherDimensionEntirely,
+                    }
+                },
+                Self::None => {
+                    match other {
+                        Self::AppleCream => Proximity::InAnotherDimensionEntirely,
+                        Self::BananaBoost => Proximity::InAnotherDimensionEntirely,
+                        Self::CaramelJuice => Proximity::InAnotherDimensionEntirely,
+                        Self::DarkDestiny => Proximity::InAnotherDimensionEntirely,
+                        Self::EternalJoy => Proximity::InAnotherDimensionEntirely,
+                        Self::None => Proximity::InAnotherDimensionEntirely,
+                    }
+                },
+            }
+        }
+    }
+
+    #[test]
+    fn test_w7b0_get_x_by_y_grid_proximity_graph() {
+        let proximity_graph = get_x_by_y_grid_proximity_graph(2, 2);
+        assert_eq!(4, proximity_graph.nodes.len());
+        for index in 0..4 {
+            assert_eq!(3, proximity_graph.nodes[index].distance_per_proximity_graph_node_id.keys().len());
+        }
+        println!("{:?}", proximity_graph.nodes);
+    }
+
+    #[test_case::test_case(5, 5, 0.0, 0.0)]
+    #[test_case::test_case(4, 4, 1.0, 0.1)]
+    #[test_case::test_case(3, 3, 2.0, 0.1)]
+    fn test_h2s7_icecream_shops_in_grid(x: usize, y: usize, maximum_acceptable_distance_variance_factor: f32, acceptable_distance_variance_factor_difference: f32) {
+        let proximity_graph = get_x_by_y_grid_proximity_graph(x, y);
+        let values = get_values(x * y);
+        let value_per_proximity_graph_node_id = proximity_graph.get_value_per_proximity_graph_node_id(values, maximum_acceptable_distance_variance_factor, acceptable_distance_variance_factor_difference).expect("Failed to get value per proximity graph node ID.");
+        println_value_per_proximity_graph_node_id(x, y, &value_per_proximity_graph_node_id);
+        println!("{:?}", value_per_proximity_graph_node_id);
+        assert_eq!(IceCreamShop::AppleCream, *value_per_proximity_graph_node_id.get("node_0_0").unwrap());
+        assert_eq!(IceCreamShop::BananaBoost, *value_per_proximity_graph_node_id.get(format!("node_{}_0", x - 1).as_str()).unwrap());
+        assert_eq!(IceCreamShop::CaramelJuice, *value_per_proximity_graph_node_id.get(format!("node_{}_{}", x - 1, y - 1).as_str()).unwrap());
+        assert_eq!(IceCreamShop::DarkDestiny, *value_per_proximity_graph_node_id.get("node_0_1").unwrap());
+        assert_eq!(IceCreamShop::EternalJoy, *value_per_proximity_graph_node_id.get(format!("node_0_{}", y - 1).as_str()).unwrap());
+    }
+
+    #[test_case::test_case(4, 4, 0.5, 0.1)]
+    #[test_case::test_case(3, 3, 1.0, 0.1)]
+    fn test_o1n6_icecream_shops_in_grid(x: usize, y: usize, maximum_acceptable_distance_variance_factor: f32, acceptable_distance_variance_factor_difference: f32) {
+        let proximity_graph = get_x_by_y_grid_proximity_graph(x, y);
+        let values = get_values(x * y);
+        let error = proximity_graph.get_value_per_proximity_graph_node_id(values, maximum_acceptable_distance_variance_factor, acceptable_distance_variance_factor_difference);
+        assert!(error.is_err());
+    }
 }
