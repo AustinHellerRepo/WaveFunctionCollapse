@@ -564,6 +564,20 @@ mod proximity_graph_tests {
         assert_eq!(IceCreamShop::EternalJoy, *value_per_proximity_graph_node_id.get(format!("node_0_{}", y - 1).as_str()).unwrap());
     }
 
+    #[test_case::test_case(6, 6, 0.0, 0.0)]
+    fn test_y7c4_icecream_shops_in_grid(x: usize, y: usize, maximum_acceptable_distance_variance_factor: f32, acceptable_distance_variance_factor_difference: f32) {
+        let proximity_graph = get_x_by_y_grid_proximity_graph(x, y);
+        let values = get_values(x * y);
+        let value_per_proximity_graph_node_id = proximity_graph.get_value_per_proximity_graph_node_id(values, maximum_acceptable_distance_variance_factor, acceptable_distance_variance_factor_difference).expect("Failed to get value per proximity graph node ID.");
+        println_value_per_proximity_graph_node_id(x, y, &value_per_proximity_graph_node_id);
+        println!("{:?}", value_per_proximity_graph_node_id);
+        assert_eq!(IceCreamShop::AppleCream, *value_per_proximity_graph_node_id.get("node_0_0").unwrap());
+        assert_eq!(IceCreamShop::BananaBoost, *value_per_proximity_graph_node_id.get("node_4_0").unwrap());
+        assert_eq!(IceCreamShop::CaramelJuice, *value_per_proximity_graph_node_id.get("node_4_4").unwrap());
+        assert_eq!(IceCreamShop::DarkDestiny, *value_per_proximity_graph_node_id.get("node_0_1").unwrap());
+        assert_eq!(IceCreamShop::EternalJoy, *value_per_proximity_graph_node_id.get("node_0_4").unwrap());
+    }
+
     #[test_case::test_case(4, 4, 0.5, 0.1)]
     #[test_case::test_case(3, 3, 1.0, 0.1)]
     fn test_o1n6_icecream_shops_in_grid(x: usize, y: usize, maximum_acceptable_distance_variance_factor: f32, acceptable_distance_variance_factor_difference: f32) {
