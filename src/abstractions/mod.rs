@@ -1,1 +1,1 @@
-pub mod priority_web;
+pub mod proximity_graph;
