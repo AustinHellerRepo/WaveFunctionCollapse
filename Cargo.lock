@@ -697,6 +697,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "perlin2d"
+version = "0.2.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bb6c71cfd92099c43062f059494786cdcbd9cb4dab61389098362b241071cde0"
+
+[[package]]
 name = "permutation"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1162,6 +1168,7 @@ dependencies = [
  "indexmap",
  "log",
  "ordered-float",
+ "perlin2d",
  "permutation",
  "pretty_env_logger",
  "serde",

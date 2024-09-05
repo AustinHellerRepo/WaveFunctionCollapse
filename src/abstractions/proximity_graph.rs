@@ -8,22 +8,20 @@ use crate::wave_function::collapsable_wave_function::collapsable_wave_function::
 use crate::wave_function::collapsable_wave_function::sequential_collapsable_wave_function::SequentialCollapsableWaveFunction;
 use crate::wave_function::{Node, NodeStateCollection, NodeStateProbability, WaveFunction};
 
-#[derive(Clone, Copy)]
-pub enum RangeType {
-    // the values are qualitatively the same
-    Inclusive,
-    // the values are qualitatively different
-    Exclusive,
-}
-
 pub struct Distance {
     // the center of the point that the values are quantifiable
     center: f32,
     // the distance from the center that they are reasonably still the same
     width: f32,
-    // if the region defined by the center and width are inclusive of the two value or if they are explicitly exclusive
-    // having an Exclusive distance is helpful if there is a large Inclusive range but one small area that is always negated
-    range_type: RangeType,
+}
+
+impl Distance {
+    pub fn new(center: f32, width: f32) -> Self {
+        Self {
+            center,
+            width,
+        }
+    }
 }
 
 pub enum Proximity {
@@ -31,8 +29,8 @@ pub enum Proximity {
     ExclusiveExistence,
     // the values are different from each other in a quantifiable way
     SomeDistanceAway {
-        // the list of distances in priority order
-        distances: Vec<Distance>,
+        // the distance between one thing and another
+        distance: Distance,
     },
     // the values are not related at all and are unquantifiably different
     InAnotherDimensionEntirely,
@@ -171,15 +169,8 @@ impl ProximityGraph {
                     for j in (i + 1)..values.len() {
                         maximum_value_proximity += match values[i].get_proximity(&values[j]) {
                             Proximity::ExclusiveExistence => 0.0,
-                            Proximity::SomeDistanceAway { distances } => {
-                                let mut max_distance = 0.0;
-                                for distance in distances.into_iter() {
-                                    let current_distance = distance.center + distance.width;
-                                    if current_distance > max_distance {
-                                        max_distance = current_distance;
-                                    }
-                                }
-                                max_distance
+                            Proximity::SomeDistanceAway { distance } => {
+                                distance.center + distance.width
                             },
                             Proximity::InAnotherDimensionEntirely => 0.0,
                         };
@@ -266,53 +257,32 @@ impl ProximityGraph {
                                         Proximity::ExclusiveExistence => {
                                             // do not add the current node state as being able to be in the same final result as this other node state
                                         },
-                                        Proximity::SomeDistanceAway { distances } => {
-                                            let mut is_inclusive = None;
-                                            'look_for_valid_distance: {
-                                                for distance in distances.into_iter() {
-                                                    let normalized_distance = {
-                                                        if let Some(maximum_value_proximity) = maximum_value_proximity {
-                                                            let center = distance.center / maximum_value_proximity;
-                                                            let width = distance.width * center;  // scale the width by the same factor as the center
-                                                            Distance {
-                                                                center,
-                                                                width,
-                                                                range_type: distance.range_type,
-                                                            }
-                                                        }
-                                                        else {
-                                                            distance
-                                                        }
-                                                    };
-
-                                                    let distance_variance = normalized_distance.center * distance_variance_factor;
-                                                    let from_distance = normalized_distance.center - distance_variance - normalized_distance.width;
-                                                    let to_distance = normalized_distance.center + distance_variance + normalized_distance.width;
-
-                                                    //println!("checking that {} is between {} and {}", normalized_neighbor_distance, from_distance, to_distance);
-                                                    if from_distance <= normalized_neighbor_distance && normalized_neighbor_distance <= to_distance {
-                                                        match normalized_distance.range_type {
-                                                            RangeType::Inclusive => {
-                                                                is_inclusive = Some(true);
-                                                                break 'look_for_valid_distance;
-                                                            },
-                                                            RangeType::Exclusive => {
-                                                                is_inclusive = Some(false);
-                                                                break 'look_for_valid_distance;
-                                                            }
-                                                        }
+                                        Proximity::SomeDistanceAway { distance } => {
+                                            let normalized_distance = {
+                                                if let Some(maximum_value_proximity) = maximum_value_proximity {
+                                                    let center = distance.center / maximum_value_proximity;
+                                                    let width = distance.width * center;  // scale the width by the same factor as the center
+                                                    Distance {
+                                                        center,
+                                                        width,
                                                     }
                                                 }
-                                            }
-
-                                            if let Some(is_inclusive) = is_inclusive {
-                                                if is_inclusive {
-                                                    // this neighbor is within range of being in this other state
-                                                    let other_node_state = NodeState::Primary {
-                                                        state: other_value.clone(),
-                                                    };
-                                                    other_node_states.push(other_node_state);
+                                                else {
+                                                    distance
                                                 }
+                                            };
+
+                                            let distance_variance = normalized_distance.center * distance_variance_factor;
+                                            let from_distance = normalized_distance.center - distance_variance - normalized_distance.width;
+                                            let to_distance = normalized_distance.center + distance_variance + normalized_distance.width;
+
+                                            //println!("checking that {} is between {} and {}", normalized_neighbor_distance, from_distance, to_distance);
+                                            if from_distance <= normalized_neighbor_distance && normalized_neighbor_distance <= to_distance {
+                                                // this neighbor is within range of being in this other state
+                                                let other_node_state = NodeState::Primary {
+                                                    state: other_value.clone(),
+                                                };
+                                                other_node_states.push(other_node_state);
                                             }
                                         },
                                         Proximity::InAnotherDimensionEntirely => {
@@ -488,7 +458,7 @@ mod proximity_graph_tests {
 
     use serde::{Deserialize, Serialize};
 
-    use super::{Distance, HasProximity, Proximity, ProximityGraph, ProximityGraphNode, RangeType};
+    use super::{Distance, HasProximity, Proximity, ProximityGraph, ProximityGraphNode};
 
     fn get_x_by_y_grid_proximity_graph(x: usize, y: usize) -> ProximityGraph {
         let mut proximity_graph_nodes = Vec::new();
@@ -601,169 +571,149 @@ mod proximity_graph_tests {
                 Self::AppleCream => {
                     match other {
                         Self::AppleCream => Proximity::ExclusiveExistence,
-                        Self::BananaBoost => Proximity::SomeDistanceAway { distances: vec![
-                            Distance {
+                        Self::BananaBoost => Proximity::SomeDistanceAway {
+                            distance: Distance {
                                 center: 4.0,
                                 width: 0.0,
-                                range_type: RangeType::Inclusive,
                             }
-                        ]},
-                        Self::CaramelJuice => Proximity::SomeDistanceAway { distances: vec![
-                            Distance {
+                        },
+                        Self::CaramelJuice => Proximity::SomeDistanceAway {
+                            distance: Distance {
                                 center: 8.0,
                                 width: 0.0,
-                                range_type: RangeType::Inclusive,
                             },
-                        ]},
-                        Self::DarkDestiny => Proximity::SomeDistanceAway { distances: vec![
-                            Distance {
+                        },
+                        Self::DarkDestiny => Proximity::SomeDistanceAway {
+                            distance: Distance {
                                 center: 1.0,
                                 width: 0.0,
-                                range_type: RangeType::Inclusive,
                             },
-                        ]},
-                        Self::EternalJoy => Proximity::SomeDistanceAway { distances: vec![
-                            Distance {
+                        },
+                        Self::EternalJoy => Proximity::SomeDistanceAway {
+                            distance: Distance {
                                 center: 4.0,
                                 width: 0.0,
-                                range_type: RangeType::Inclusive,
                             },
-                        ]},
+                        },
                         Self::None => Proximity::InAnotherDimensionEntirely,
                     }
                 },
                 Self::BananaBoost => {
                     match other {
-                        Self::AppleCream => Proximity::SomeDistanceAway { distances: vec![
-                            Distance {
+                        Self::AppleCream => Proximity::SomeDistanceAway {
+                            distance: Distance {
                                 center: 4.0,
                                 width: 0.0,
-                                range_type: RangeType::Inclusive,
                             },
-                        ]},
+                        },
                         Self::BananaBoost => Proximity::ExclusiveExistence,
-                        Self::CaramelJuice => Proximity::SomeDistanceAway { distances: vec![
-                            Distance {
+                        Self::CaramelJuice => Proximity::SomeDistanceAway {
+                            distance: Distance {
                                 center: 4.0,
                                 width: 0.0,
-                                range_type: RangeType::Inclusive,
                             },
-                        ]},
-                        Self::DarkDestiny => Proximity::SomeDistanceAway { distances: vec![
-                            Distance {
+                        },
+                        Self::DarkDestiny => Proximity::SomeDistanceAway {
+                            distance: Distance {
                                 center: 5.0,
                                 width: 0.0,
-                                range_type: RangeType::Inclusive,
                             },
-                        ]},
-                        Self::EternalJoy => Proximity::SomeDistanceAway { distances: vec![
-                            Distance {
+                        },
+                        Self::EternalJoy => Proximity::SomeDistanceAway {
+                            distance: Distance {
                                 center: 8.0,
                                 width: 0.0,
-                                range_type: RangeType::Inclusive,
                             },
-                        ]},
+                        },
                         Self::None => Proximity::InAnotherDimensionEntirely,
                     }
                 },
                 Self::CaramelJuice => {
                     match other {
-                        Self::AppleCream => Proximity::SomeDistanceAway { distances: vec![
-                            Distance {
+                        Self::AppleCream => Proximity::SomeDistanceAway {
+                            distance: Distance {
                                 center: 8.0,
                                 width: 0.0,
-                                range_type: RangeType::Inclusive,
                             },
-                        ]},
-                        Self::BananaBoost => Proximity::SomeDistanceAway { distances: vec![
-                            Distance {
+                        },
+                        Self::BananaBoost => Proximity::SomeDistanceAway {
+                            distance: Distance {
                                 center: 4.0,
                                 width: 0.0,
-                                range_type: RangeType::Inclusive,
                             },
-                        ]},
+                        },
                         Self::CaramelJuice => Proximity::ExclusiveExistence,
-                        Self::DarkDestiny => Proximity::SomeDistanceAway { distances: vec![
-                            Distance {
+                        Self::DarkDestiny => Proximity::SomeDistanceAway {
+                            distance: Distance {
                                 center: 7.0,
                                 width: 0.0,
-                                range_type: RangeType::Inclusive,
                             },
-                        ]},
-                        Self::EternalJoy => Proximity::SomeDistanceAway { distances: vec![
-                            Distance {
+                        },
+                        Self::EternalJoy => Proximity::SomeDistanceAway {
+                            distance: Distance {
                                 center: 4.0,
                                 width: 0.0,
-                                range_type: RangeType::Inclusive,
                             },
-                        ]},
+                        },
                         Self::None => Proximity::InAnotherDimensionEntirely,
                     }
                 },
                 Self::DarkDestiny => {
                     match other {
-                        Self::AppleCream => Proximity::SomeDistanceAway { distances: vec![
-                            Distance {
+                        Self::AppleCream => Proximity::SomeDistanceAway {
+                            distance: Distance {
                                 center: 1.0,
                                 width: 0.0,
-                                range_type: RangeType::Inclusive,
                             },
-                        ]},
-                        Self::BananaBoost => Proximity::SomeDistanceAway { distances: vec![
-                            Distance {
+                        },
+                        Self::BananaBoost => Proximity::SomeDistanceAway {
+                            distance: Distance {
                                 center: 5.0,
                                 width: 0.0,
-                                range_type: RangeType::Inclusive,
                             },
-                        ]},
-                        Self::CaramelJuice => Proximity::SomeDistanceAway { distances: vec![
-                            Distance {
+                        },
+                        Self::CaramelJuice => Proximity::SomeDistanceAway {
+                            distance: Distance {
                                 center: 7.0,
                                 width: 0.0,
-                                range_type: RangeType::Inclusive,
                             },
-                        ]},
+                        },
                         Self::DarkDestiny => Proximity::ExclusiveExistence,
-                        Self::EternalJoy => Proximity::SomeDistanceAway { distances: vec![
-                            Distance {
+                        Self::EternalJoy => Proximity::SomeDistanceAway {
+                            distance: Distance {
                                 center: 3.0,
                                 width: 0.0,
-                                range_type: RangeType::Inclusive,
                             },
-                        ]},
+                        },
                         Self::None => Proximity::InAnotherDimensionEntirely,
                     }
                 },
                 Self::EternalJoy => {
                     match other {
-                        Self::AppleCream => Proximity::SomeDistanceAway { distances: vec![
-                            Distance {
+                        Self::AppleCream => Proximity::SomeDistanceAway {
+                            distance: Distance {
                                 center: 4.0,
                                 width: 0.0,
-                                range_type: RangeType::Inclusive,
                             },
-                        ]},
-                        Self::BananaBoost => Proximity::SomeDistanceAway { distances: vec![
-                            Distance {
+                        },
+                        Self::BananaBoost => Proximity::SomeDistanceAway {
+                            distance: Distance {
                                 center: 8.0,
                                 width: 0.0,
-                                range_type: RangeType::Inclusive,
                             },
-                        ]},
-                        Self::CaramelJuice => Proximity::SomeDistanceAway { distances: vec![
-                            Distance {
+                        },
+                        Self::CaramelJuice => Proximity::SomeDistanceAway {
+                            distance: Distance {
                                 center: 4.0,
                                 width: 0.0,
-                                range_type: RangeType::Inclusive,
                             },
-                        ]},
-                        Self::DarkDestiny => Proximity::SomeDistanceAway { distances: vec![
-                            Distance {
+                        },
+                        Self::DarkDestiny => Proximity::SomeDistanceAway {
+                            distance: Distance {
                                 center: 3.0,
                                 width: 0.0,
-                                range_type: RangeType::Inclusive,
                             },
-                        ]},
+                        },
                         Self::EternalJoy => Proximity::ExclusiveExistence,
                         Self::None => Proximity::InAnotherDimensionEntirely,
                     }
