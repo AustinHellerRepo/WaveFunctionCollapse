@@ -598,16 +598,16 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingSeq
         self.spread_node_ids_index += 1;
     }
     fn get_collapsed_wave_function(&self) -> CollapsedWaveFunction<TNodeState> {
-        let mut node_state_per_node: HashMap<String, TNodeState> = HashMap::new();
+        let mut node_state_per_node_id: HashMap<String, TNodeState> = HashMap::new();
         for wrapped_collapsable_node in self.collapsable_nodes.iter() {
             let collapsable_node = wrapped_collapsable_node.borrow();
             let node_state: TNodeState = (*collapsable_node.node_state_indexed_view.get().unwrap()).clone();
-            let node: String = String::from(collapsable_node.id);
-            debug!("established node {node} in state {:?}.", node_state);
-            node_state_per_node.insert(node, node_state);
+            let node_id: String = String::from(collapsable_node.id);
+            debug!("established node {node_id} in state {:?}.", node_state);
+            node_state_per_node_id.insert(node_id, node_state);
         }
         CollapsedWaveFunction {
-            node_state_per_node_id: node_state_per_node
+            node_state_per_node_id
         }
     }
 }

@@ -163,51 +163,12 @@ impl<T: Clone> ProximityGraph<T> {
             nodes,
         }
     }
-    pub fn get_value_per_proximity_graph_node_id<TValue: HasProximity>(&self, values: Vec<TValue>, maximum_acceptable_distance_variance_factor: f32, acceptable_distance_variance_factor_difference: f32, is_distance_normalized: bool) -> Result<HashMap<String, TValue>, ProximityGraphError> {
+    pub fn get_value_per_proximity_graph_node_id<TValue: HasProximity>(&self, values: Vec<TValue>, maximum_acceptable_distance_variance_factor: f32, acceptable_distance_variance_factor_difference: f32) -> Result<HashMap<String, TValue>, ProximityGraphError> {
 
         // iterate over the construction and collapsing of the wave function until the best solution is found
         // first start with the maximum distance being acceptable to ensure that the values can collapse at all
         // if they can collapse, then begin to binary-search for the optimal configuration by restricting what is an acceptable maximum proximity
         //      ex: divide in half first, too low? then make it 75% of original maximum, still too low? make it between 75%-100%, etc.
-
-        let maximum_value_proximity = {
-            if is_distance_normalized {
-                let mut maximum_value_proximity = maximum_acceptable_distance_variance_factor;
-                for i in 0..(values.len() - 1) {
-                    for j in (i + 1)..values.len() {
-                        maximum_value_proximity += match values[i].get_proximity(&values[j]) {
-                            Proximity::ExclusiveExistence => 0.0,
-                            Proximity::SomeDistanceAway { distance } => {
-                                distance.center + distance.width
-                            },
-                            Proximity::InAnotherDimensionEntirely => 0.0,
-                        };
-                    }
-                }
-                Some(maximum_value_proximity)
-            }
-            else {
-                None
-            }
-        };
-
-        let maximum_node_distance = {
-            if is_distance_normalized {
-                let mut maximum_node_distance = 0.0;
-                for node in self.nodes.iter() {
-                    for (_, distance) in node.distance_per_proximity_graph_node_id.iter() {
-                        let distance = *distance;
-                        if distance > maximum_node_distance {
-                            maximum_node_distance = distance;
-                        }
-                    }
-                }
-                Some(maximum_node_distance)
-            }
-            else {
-                None
-            }
-        };
 
         let mut distance_variance_factor = 0.0;
         let mut distance_variance_factor_minimum = 0.0;
@@ -245,12 +206,7 @@ impl<T: Clone> ProximityGraph<T> {
                     // setup the NodeStateCollections per neighbor
                     let mut node_state_collection_ids_per_neighbor_node_id: HashMap<String, Vec<String>> = HashMap::new();
                     for (neighbor_proximity_graph_node_id, neighbor_distance) in proximity_graph_node.distance_per_proximity_graph_node_id.iter() {
-                        let normalized_neighbor_distance = if let Some(maximum_node_distance) = maximum_node_distance {
-                            *neighbor_distance / maximum_node_distance
-                        }
-                        else {
-                            *neighbor_distance
-                        };
+                        let neighbor_distance = *neighbor_distance;
 
                         let mut node_state_collection_ids: Vec<String> = Vec::new();
                         if &proximity_graph_node.proximity_graph_node_id != neighbor_proximity_graph_node_id {
@@ -266,26 +222,12 @@ impl<T: Clone> ProximityGraph<T> {
                                             // do not add the current node state as being able to be in the same final result as this other node state
                                         },
                                         Proximity::SomeDistanceAway { distance } => {
-                                            let normalized_distance = {
-                                                if let Some(maximum_value_proximity) = maximum_value_proximity {
-                                                    let center = distance.center / maximum_value_proximity;
-                                                    let width = distance.width * center;  // scale the width by the same factor as the center
-                                                    Distance {
-                                                        center,
-                                                        width,
-                                                    }
-                                                }
-                                                else {
-                                                    distance
-                                                }
-                                            };
-
-                                            let distance_variance = normalized_distance.center * distance_variance_factor;
-                                            let from_distance = normalized_distance.center - distance_variance - normalized_distance.width;
-                                            let to_distance = normalized_distance.center + distance_variance + normalized_distance.width;
+                                            let distance_variance = distance.center * distance_variance_factor;
+                                            let from_distance = distance.center - distance_variance - distance.width;
+                                            let to_distance = distance.center + distance_variance + distance.width;
 
                                             //println!("checking that {} is between {} and {}", normalized_neighbor_distance, from_distance, to_distance);
-                                            if from_distance <= normalized_neighbor_distance && normalized_neighbor_distance <= to_distance {
+                                            if from_distance <= neighbor_distance && neighbor_distance <= to_distance {
                                                 // this neighbor is within range of being in this other state
                                                 let other_node_state = NodeState::Primary {
                                                     state: other_value.clone(),
@@ -763,7 +705,7 @@ mod proximity_graph_tests {
     fn test_h2s7_icecream_shops_in_grid(x: usize, y: usize, maximum_acceptable_distance_variance_factor: f32, acceptable_distance_variance_factor_difference: f32) {
         let proximity_graph = get_x_by_y_grid_proximity_graph(x, y);
         let values = get_values(x * y);
-        let value_per_proximity_graph_node_id = proximity_graph.get_value_per_proximity_graph_node_id(values, maximum_acceptable_distance_variance_factor, acceptable_distance_variance_factor_difference, false).expect("Failed to get value per proximity graph node ID.");
+        let value_per_proximity_graph_node_id = proximity_graph.get_value_per_proximity_graph_node_id(values, maximum_acceptable_distance_variance_factor, acceptable_distance_variance_factor_difference).expect("Failed to get value per proximity graph node ID.");
         println_value_per_proximity_graph_node_id(x, y, &value_per_proximity_graph_node_id);
         println!("{:?}", value_per_proximity_graph_node_id);
         assert_eq!(IceCreamShop::AppleCream, *value_per_proximity_graph_node_id.get("node_0_0").unwrap());
@@ -777,21 +719,7 @@ mod proximity_graph_tests {
     fn test_y7c4_icecream_shops_in_grid(x: usize, y: usize, maximum_acceptable_distance_variance_factor: f32, acceptable_distance_variance_factor_difference: f32) {
         let proximity_graph = get_x_by_y_grid_proximity_graph(x, y);
         let values = get_values(x * y);
-        let value_per_proximity_graph_node_id = proximity_graph.get_value_per_proximity_graph_node_id(values, maximum_acceptable_distance_variance_factor, acceptable_distance_variance_factor_difference, false).expect("Failed to get value per proximity graph node ID.");
-        println_value_per_proximity_graph_node_id(x, y, &value_per_proximity_graph_node_id);
-        println!("{:?}", value_per_proximity_graph_node_id);
-        assert_eq!(IceCreamShop::AppleCream, *value_per_proximity_graph_node_id.get("node_0_0").unwrap());
-        assert_eq!(IceCreamShop::BananaBoost, *value_per_proximity_graph_node_id.get("node_4_0").unwrap());
-        assert_eq!(IceCreamShop::CaramelJuice, *value_per_proximity_graph_node_id.get("node_4_4").unwrap());
-        assert_eq!(IceCreamShop::DarkDestiny, *value_per_proximity_graph_node_id.get("node_0_1").unwrap());
-        assert_eq!(IceCreamShop::EternalJoy, *value_per_proximity_graph_node_id.get("node_0_4").unwrap());
-    }
-
-    #[test_case::test_case(6, 6, 1.0, 0.1)]
-    fn test_t7c9_icecream_shops_in_grid(x: usize, y: usize, maximum_acceptable_distance_variance_factor: f32, acceptable_distance_variance_factor_difference: f32) {
-        let proximity_graph = get_x_by_y_grid_proximity_graph(x, y);
-        let values = get_values(x * y);
-        let value_per_proximity_graph_node_id = proximity_graph.get_value_per_proximity_graph_node_id(values, maximum_acceptable_distance_variance_factor, acceptable_distance_variance_factor_difference, true).expect("Failed to get value per proximity graph node ID.");
+        let value_per_proximity_graph_node_id = proximity_graph.get_value_per_proximity_graph_node_id(values, maximum_acceptable_distance_variance_factor, acceptable_distance_variance_factor_difference).expect("Failed to get value per proximity graph node ID.");
         println_value_per_proximity_graph_node_id(x, y, &value_per_proximity_graph_node_id);
         println!("{:?}", value_per_proximity_graph_node_id);
         assert_eq!(IceCreamShop::AppleCream, *value_per_proximity_graph_node_id.get("node_0_0").unwrap());
@@ -806,7 +734,7 @@ mod proximity_graph_tests {
     fn test_o1n6_icecream_shops_in_grid(x: usize, y: usize, maximum_acceptable_distance_variance_factor: f32, acceptable_distance_variance_factor_difference: f32) {
         let proximity_graph = get_x_by_y_grid_proximity_graph(x, y);
         let values = get_values(x * y);
-        let error = proximity_graph.get_value_per_proximity_graph_node_id(values, maximum_acceptable_distance_variance_factor, acceptable_distance_variance_factor_difference, false);
+        let error = proximity_graph.get_value_per_proximity_graph_node_id(values, maximum_acceptable_distance_variance_factor, acceptable_distance_variance_factor_difference);
         assert!(error.is_err());
     }
 }

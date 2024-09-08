@@ -49,7 +49,7 @@ impl Ord for QuestDestination {
     }
 }
 
-fn get_quests() -> Vec<QuestDestination> {
+fn get_quest_destinations() -> Vec<QuestDestination> {
     vec![
         QuestDestination {
             id: 0,
@@ -460,12 +460,25 @@ fn main() {
     println!("The zombie horde and enemy base should be far from the houses.");
     println!("The enemy base should be very far from the zombie horde.");
     
-    let node_sample_length = 18;
+    // this represents the number of nodes that are sampled from the black area of the perlin noise
+    let node_sample_length = 20;
+
+    // these are the dimensions of the perlin noise
     let width: usize = 40;
     let height: usize = 40;
-    let quests = get_quests();
+
+    // these are the destinations to place around the dynamic environment
+    let quest_destinations = get_quest_destinations();
+    
+    // the maximum acceptable alteration to the quest destination distances
+    let maximum_acceptable_distance_variance_factor = 10.0;
+
+    // the narrowed-down deviation amount that you are willing to accept
+    // if this was 0.0, it means that the destination distance must match exactly to the best positions in the environment (often impossible)
+    let acceptable_distance_variance_factor_difference = 1.0;
+
+    // get the perlin noise
     let seed = fastrand::i32(0..10000);
-    //let seed = -2074058151;
     println!("seed: {}", seed);
     let perlin = PerlinNoise2D::new(
         6,
@@ -505,25 +518,22 @@ fn main() {
         println!();
     }
 
-    //let nodes = grid.to_vec_proximity_graph_node();
-    println!("creating nodes...");
+    println!("creating nodes... (if frozen here, not enough open space)");
     let nodes = Vec::to_vec_proximity_graph_node(grid, node_sample_length, None);
     println!("created nodes.");
     let proximity_graph = ProximityGraph::new(
         nodes.clone(),
     );
-    let maximum_acceptable_distance_variance_factor = 10.0;
-    let acceptable_distance_variance_factor_difference = 1.0;
     println!("solving proximity graph...");
     let value_per_proximity_graph_node_id = proximity_graph.get_value_per_proximity_graph_node_id(
-        quests,
+        quest_destinations,
         maximum_acceptable_distance_variance_factor,
         acceptable_distance_variance_factor_difference,
-        false,
     )
         .expect("Failed to get values from proximity graph.");
     println!("solved proximity graph.");
     
+    // show the output of the solved proximity graph
     let color_at_location = {
         let mut color_at_location = HashMap::new();
         for node in nodes.iter() {
