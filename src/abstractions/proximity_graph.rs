@@ -124,18 +124,26 @@ pub trait HasProximity: Eq + Hash + Clone + std::fmt::Debug + Ord + Serialize + 
     fn get_proximity(&self, other: &Self) -> Proximity where Self: Sized;
 }
 
-#[derive(std::fmt::Debug)]
-pub struct ProximityGraphNode {
+#[derive(std::fmt::Debug, Clone)]
+pub struct ProximityGraphNode<T: Clone> {
     proximity_graph_node_id: String,
     distance_per_proximity_graph_node_id: HashMap<String, f32>,
+    tag: T,
 }
 
-impl ProximityGraphNode {
-    pub fn new(proximity_graph_node_id: String, distance_per_proximity_graph_node_id: HashMap<String, f32>) -> Self {
+impl<T: Clone> ProximityGraphNode<T> {
+    pub fn new(proximity_graph_node_id: String, distance_per_proximity_graph_node_id: HashMap<String, f32>, tag: T) -> Self {
         Self {
             proximity_graph_node_id,
             distance_per_proximity_graph_node_id,
+            tag,
         }
+    }
+    pub fn get_id(&self) -> &String {
+        &self.proximity_graph_node_id
+    }
+    pub fn get_tag(&self) -> &T {
+        &self.tag
     }
 }
 
@@ -145,12 +153,12 @@ pub enum ProximityGraphError {
     TestError,
 }
 
-pub struct ProximityGraph {
-    nodes: Vec<ProximityGraphNode>,
+pub struct ProximityGraph<T: Clone> {
+    nodes: Vec<ProximityGraphNode<T>>,
 }
 
-impl ProximityGraph {
-    pub fn new(nodes: Vec<ProximityGraphNode>) -> Self {
+impl<T: Clone> ProximityGraph<T> {
+    pub fn new(nodes: Vec<ProximityGraphNode<T>>) -> Self {
         Self {
             nodes,
         }
@@ -339,6 +347,9 @@ impl ProximityGraph {
                         };
                         let node_state_collection_ids_per_neighbor_node_id = {
                             let mut node_state_collection_ids_per_neighbor_node_id = HashMap::new();
+
+                            // set the active primary node state
+
                             for (proximity_graph_node_index, proximity_graph_node) in self.nodes.iter().enumerate() {
                                 let node_state_collection_id = format!("secondary_{}_{}", value_index, proximity_graph_node.proximity_graph_node_id);
                                 let node_state_collection = NodeStateCollection::new(
@@ -355,6 +366,45 @@ impl ProximityGraph {
                                 let neighbor_node_id = format!("primary_{}", proximity_graph_node.proximity_graph_node_id);
                                 node_state_collection_ids_per_neighbor_node_id.insert(neighbor_node_id, vec![node_state_collection_id]);
                             }
+
+                            //// set other primary nodes as only permitting other states
+
+                            //let other_states = values.iter()
+                            //    .enumerate()
+                            //    .filter(|(index, _)| {
+                            //        *index != value_index
+                            //    })
+                            //    .map(|(_, value)| {
+                            //        NodeState::Primary {
+                            //            state: value.clone(),
+                            //        }
+                            //    })
+                            //    .collect::<Vec<NodeState<TValue>>>();
+
+                            //for (proximity_graph_node_index, proximity_graph_node) in self.nodes.iter().enumerate() {
+                            //    for (other_proximity_graph_node_index, other_proximity_graph_node) in self.nodes.iter().enumerate() {
+                            //        if other_proximity_graph_node_index != proximity_graph_node_index {
+                            //            // set the other primary nodes as anything except the current state
+                            //            {
+                            //                let node_state_collection_id = format!("secondary_{}_{}_{}", value_index, proximity_graph_node.proximity_graph_node_id, other_proximity_graph_node.proximity_graph_node_id);
+                            //                let node_state_collection = NodeStateCollection::new(
+                            //                    node_state_collection_id.clone(),
+                            //                    NodeState::Secondary {
+                            //                        node_index: proximity_graph_node_index,
+                            //                        state: value.clone(),
+                            //                    },
+                            //                    other_states.clone(),
+                            //                );
+                            //                node_state_collections.push(node_state_collection);
+                            //                let neighbor_node_id = format!("primary_{}", other_proximity_graph_node.proximity_graph_node_id);
+                            //                node_state_collection_ids_per_neighbor_node_id.get_mut(&neighbor_node_id)
+                            //                    .expect("The neighbor should already exist.")
+                            //                    .push(node_state_collection_id);
+                            //            }
+                            //        }
+                            //    }
+
+                            //}
                             node_state_collection_ids_per_neighbor_node_id
                         };
                         let node = Node::new(
@@ -366,12 +416,16 @@ impl ProximityGraph {
                     }
                 }
 
+                // move the most consequential nodes to the front
+                // TODO uncomment once the secondary NodeStateCollections remove the states from all other primary nodes
+                //nodes.reverse();
+
                 // return results
                 (nodes, node_state_collections)
             };
 
-            println!("nodes: {}", nodes.len());
-            println!("node_state_collections: {}", node_state_collections.len());
+            //println!("nodes: {}", nodes.len());
+            //println!("node_state_collections: {}", node_state_collections.len());
 
             let wave_function = WaveFunction::new(nodes, node_state_collections);
             let mut collapsable_wave_function = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<NodeState<TValue>>>(None);
@@ -460,7 +514,7 @@ mod proximity_graph_tests {
 
     use super::{Distance, HasProximity, Proximity, ProximityGraph, ProximityGraphNode};
 
-    fn get_x_by_y_grid_proximity_graph(x: usize, y: usize) -> ProximityGraph {
+    fn get_x_by_y_grid_proximity_graph(x: usize, y: usize) -> ProximityGraph<(usize, usize)> {
         let mut proximity_graph_nodes = Vec::new();
         for i in 0..x {
             for j in 0..y {
@@ -489,6 +543,7 @@ mod proximity_graph_tests {
                 let proximity_graph_node = ProximityGraphNode {
                     proximity_graph_node_id: format!("node_{}_{}", i, j),
                     distance_per_proximity_graph_node_id,
+                    tag: (i, j),
                 };
                 proximity_graph_nodes.push(proximity_graph_node);
             }

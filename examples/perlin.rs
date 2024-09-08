@@ -2,7 +2,7 @@
 //  Quest locations must be adjacent to quest givers
 //  Dangerous locations must be far from beginner locations
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 
 use colored::{Colorize, ColoredString};
 use perlin2d::PerlinNoise2D;
@@ -11,6 +11,7 @@ use wave_function_collapse::abstractions::proximity_graph::{Distance, HasProximi
 
 #[derive(Debug, Clone, Copy, Hash, Serialize, Deserialize)]
 enum Color {
+    Black,
     Purple,
     Blue,
     Green,
@@ -20,70 +21,75 @@ enum Color {
 }
 
 #[derive(Debug, Clone, Hash, Serialize, Deserialize)]
-struct Quest {
+struct QuestDestination {
     id: usize,
     name: String,
     color: Color,
 }
 
-impl PartialEq for Quest {
+impl PartialEq for QuestDestination {
     fn eq(&self, other: &Self) -> bool {
         self.id.eq(&other.id)
     }
 }
 
-impl Eq for Quest {
+impl Eq for QuestDestination {
     
 }
 
-impl PartialOrd for Quest {
+impl PartialOrd for QuestDestination {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         self.id.partial_cmp(&other.id)
     }
 }
 
-impl Ord for Quest {
+impl Ord for QuestDestination {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.id.cmp(&other.id)
     }
 }
 
-fn get_quests() -> Vec<Quest> {
+fn get_quests() -> Vec<QuestDestination> {
     vec![
-        Quest {
+        QuestDestination {
+            id: 0,
+            name: String::from("Unvisited"),
+            color: Color::Black,
+        },
+        QuestDestination {
             id: 1,
-            name: String::from("Introduce yourself to neighbor"),
+            name: String::from("Player house"),
             color: Color::Purple,
         },
-        Quest {
+        QuestDestination {
             id: 2,
-            name: String::from("Find working vehicle"),
+            name: String::from("Neighbor house"),
             color: Color::Blue,
         },
-        Quest {
+        QuestDestination {
             id: 3,
-            name: String::from("Pick up neighbor"),
+            name: String::from("Abandoned vehicle"),
             color: Color::Green,
         },
-        Quest {
+        QuestDestination {
             id: 4,
-            name: String::from("Take neighbor to zombie horde"),
+            name: String::from("Known zombie horde"),
             color: Color::Yellow,
         },
-        Quest {
+        QuestDestination {
             id: 5,
-            name: String::from("Get neighbor corpse from zombie pit"),
+            name: String::from("Abandoned warehouse"),
             color: Color::Orange,
         },
-        Quest {
+        QuestDestination {
             id: 6,
-            name: String::from("Take neighbor's corpse to cage"),
+            name: String::from("Enemy base"),
             color: Color::Red,
         },
     ]
 }
 
-impl HasProximity for Quest {
+impl HasProximity for QuestDestination {
     fn get_proximity(&self, other: &Self) -> Proximity where Self: Sized {
         let (smallest_id, largest_id) = if self.id < other.id {
             (self.id, other.id)
@@ -91,29 +97,35 @@ impl HasProximity for Quest {
         else {
             (other.id, self.id)
         };
+        //println!("getting proximity between {} and {}", smallest_id, largest_id);
+        let scalar = 4.0;
         match smallest_id {
+            0 => {
+                Proximity::InAnotherDimensionEntirely
+            },
             1 => {
                 match largest_id {
+                    1 => Proximity::ExclusiveExistence,
                     2 => {
                         Proximity::SomeDistanceAway {
                             distance: Distance::new(
-                                2.0,
-                                0.0,
+                                2.0 * scalar,
+                                1.0,
                             )
                         }
                     },
                     3 => {
                         Proximity::SomeDistanceAway {
                             distance: Distance::new(
-                                0.0,
-                                0.0,
+                                3.0 * scalar,
+                                1.0,
                             )
                         }
                     },
                     4 => {
                         Proximity::SomeDistanceAway {
                             distance: Distance::new(
-                                8.0,
+                                8.0 * scalar,
                                 0.5,
                             )
                         }
@@ -121,15 +133,15 @@ impl HasProximity for Quest {
                     5 => {
                         Proximity::SomeDistanceAway {
                             distance: Distance::new(
-                                8.0,
-                                0.5,
+                                4.0 * scalar,
+                                1.0,
                             )
                         }
                     },
                     6 => {
                         Proximity::SomeDistanceAway {
                             distance: Distance::new(
-                                6.0,
+                                6.0 * scalar,
                                 0.0,
                             )
                         }
@@ -141,30 +153,36 @@ impl HasProximity for Quest {
             },
             2 => {
                 match largest_id {
+                    2 => Proximity::ExclusiveExistence,
                     3 => {
                         Proximity::SomeDistanceAway {
                             distance: Distance::new(
-                                2.0,
-                                0.0,
+                                3.0 * scalar,
+                                1.0,
                             )
                         }
                     },
                     4 => {
                         Proximity::SomeDistanceAway {
                             distance: Distance::new(
-                                6.0,
-                                0.0,
+                                9.0 * scalar,
+                                1.0,
                             )
                         }
                     },
                     5 => {
-                        Proximity::InAnotherDimensionEntirely
+                        Proximity::SomeDistanceAway {
+                            distance: Distance::new(
+                                4.0 * scalar,
+                                1.0,
+                            )
+                        }
                     },
                     6 => {
                         Proximity::SomeDistanceAway {
                             distance: Distance::new(
+                                6.0 * scalar,
                                 1.0,
-                                0.0,
                             )
                         }
                     },
@@ -175,27 +193,28 @@ impl HasProximity for Quest {
             },
             3 => {
                 match largest_id {
+                    3 => Proximity::ExclusiveExistence,
                     4 => {
                         Proximity::SomeDistanceAway {
                             distance: Distance::new(
-                                8.0,
-                                0.5,
+                                10.0 * scalar,
+                                2.0,
                             )
                         }
                     },
                     5 => {
                         Proximity::SomeDistanceAway {
                             distance: Distance::new(
-                                8.0,
-                                0.5,
+                                3.0 * scalar,
+                                1.0,
                             )
                         }
                     },
                     6 => {
                         Proximity::SomeDistanceAway {
                             distance: Distance::new(
-                                6.0,
-                                0.0,
+                                9.0 * scalar,
+                                1.0,
                             )
                         }
                     },
@@ -206,18 +225,19 @@ impl HasProximity for Quest {
             },
             4 => {
                 match largest_id {
+                    4 => Proximity::ExclusiveExistence,
                     5 => {
                         Proximity::SomeDistanceAway {
                             distance: Distance::new(
-                                0.1,
-                                0.0,
+                                14.0 * scalar,
+                                2.0,
                             )
                         }
                     },
                     6 => {
                         Proximity::SomeDistanceAway {
                             distance: Distance::new(
-                                12.0,
+                                20.0 * scalar,
                                 2.0,
                             )
                         }
@@ -229,14 +249,23 @@ impl HasProximity for Quest {
             },
             5 => {
                 match largest_id {
+                    5 => Proximity::ExclusiveExistence,
                     6 => {
                         Proximity::SomeDistanceAway {
                             distance: Distance::new(
-                                12.0,
-                                2.0,
+                                12.0 * scalar,
+                                4.0,
                             )
                         }
                     },
+                    _ => {
+                        panic!("Unexpected quest.");
+                    }
+                }
+            },
+            6 => {
+                match largest_id {
+                    6 => Proximity::ExclusiveExistence,
                     _ => {
                         panic!("Unexpected quest.");
                     }
@@ -250,46 +279,27 @@ impl HasProximity for Quest {
 }
 
 trait ToVecProximityGraphNode {
-    fn to_vec_proximity_graph_node(value: Self) -> Vec<ProximityGraphNode>;
+    type TTag: Clone;
+
+    fn to_vec_proximity_graph_node(value: Self, nodes_length: usize, random_seed: u64) -> Vec<ProximityGraphNode<Self::TTag>>;
 }
 
 impl ToVecProximityGraphNode for Vec<Vec<bool>> {
-    fn to_vec_proximity_graph_node(value: Self) -> Vec<ProximityGraphNode> {
+    type TTag = (usize, usize);
+
+    fn to_vec_proximity_graph_node(value: Self, nodes_length: usize, random_seed: u64) -> Vec<ProximityGraphNode<Self::TTag>> {
         let mut proximity_graph_nodes = Vec::new();
-        let distances = compute_all_pairs_shortest_paths(&value);
-        for from_x in 0..distances.len() {
-            for from_y in 0..distances[from_x].len() {
-                let from_proximity_graph_node_id = format!("({}, {})", from_x, from_y);
-                let mut distance_per_proximity_graph_node_id = HashMap::new();
-                for to_x in 0..distances[from_x][from_y].len() {
-                    for to_y in 0..distances[from_x][from_y][to_x].len() {
-                        if let Some(distance) = distances[from_x][from_y][to_x][to_y] {
-                            let to_proximity_graph_node_id = format!("({}, {})", to_x, to_y);
-                            distance_per_proximity_graph_node_id.insert(to_proximity_graph_node_id, distance as f32);
-                        }
-                    }
-                }
-                let proximity_graph_node = ProximityGraphNode::new(
-                    from_proximity_graph_node_id,
-                    distance_per_proximity_graph_node_id,
-                );
-                proximity_graph_nodes.push(proximity_graph_node);
-            }
-        }
-        //for y_from in 0..value.len() {
-        //    for x_from in 0..value[y_from].len() {
-        //        let from_proximity_graph_node_id = format!("({}, {})", x_from, y_from);
+
+        //let distances = compute_all_pairs_shortest_paths(&value);
+        //for from_x in 0..distances.len() {
+        //    for from_y in 0..distances[from_x].len() {
+        //        let from_proximity_graph_node_id = format!("({}, {})", from_x, from_y);
         //        let mut distance_per_proximity_graph_node_id = HashMap::new();
-        //        for y_to in 0..value.len() {
-        //            for x_to in 0..value[y_to].len() {
-        //                if y_to > y_from || y_to == y_from && x_to > x_from {
-        //                    println!("comparing ({}, {}) to ({}, {})", y_from, x_from, y_to, x_to);
-        //                    let start = (x_from, y_from);
-        //                    let destination = (x_to, y_to);
-        //                    if let Some(distance) = find_distance(&value, start, destination) {
-        //                        let to_proximity_graph_node_id = format!("({}, {})", x_to, y_to);
-        //                        distance_per_proximity_graph_node_id.insert(to_proximity_graph_node_id, distance as f32);
-        //                    }
+        //        for to_x in 0..distances[from_x][from_y].len() {
+        //            for to_y in 0..distances[from_x][from_y][to_x].len() {
+        //                if let Some(distance) = distances[from_x][from_y][to_x][to_y] {
+        //                    let to_proximity_graph_node_id = format!("({}, {})", to_x, to_y);
+        //                    distance_per_proximity_graph_node_id.insert(to_proximity_graph_node_id, distance as f32);
         //                }
         //            }
         //        }
@@ -300,110 +310,159 @@ impl ToVecProximityGraphNode for Vec<Vec<bool>> {
         //        proximity_graph_nodes.push(proximity_graph_node);
         //    }
         //}
+
+        // grab random locations
+        let debug_location = (31, 36);
+        let mut excluded_locations = HashSet::new();
+        let mut included_locations = Vec::new();
+        let mut is_at_least_one_new_location_excluded = true;
+        while is_at_least_one_new_location_excluded {
+            println!("starting with {} locations", included_locations.len());
+            proximity_graph_nodes.clear();
+            is_at_least_one_new_location_excluded = false;
+            let locations = {
+                fastrand::seed(random_seed);
+                let mut locations = included_locations.clone();
+                while locations.len() < nodes_length {
+                    let y = fastrand::usize(0..value.len());
+                    let x = fastrand::usize(0..value[y].len());
+                    let location = (x, y);
+                    if !excluded_locations.contains(&location) && !locations.contains(&location) {
+                        if value[y][x] {
+                            locations.push(location);
+                        }
+                    }
+                }
+                locations
+            };
+            for (from_location_index, from_location) in locations.iter().enumerate() {
+                let from_proximity_graph_node_id = format!("{}", from_location_index);
+                let mut distance_per_proximity_graph_node_id = HashMap::new();
+                let mut failed_to_find_locations = Vec::new();
+                for (to_location_index, to_location) in locations.iter().enumerate() {
+                    if to_location_index != from_location_index {
+                        if *from_location == debug_location {
+                            println!("comparing {} to {}", from_location_index, to_location_index);
+                        }
+                        if let Some(distance) = find_distance(&value, *from_location, *to_location) {
+                            if *from_location == debug_location {
+                                println!("found distance {}", distance);
+                            }
+                            let to_proximity_graph_node_id = format!("{}", to_location_index);
+                            distance_per_proximity_graph_node_id.insert(to_proximity_graph_node_id, distance as f32);
+                        }
+                        else {
+                            failed_to_find_locations.push(*to_location);
+                        }
+                    }
+                }
+                if *from_location == debug_location {
+                    println!("for ({}, {}) found {} failed locations", from_location.0, from_location.1, failed_to_find_locations.len());
+                }
+                if (failed_to_find_locations.len() as f32) > nodes_length as f32 * 0.5 {
+                    if !included_locations.contains(from_location) {
+                        println!("excluding current location ({}, {})", from_location.0, from_location.1);
+                        excluded_locations.insert(*from_location);
+                        is_at_least_one_new_location_excluded = true;
+                    }
+                    //println!("excluding {} locations", failed_to_find_locations.len());
+                    //excluded_locations.extend(failed_to_find_locations.drain(..));
+                    //is_at_least_one_new_location_excluded = true;
+                }
+                //else {
+                //    if !included_locations.contains(from_location) {
+                //        println!("excluding current location");
+                //        excluded_locations.insert(*from_location);
+                //        is_at_least_one_new_location_excluded = true;
+                //    }
+                //}
+                let proximity_graph_node = ProximityGraphNode::new(
+                    from_proximity_graph_node_id,
+                    distance_per_proximity_graph_node_id,
+                    *from_location,
+                );
+                proximity_graph_nodes.push(proximity_graph_node);
+            }
+
+            let original_length = included_locations.len();
+            for location in locations.into_iter() {
+                if !excluded_locations.contains(&location) {
+                    included_locations.push(location);
+                }
+            }
+            println!("included {} new locations", included_locations.len() - original_length);
+        }
         proximity_graph_nodes
     }
 }
 
-/// Initializes the distance matrix with None or 0 for each cell to itself
-fn initialize_distance_matrix(grid: &Vec<Vec<bool>>) -> DistanceMatrix {
-    let rows = grid.len();
-    let cols = grid[0].len();
-    let mut distances = vec![vec![vec![vec![None; cols]; rows]; cols]; rows];
-
-    for x in 0..rows {
-        for y in 0..cols {
-            distances[x][y][x][y] = Some(0); // Distance from a cell to itself is 0
-        }
-    }
-
-    distances
-}
-
-/// Runs a BFS from a given start point and fills in the distance matrix
-fn bfs_fill_distances(
+fn find_distance(
     grid: &Vec<Vec<bool>>,
     start: (usize, usize),
-    distances: &mut DistanceMatrix,
-) {
-    let (start_x, start_y) = start;
+    destination: (usize, usize),
+) -> Option<usize> {
+    // Check if start or destination is out of bounds
     let rows = grid.len();
     let cols = grid[0].len();
-    let target_state = grid[start_x][start_y];
+    let (x1, y1) = start;
+    let (x2, y2) = destination;
 
-    let directions = [(0, 1), (1, 0), (0, isize::wrapping_neg(1)), (isize::wrapping_neg(1), 0)];
+    if y1 >= rows || x1 >= cols || y2 >= rows || x2 >= cols {
+        return None;
+    }
 
+    // Get the state of the start cell
+    let target_state = grid[y1][x1];
+
+    // Ensure the destination cell is of the same state
+    if grid[y2][x2] != target_state {
+        return None;
+    }
+
+    // Directions for moving up, down, left, and right
+    let directions = [(0, 1), (1, 0), (0, -1), (-1, 0)];
+
+    // Track visited cells
     let mut visited = vec![vec![false; cols]; rows];
-    visited[start_x][start_y] = true;
+    visited[y1][x1] = true;
 
+    // Queue for BFS: stores the point and the distance from the start
     let mut queue = VecDeque::new();
-    queue.push_back((start_x, start_y, 0));
+    queue.push_back((y1, x1, 0));
 
-    while let Some((x, y, dist)) = queue.pop_front() {
+    // Perform BFS
+    while let Some((y, x, distance)) = queue.pop_front() {
+        // If we've reached the destination, return the distance
+        if (x, y) == (x2, y2) {
+            return Some(distance);
+        }
+
+        // Explore all 4 possible directions
         for (dx, dy) in &directions {
-            let new_x = x.wrapping_add(*dx as usize);
-            let new_y = y.wrapping_add(*dy as usize);
+            let new_x = (x as isize + dx) as usize;
+            let new_y = (y as isize + dy) as usize;
 
+            // Ensure new coordinates are within bounds and match the target state
             if new_x < rows
                 && new_y < cols
-                && !visited[new_x][new_y]
-                && grid[new_x][new_y] == target_state
+                && !visited[new_y][new_x]
+                && grid[new_y][new_x] == target_state
             {
-                visited[new_x][new_y] = true;
-                distances[start_x][start_y][new_x][new_y] = Some(dist + 1);
-                queue.push_back((new_x, new_y, dist + 1));
-            }
-        }
-    }
-}
-
-type DistanceMatrix = Vec<Vec<Vec<Vec<Option<usize>>>>>;
-
-/// Computes the shortest paths between all pairs of cells in the grid
-fn compute_all_pairs_shortest_paths(grid: &Vec<Vec<bool>>) -> DistanceMatrix {
-    let rows = grid.len();
-    let cols = grid[0].len();
-    let mut distances = initialize_distance_matrix(grid);
-
-    // Initialize direct distances using BFS
-    for x in 0..rows {
-        for y in 0..cols {
-            bfs_fill_distances(grid, (x, y), &mut distances);
-        }
-    }
-
-    // Floyd-Warshall like update for all-pairs shortest paths
-    for k_x in 0..rows {
-        for k_y in 0..cols {
-            println!("trying ({}, {})", k_x, k_y);
-            for x1 in 0..rows {
-                for y1 in 0..cols {
-                    for x2 in 0..rows {
-                        for y2 in 0..cols {
-                            if let (Some(d1), Some(d2)) = (
-                                distances[x1][y1][k_x][k_y],
-                                distances[k_x][k_y][x2][y2],
-                            ) {
-                                let new_dist = d1 + d2;
-                                if distances[x1][y1][x2][y2].is_none()
-                                    || new_dist < distances[x1][y1][x2][y2].unwrap()
-                                {
-                                    distances[x1][y1][x2][y2] = Some(new_dist);
-                                }
-                            }
-                        }
-                    }
-                }
+                visited[new_y][new_x] = true;
+                queue.push_back((new_y, new_x, distance + 1));
             }
         }
     }
 
-    distances
+    // If the queue is exhausted and the destination wasn't reached, return None
+    None
 }
 
 fn main() {
     
-    let width: usize = 60;
-    let height: usize = 60;
+    let node_sample_length = 18;
+    let width: usize = 40;
+    let height: usize = 40;
     let quests = get_quests();
     let perlin = PerlinNoise2D::new(
         6,
@@ -442,13 +501,13 @@ fn main() {
 
     //let nodes = grid.to_vec_proximity_graph_node();
     println!("creating nodes...");
-    let nodes = Vec::to_vec_proximity_graph_node(grid);
+    let nodes = Vec::to_vec_proximity_graph_node(grid, node_sample_length, 123);
     println!("created nodes.");
     let proximity_graph = ProximityGraph::new(
-        nodes,
+        nodes.clone(),
     );
     let maximum_acceptable_distance_variance_factor = 10.0;
-    let acceptable_distance_variance_factor_difference = 0.1;
+    let acceptable_distance_variance_factor_difference = 0.025;
     println!("solving proximity graph...");
     let value_per_proximity_graph_node_id = proximity_graph.get_value_per_proximity_graph_node_id(
         quests,
@@ -459,17 +518,35 @@ fn main() {
         .expect("Failed to get values from proximity graph.");
     println!("solved proximity graph.");
     
+    let color_at_location = {
+        let mut color_at_location = HashMap::new();
+        for node in nodes.iter() {
+            if let Some(value) = value_per_proximity_graph_node_id.get(node.get_id()) {
+                let location = node.get_tag();
+                match value.color {
+                    Color::Black => {
+                        // do nothing
+                    },
+                    _ => {
+                        println!("found {:?} at {:?}", value.color, location);
+                    }
+                }
+                color_at_location.insert(*location, value.color);
+            }
+        }
+        color_at_location
+    };
     for y in 0..height {
         for x in 0..width {
-            let proximity_graph_node_id = format!("({}, {})", x, y);
             let noise = perlin.get_noise(x as f64 / width as f64, y as f64 / height as f64);
 
             //println!("({}, {}) = {}", x, y, noise);
             let colored_character;
             if noise < 0.0 {
-                if let Some(value) = value_per_proximity_graph_node_id.get(&proximity_graph_node_id) {
-                    colored_character = match value.color {
-                        Color::Orange => character.bright_red(),
+                if let Some(color) = color_at_location.get(&(x, y)) {
+                    colored_character = match color {
+                        Color::Black => character.black(),
+                        Color::Orange => character.custom_color(colored::CustomColor::new(255, 128, 0)),
                         Color::Yellow => character.yellow(),
                         Color::Green => character.green(),
                         Color::Blue => character.blue(),
