@@ -216,15 +216,15 @@ impl<T: Clone> ProximityGraph<T> {
         let mut is_distance_variance_factor_acceptable = false;
         let mut iterations = 0;
         while best_collapsed_wave_function.is_none() || !is_distance_variance_factor_acceptable {
-            {
-                let best_is_what = if best_collapsed_wave_function.is_some() {
-                    "some"
-                }
-                else {
-                    "none"
-                };
-                println!("best is {} from {} to {} while at {}", best_is_what, distance_variance_factor_minimum, distance_variance_factor_maximum, distance_variance_factor);
-            }
+            //{
+            //    let best_is_what = if best_collapsed_wave_function.is_some() {
+            //        "some"
+            //    }
+            //    else {
+            //        "none"
+            //    };
+            //    println!("best is {} from {} to {} while at {}", best_is_what, distance_variance_factor_minimum, distance_variance_factor_maximum, distance_variance_factor);
+            //}
             let primary_node_state_ratio_per_node_state_id = {
                 let node_state_ids = values.iter()
                     .map(|value| {
@@ -367,45 +367,9 @@ impl<T: Clone> ProximityGraph<T> {
                                 node_state_collection_ids_per_neighbor_node_id.insert(neighbor_node_id, vec![node_state_collection_id]);
                             }
 
-                            //// set other primary nodes as only permitting other states
-
-                            //let other_states = values.iter()
-                            //    .enumerate()
-                            //    .filter(|(index, _)| {
-                            //        *index != value_index
-                            //    })
-                            //    .map(|(_, value)| {
-                            //        NodeState::Primary {
-                            //            state: value.clone(),
-                            //        }
-                            //    })
-                            //    .collect::<Vec<NodeState<TValue>>>();
-
-                            //for (proximity_graph_node_index, proximity_graph_node) in self.nodes.iter().enumerate() {
-                            //    for (other_proximity_graph_node_index, other_proximity_graph_node) in self.nodes.iter().enumerate() {
-                            //        if other_proximity_graph_node_index != proximity_graph_node_index {
-                            //            // set the other primary nodes as anything except the current state
-                            //            {
-                            //                let node_state_collection_id = format!("secondary_{}_{}_{}", value_index, proximity_graph_node.proximity_graph_node_id, other_proximity_graph_node.proximity_graph_node_id);
-                            //                let node_state_collection = NodeStateCollection::new(
-                            //                    node_state_collection_id.clone(),
-                            //                    NodeState::Secondary {
-                            //                        node_index: proximity_graph_node_index,
-                            //                        state: value.clone(),
-                            //                    },
-                            //                    other_states.clone(),
-                            //                );
-                            //                node_state_collections.push(node_state_collection);
-                            //                let neighbor_node_id = format!("primary_{}", other_proximity_graph_node.proximity_graph_node_id);
-                            //                node_state_collection_ids_per_neighbor_node_id.get_mut(&neighbor_node_id)
-                            //                    .expect("The neighbor should already exist.")
-                            //                    .push(node_state_collection_id);
-                            //            }
-                            //        }
-                            //    }
-
-                            //}
                             node_state_collection_ids_per_neighbor_node_id
+
+                            // TODO consider migrating all state logic from primary and secondary layers into secondary layer only
                         };
                         let node = Node::new(
                             format!("secondary_{}", value_index),
@@ -415,10 +379,6 @@ impl<T: Clone> ProximityGraph<T> {
                         nodes.push(node);
                     }
                 }
-
-                // move the most consequential nodes to the front
-                // TODO uncomment once the secondary NodeStateCollections remove the states from all other primary nodes
-                //nodes.reverse();
 
                 // return results
                 (nodes, node_state_collections)
@@ -440,10 +400,10 @@ impl<T: Clone> ProximityGraph<T> {
 
                     if distance_variance_factor_maximum - distance_variance_factor_minimum <= acceptable_distance_variance_factor_difference {
                         is_distance_variance_factor_acceptable = true;
-                        println!("collapsed and found at ({}-{}) at {}", distance_variance_factor_minimum, distance_variance_factor_maximum, distance_variance_factor);
+                        //println!("collapsed and found at ({}-{}) at {}", distance_variance_factor_minimum, distance_variance_factor_maximum, distance_variance_factor);
                     }
                     else {
-                        println!("collapsed but {} - {} is not less than {}", distance_variance_factor_maximum, distance_variance_factor_minimum, acceptable_distance_variance_factor_difference);
+                        //println!("collapsed but {} - {} is not less than {}", distance_variance_factor_maximum, distance_variance_factor_minimum, acceptable_distance_variance_factor_difference);
                     }
                 },
                 Err(_) => {
@@ -465,10 +425,10 @@ impl<T: Clone> ProximityGraph<T> {
 
                     if distance_variance_factor_maximum - distance_variance_factor_minimum <= acceptable_distance_variance_factor_difference {
                         is_distance_variance_factor_acceptable = true;
-                        println!("not collapsed and found at ({}-{}) at {}", distance_variance_factor_minimum, distance_variance_factor_maximum, distance_variance_factor);
+                        //println!("not collapsed and found at ({}-{}) at {}", distance_variance_factor_minimum, distance_variance_factor_maximum, distance_variance_factor);
                     }
                     else {
-                        println!("not collapsed but {} - {} is not less than {}", distance_variance_factor_maximum, distance_variance_factor_minimum, acceptable_distance_variance_factor_difference);
+                        //println!("not collapsed but {} - {} is not less than {}", distance_variance_factor_maximum, distance_variance_factor_minimum, acceptable_distance_variance_factor_difference);
                     }
                 },
             }

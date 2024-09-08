@@ -4,7 +4,7 @@
 
 use std::collections::{HashMap, HashSet, VecDeque};
 
-use colored::{Colorize, ColoredString};
+use colored::Colorize;
 use perlin2d::PerlinNoise2D;
 use serde::{Deserialize, Serialize};
 use wave_function_collapse::abstractions::proximity_graph::{Distance, HasProximity, Proximity, ProximityGraph, ProximityGraphNode};
@@ -281,13 +281,13 @@ impl HasProximity for QuestDestination {
 trait ToVecProximityGraphNode {
     type TTag: Clone;
 
-    fn to_vec_proximity_graph_node(value: Self, nodes_length: usize, random_seed: u64) -> Vec<ProximityGraphNode<Self::TTag>>;
+    fn to_vec_proximity_graph_node(value: Self, nodes_length: usize, random_seed: Option<u64>) -> Vec<ProximityGraphNode<Self::TTag>>;
 }
 
 impl ToVecProximityGraphNode for Vec<Vec<bool>> {
     type TTag = (usize, usize);
 
-    fn to_vec_proximity_graph_node(value: Self, nodes_length: usize, random_seed: u64) -> Vec<ProximityGraphNode<Self::TTag>> {
+    fn to_vec_proximity_graph_node(value: Self, nodes_length: usize, random_seed: Option<u64>) -> Vec<ProximityGraphNode<Self::TTag>> {
         let mut proximity_graph_nodes = Vec::new();
 
         //let distances = compute_all_pairs_shortest_paths(&value);
@@ -312,16 +312,18 @@ impl ToVecProximityGraphNode for Vec<Vec<bool>> {
         //}
 
         // grab random locations
-        let debug_location = (31, 36);
+        //let debug_location = (31, 36);
         let mut excluded_locations = HashSet::new();
         let mut included_locations = Vec::new();
         let mut is_at_least_one_new_location_excluded = true;
         while is_at_least_one_new_location_excluded {
-            println!("starting with {} locations", included_locations.len());
+            //println!("starting with {} locations", included_locations.len());
             proximity_graph_nodes.clear();
             is_at_least_one_new_location_excluded = false;
             let locations = {
-                fastrand::seed(random_seed);
+                if let Some(random_seed) = &random_seed {
+                    fastrand::seed(*random_seed);
+                }
                 let mut locations = included_locations.clone();
                 while locations.len() < nodes_length {
                     let y = fastrand::usize(0..value.len());
@@ -341,13 +343,7 @@ impl ToVecProximityGraphNode for Vec<Vec<bool>> {
                 let mut failed_to_find_locations = Vec::new();
                 for (to_location_index, to_location) in locations.iter().enumerate() {
                     if to_location_index != from_location_index {
-                        if *from_location == debug_location {
-                            println!("comparing {} to {}", from_location_index, to_location_index);
-                        }
                         if let Some(distance) = find_distance(&value, *from_location, *to_location) {
-                            if *from_location == debug_location {
-                                println!("found distance {}", distance);
-                            }
                             let to_proximity_graph_node_id = format!("{}", to_location_index);
                             distance_per_proximity_graph_node_id.insert(to_proximity_graph_node_id, distance as f32);
                         }
@@ -356,12 +352,9 @@ impl ToVecProximityGraphNode for Vec<Vec<bool>> {
                         }
                     }
                 }
-                if *from_location == debug_location {
-                    println!("for ({}, {}) found {} failed locations", from_location.0, from_location.1, failed_to_find_locations.len());
-                }
                 if (failed_to_find_locations.len() as f32) > nodes_length as f32 * 0.5 {
                     if !included_locations.contains(from_location) {
-                        println!("excluding current location ({}, {})", from_location.0, from_location.1);
+                        //println!("excluding current location ({}, {})", from_location.0, from_location.1);
                         excluded_locations.insert(*from_location);
                         is_at_least_one_new_location_excluded = true;
                     }
@@ -384,13 +377,13 @@ impl ToVecProximityGraphNode for Vec<Vec<bool>> {
                 proximity_graph_nodes.push(proximity_graph_node);
             }
 
-            let original_length = included_locations.len();
+            //let original_length = included_locations.len();
             for location in locations.into_iter() {
                 if !excluded_locations.contains(&location) {
                     included_locations.push(location);
                 }
             }
-            println!("included {} new locations", included_locations.len() - original_length);
+            //println!("included {} new locations", included_locations.len() - original_length);
         }
         proximity_graph_nodes
     }
@@ -459,20 +452,30 @@ fn find_distance(
 }
 
 fn main() {
+
+    println!("The following example showcases how to place locations within a dynamic environment.");
+    println!("The player house should be nearby the neighbor house.");
+    println!("The abandoned vehicle should be nearby the houses.");
+    println!("The warehouse should be somewhat further away.");
+    println!("The zombie horde and enemy base should be far from the houses.");
+    println!("The enemy base should be very far from the zombie horde.");
     
     let node_sample_length = 18;
     let width: usize = 40;
     let height: usize = 40;
     let quests = get_quests();
+    let seed = fastrand::i32(0..10000);
+    //let seed = -2074058151;
+    println!("seed: {}", seed);
     let perlin = PerlinNoise2D::new(
         6,
         1.0,
         1.0,
-        1.0,
+        2.0,
         2.0,
         (1.0, 1.0),
-        0.5,
-        101,
+        -3.0,
+        seed,
     );
 
     let mut grid = Vec::with_capacity(height);
@@ -480,7 +483,10 @@ fn main() {
     for y in 0..height {
         let mut row = Vec::with_capacity(width);
         for x in 0..width {
-            let noise = perlin.get_noise(x as f64 / width as f64, y as f64 / height as f64);
+            let noise_x = x as f64 / width as f64;
+            let noise_y = y as f64 / height as f64;
+            //println!("noise: ({}, {})", noise_x, noise_y);
+            let noise = perlin.get_noise(noise_x, noise_y);
             let is_ground = noise < 0.0;
 
             row.push(is_ground);
@@ -501,13 +507,13 @@ fn main() {
 
     //let nodes = grid.to_vec_proximity_graph_node();
     println!("creating nodes...");
-    let nodes = Vec::to_vec_proximity_graph_node(grid, node_sample_length, 123);
+    let nodes = Vec::to_vec_proximity_graph_node(grid, node_sample_length, None);
     println!("created nodes.");
     let proximity_graph = ProximityGraph::new(
         nodes.clone(),
     );
     let maximum_acceptable_distance_variance_factor = 10.0;
-    let acceptable_distance_variance_factor_difference = 0.025;
+    let acceptable_distance_variance_factor_difference = 1.0;
     println!("solving proximity graph...");
     let value_per_proximity_graph_node_id = proximity_graph.get_value_per_proximity_graph_node_id(
         quests,
@@ -528,7 +534,7 @@ fn main() {
                         // do nothing
                     },
                     _ => {
-                        println!("found {:?} at {:?}", value.color, location);
+                        println!("found {:?} {} at {:?}", value.color, value.name, location);
                     }
                 }
                 color_at_location.insert(*location, value.color);
