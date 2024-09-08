@@ -14,6 +14,8 @@ Converts nodes and their constraints upon other nodes into a fully collapsed nod
 - Different probabilities per state per node can be suggested to allow for either faster results or different random results (based on the algorithm used)
 - Examples showing how different constraint problems can be solved via the different algorithms
 - The wave function can be saved and loaded from file
+- Abstractions on top of the wave function collapse functionality
+  - A proximity graph with flexible placement of values into the nodes of that graph
 
 ## Usage
 
@@ -68,6 +70,13 @@ _Zebra puzzle example_
 This example demonstrates usage of a sequential wave function collapse algorithm for word problems like the Zebra Puzzle.
 ```shell
 cargo run --release --example zebra_puzzle
+```
+
+_Perlin example_
+
+This example demonstrates usage of the proximity graph abstraction that shows how placement of game locations can be done in a dynamically generated environment.
+```shell
+cargo run --release --example perlin
 ```
 
 ## Complex problems

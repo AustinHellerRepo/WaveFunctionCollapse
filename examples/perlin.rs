@@ -325,7 +325,18 @@ impl ToVecProximityGraphNode for Vec<Vec<bool>> {
                     fastrand::seed(*random_seed);
                 }
                 let mut locations = included_locations.clone();
+
+                // clear excluded locations if fully exhausted all locations
+                let mut iterations = 0;
                 while locations.len() < nodes_length {
+                    if !excluded_locations.is_empty() {
+                        if iterations > 10000 {
+                            excluded_locations.clear();
+                        }
+                        else {
+                            iterations += 1;
+                        }
+                    }
                     let y = fastrand::usize(0..value.len());
                     let x = fastrand::usize(0..value[y].len());
                     let location = (x, y);
@@ -461,7 +472,7 @@ fn main() {
     println!("The enemy base should be very far from the zombie horde.");
     
     // this represents the number of nodes that are sampled from the black area of the perlin noise
-    let node_sample_length = 20;
+    let node_sample_length = 40;
 
     // these are the dimensions of the perlin noise
     let width: usize = 40;
