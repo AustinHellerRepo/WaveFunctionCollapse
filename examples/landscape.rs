@@ -268,7 +268,7 @@ fn main() {
         node_state_per_y_per_x.push(node_state_per_y);
     }
 
-    for (node, node_state) in collapsed_wave_function.node_state_per_node.into_iter() {
+    for (node, node_state) in collapsed_wave_function.node_state_per_node_id.into_iter() {
         let node_split = node.split("_").collect::<Vec<&str>>();
         let x = node_split[0].parse::<u32>().unwrap() as usize;
         let y = node_split[1].parse::<u32>().unwrap() as usize;

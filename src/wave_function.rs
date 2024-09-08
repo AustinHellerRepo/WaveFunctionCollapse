@@ -17,14 +17,14 @@ mod tests;
 pub struct NodeStateProbability;
 
 impl NodeStateProbability {
-    pub fn get_equal_probability(node_state_ids: Vec<String>) -> HashMap<String, f32> {
-        let mut node_state_probability_per_node_state_id: HashMap<String, f32> = HashMap::new();
+    pub fn get_equal_probability<TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord>(node_states: &Vec<TNodeState>) -> HashMap<TNodeState, f32> {
+        let mut node_state_probability_per_node_state: HashMap<TNodeState, f32> = HashMap::new();
 
-        for node_state_id in node_state_ids.into_iter() {
-            node_state_probability_per_node_state_id.insert(node_state_id, 1.0);
+        for node_state in node_states.into_iter() {
+            node_state_probability_per_node_state.insert(node_state.clone(), 1.0);
         }
 
-        node_state_probability_per_node_state_id
+        node_state_probability_per_node_state
     }
 }
 

@@ -662,7 +662,7 @@ mod wave_function_unit_tests {
         
         nodes.push(Node::new(
             node_id.clone(),
-            NodeStateProbability::get_equal_probability(vec![node_state_id.clone()]),
+            NodeStateProbability::get_equal_probability(&vec![node_state_id.clone()]),
             HashMap::new()
         ));
 
@@ -670,8 +670,8 @@ mod wave_function_unit_tests {
         wave_function.validate().unwrap();
         let collapsed_wave_function = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse().unwrap();
         
-        assert_eq!(1, collapsed_wave_function.node_state_per_node.keys().len());
-        assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&node_id).unwrap());
+        assert_eq!(1, collapsed_wave_function.node_state_per_node_id.keys().len());
+        assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node_id.get(&node_id).unwrap());
     }
 
     #[test]
@@ -686,7 +686,7 @@ mod wave_function_unit_tests {
         
         nodes.push(Node::new(
             node_id.clone(),
-            NodeStateProbability::get_equal_probability(vec![node_state_id.clone()]),
+            NodeStateProbability::get_equal_probability(&vec![node_state_id.clone()]),
             HashMap::new()
         ));
 
@@ -694,8 +694,8 @@ mod wave_function_unit_tests {
         wave_function.validate().unwrap();
         let collapsed_wave_function = wave_function.get_collapsable_wave_function::<AccommodatingCollapsableWaveFunction<String>>(None).collapse().unwrap();
         
-        assert_eq!(1, collapsed_wave_function.node_state_per_node.keys().len());
-        assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&node_id).unwrap());
+        assert_eq!(1, collapsed_wave_function.node_state_per_node_id.keys().len());
+        assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node_id.get(&node_id).unwrap());
     }
 
     #[test]
@@ -710,7 +710,7 @@ mod wave_function_unit_tests {
         
         nodes.push(Node::new(
             node_id.clone(),
-            NodeStateProbability::get_equal_probability(vec![node_state_id.clone()]),
+            NodeStateProbability::get_equal_probability(&vec![node_state_id.clone()]),
             HashMap::new()
         ));
 
@@ -718,8 +718,8 @@ mod wave_function_unit_tests {
         wave_function.validate().unwrap();
         let collapsed_wave_function = wave_function.get_collapsable_wave_function::<AccommodatingSequentialCollapsableWaveFunction<String>>(None).collapse().unwrap();
         
-        assert_eq!(1, collapsed_wave_function.node_state_per_node.keys().len());
-        assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&node_id).unwrap());
+        assert_eq!(1, collapsed_wave_function.node_state_per_node_id.keys().len());
+        assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node_id.get(&node_id).unwrap());
     }
 
     #[test]
@@ -739,7 +739,7 @@ mod wave_function_unit_tests {
 
         nodes.push(Node::new(
             node_id.clone(),
-            NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+            NodeStateProbability::get_equal_probability(&vec![one_node_state_id.clone(), two_node_state_id.clone()]),
             HashMap::new()
         ));
 
@@ -752,7 +752,7 @@ mod wave_function_unit_tests {
             let random_seed = Some(random_instance.u64(..));
             let collapsed_wave_function = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(random_seed).collapse().unwrap();
 
-            let node_state_id: &str = collapsed_wave_function.node_state_per_node.get(&node_id).unwrap();
+            let node_state_id: &str = collapsed_wave_function.node_state_per_node_id.get(&node_id).unwrap();
             *count_per_node_state_id.get_mut(node_state_id).unwrap() += 1;
         }
 
@@ -778,7 +778,7 @@ mod wave_function_unit_tests {
 
         nodes.push(Node::new(
             node_id.clone(),
-            NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+            NodeStateProbability::get_equal_probability(&vec![one_node_state_id.clone(), two_node_state_id.clone()]),
             HashMap::new()
         ));
 
@@ -791,7 +791,7 @@ mod wave_function_unit_tests {
             let random_seed = Some(random_instance.u64(..));
             let collapsed_wave_function = wave_function.get_collapsable_wave_function::<AccommodatingCollapsableWaveFunction<String>>(random_seed).collapse().unwrap();
 
-            let node_state_id: &str = collapsed_wave_function.node_state_per_node.get(&node_id).unwrap();
+            let node_state_id: &str = collapsed_wave_function.node_state_per_node_id.get(&node_id).unwrap();
             *count_per_node_state_id.get_mut(node_state_id).unwrap() += 1;
         }
 
@@ -817,7 +817,7 @@ mod wave_function_unit_tests {
 
         nodes.push(Node::new(
             node_id.clone(),
-            NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+            NodeStateProbability::get_equal_probability(&vec![one_node_state_id.clone(), two_node_state_id.clone()]),
             HashMap::new()
         ));
 
@@ -830,7 +830,7 @@ mod wave_function_unit_tests {
             let random_seed = Some(random_instance.u64(..));
             let collapsed_wave_function = wave_function.get_collapsable_wave_function::<AccommodatingSequentialCollapsableWaveFunction<String>>(random_seed).collapse().unwrap();
 
-            let node_state_id: &str = collapsed_wave_function.node_state_per_node.get(&node_id).unwrap();
+            let node_state_id: &str = collapsed_wave_function.node_state_per_node_id.get(&node_id).unwrap();
             *count_per_node_state_id.get_mut(node_state_id).unwrap() += 1;
         }
 
@@ -848,12 +848,12 @@ mod wave_function_unit_tests {
 
         nodes.push(Node::new(
             Uuid::new_v4().to_string(),
-            NodeStateProbability::get_equal_probability(vec![Uuid::new_v4().to_string()]),
+            NodeStateProbability::get_equal_probability(&vec![Uuid::new_v4().to_string()]),
             HashMap::new()
         ));
         nodes.push(Node::new(
             Uuid::new_v4().to_string(),
-            NodeStateProbability::get_equal_probability(vec![Uuid::new_v4().to_string()]),
+            NodeStateProbability::get_equal_probability(&vec![Uuid::new_v4().to_string()]),
             HashMap::new()
         ));
 
@@ -875,13 +875,13 @@ mod wave_function_unit_tests {
 
         nodes.push(Node::new(
             Uuid::new_v4().to_string(),
-            NodeStateProbability::get_equal_probability(vec![from_restrictive_node_state_id.clone(), unrestricted_node_state_id.clone()]),
+            NodeStateProbability::get_equal_probability(&vec![from_restrictive_node_state_id.clone(), unrestricted_node_state_id.clone()]),
             HashMap::new()
         ));
 
         nodes.push(Node::new(
             Uuid::new_v4().to_string(),
-            NodeStateProbability::get_equal_probability(vec![unrestricted_node_state_id.clone()]),
+            NodeStateProbability::get_equal_probability(&vec![unrestricted_node_state_id.clone()]),
             HashMap::new()
         ));
 
@@ -905,8 +905,8 @@ mod wave_function_unit_tests {
         let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse();
         let collapsed_wave_function = collapsed_wave_function_result.unwrap();
 
-        assert_eq!(&unrestricted_node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
-        assert_eq!(&unrestricted_node_state_id, collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap());
+        assert_eq!(&unrestricted_node_state_id, collapsed_wave_function.node_state_per_node_id.get(&first_node_id).unwrap());
+        assert_eq!(&unrestricted_node_state_id, collapsed_wave_function.node_state_per_node_id.get(&second_node_id).unwrap());
     }
 
     #[test]
@@ -922,13 +922,13 @@ mod wave_function_unit_tests {
 
         nodes.push(Node::new(
             Uuid::new_v4().to_string(),
-            NodeStateProbability::get_equal_probability(vec![from_restrictive_node_state_id.clone(), unrestricted_node_state_id.clone()]),
+            NodeStateProbability::get_equal_probability(&vec![from_restrictive_node_state_id.clone(), unrestricted_node_state_id.clone()]),
             HashMap::new()
         ));
 
         nodes.push(Node::new(
             Uuid::new_v4().to_string(),
-            NodeStateProbability::get_equal_probability(vec![unrestricted_node_state_id.clone()]),
+            NodeStateProbability::get_equal_probability(&vec![unrestricted_node_state_id.clone()]),
             HashMap::new()
         ));
 
@@ -952,8 +952,8 @@ mod wave_function_unit_tests {
         let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<AccommodatingCollapsableWaveFunction<String>>(None).collapse();
         let collapsed_wave_function = collapsed_wave_function_result.unwrap();
 
-        assert_eq!(&unrestricted_node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
-        assert_eq!(&unrestricted_node_state_id, collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap());
+        assert_eq!(&unrestricted_node_state_id, collapsed_wave_function.node_state_per_node_id.get(&first_node_id).unwrap());
+        assert_eq!(&unrestricted_node_state_id, collapsed_wave_function.node_state_per_node_id.get(&second_node_id).unwrap());
     }
 
     #[test]
@@ -969,13 +969,13 @@ mod wave_function_unit_tests {
 
         nodes.push(Node::new(
             Uuid::new_v4().to_string(),
-            NodeStateProbability::get_equal_probability(vec![from_restrictive_node_state_id.clone(), unrestricted_node_state_id.clone()]),
+            NodeStateProbability::get_equal_probability(&vec![from_restrictive_node_state_id.clone(), unrestricted_node_state_id.clone()]),
             HashMap::new()
         ));
 
         nodes.push(Node::new(
             Uuid::new_v4().to_string(),
-            NodeStateProbability::get_equal_probability(vec![unrestricted_node_state_id.clone()]),
+            NodeStateProbability::get_equal_probability(&vec![unrestricted_node_state_id.clone()]),
             HashMap::new()
         ));
 
@@ -999,8 +999,8 @@ mod wave_function_unit_tests {
         let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<AccommodatingSequentialCollapsableWaveFunction<String>>(None).collapse();
         let collapsed_wave_function = collapsed_wave_function_result.unwrap();
 
-        assert_eq!(&unrestricted_node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
-        assert_eq!(&unrestricted_node_state_id, collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap());
+        assert_eq!(&unrestricted_node_state_id, collapsed_wave_function.node_state_per_node_id.get(&first_node_id).unwrap());
+        assert_eq!(&unrestricted_node_state_id, collapsed_wave_function.node_state_per_node_id.get(&second_node_id).unwrap());
     }
 
     #[test]
@@ -1016,13 +1016,13 @@ mod wave_function_unit_tests {
 
         nodes.push(Node::new(
             String::from("node_1"),
-            NodeStateProbability::get_equal_probability(vec![restricting_node_state_id.clone(), permitting_node_state_id.clone()]),
+            NodeStateProbability::get_equal_probability(&vec![restricting_node_state_id.clone(), permitting_node_state_id.clone()]),
             HashMap::new()
         ));
 
         nodes.push(Node::new(
             String::from("node_2"),
-            NodeStateProbability::get_equal_probability(vec![restricted_node_state_id.clone()]),
+            NodeStateProbability::get_equal_probability(&vec![restricted_node_state_id.clone()]),
             HashMap::new()
         ));
 
@@ -1055,8 +1055,8 @@ mod wave_function_unit_tests {
         let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse();
         let collapsed_wave_function = collapsed_wave_function_result.unwrap();
 
-        assert_eq!(&permitting_node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
-        assert_eq!(&restricted_node_state_id, collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap());
+        assert_eq!(&permitting_node_state_id, collapsed_wave_function.node_state_per_node_id.get(&first_node_id).unwrap());
+        assert_eq!(&restricted_node_state_id, collapsed_wave_function.node_state_per_node_id.get(&second_node_id).unwrap());
     }
 
     #[test]
@@ -1072,13 +1072,13 @@ mod wave_function_unit_tests {
 
         nodes.push(Node::new(
             String::from("node_1"),
-            NodeStateProbability::get_equal_probability(vec![restricting_node_state_id.clone(), permitting_node_state_id.clone()]),
+            NodeStateProbability::get_equal_probability(&vec![restricting_node_state_id.clone(), permitting_node_state_id.clone()]),
             HashMap::new()
         ));
 
         nodes.push(Node::new(
             String::from("node_2"),
-            NodeStateProbability::get_equal_probability(vec![restricted_node_state_id.clone()]),
+            NodeStateProbability::get_equal_probability(&vec![restricted_node_state_id.clone()]),
             HashMap::new()
         ));
 
@@ -1111,8 +1111,8 @@ mod wave_function_unit_tests {
         let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<AccommodatingSequentialCollapsableWaveFunction<String>>(None).collapse();
         let collapsed_wave_function = collapsed_wave_function_result.unwrap();
 
-        assert_eq!(&permitting_node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
-        assert_eq!(&restricted_node_state_id, collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap());
+        assert_eq!(&permitting_node_state_id, collapsed_wave_function.node_state_per_node_id.get(&first_node_id).unwrap());
+        assert_eq!(&restricted_node_state_id, collapsed_wave_function.node_state_per_node_id.get(&second_node_id).unwrap());
     }
 
     #[test]
@@ -1128,13 +1128,13 @@ mod wave_function_unit_tests {
 
         nodes.push(Node::new(
             String::from("node_1"),
-            NodeStateProbability::get_equal_probability(vec![restricting_node_state_id.clone()]),
+            NodeStateProbability::get_equal_probability(&vec![restricting_node_state_id.clone()]),
             HashMap::new()
         ));
 
         nodes.push(Node::new(
             String::from("node_2"),
-            NodeStateProbability::get_equal_probability(vec![restricted_node_state_id.clone(), permitted_node_state_id.clone()]),
+            NodeStateProbability::get_equal_probability(&vec![restricted_node_state_id.clone(), permitted_node_state_id.clone()]),
             HashMap::new()
         ));
 
@@ -1158,8 +1158,8 @@ mod wave_function_unit_tests {
         let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse();
         let collapsed_wave_function = collapsed_wave_function_result.unwrap();
 
-        assert_eq!(&restricting_node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
-        assert_eq!(&permitted_node_state_id, collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap());
+        assert_eq!(&restricting_node_state_id, collapsed_wave_function.node_state_per_node_id.get(&first_node_id).unwrap());
+        assert_eq!(&permitted_node_state_id, collapsed_wave_function.node_state_per_node_id.get(&second_node_id).unwrap());
     }
 
     #[test]
@@ -1175,13 +1175,13 @@ mod wave_function_unit_tests {
 
         nodes.push(Node::new(
             String::from("node_1"),
-            NodeStateProbability::get_equal_probability(vec![restricting_node_state_id.clone()]),
+            NodeStateProbability::get_equal_probability(&vec![restricting_node_state_id.clone()]),
             HashMap::new()
         ));
 
         nodes.push(Node::new(
             String::from("node_2"),
-            NodeStateProbability::get_equal_probability(vec![restricted_node_state_id.clone(), permitted_node_state_id.clone()]),
+            NodeStateProbability::get_equal_probability(&vec![restricted_node_state_id.clone(), permitted_node_state_id.clone()]),
             HashMap::new()
         ));
 
@@ -1205,8 +1205,8 @@ mod wave_function_unit_tests {
         let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<AccommodatingSequentialCollapsableWaveFunction<String>>(None).collapse();
         let collapsed_wave_function = collapsed_wave_function_result.unwrap();
 
-        assert_eq!(&restricting_node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
-        assert_eq!(&permitted_node_state_id, collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap());
+        assert_eq!(&restricting_node_state_id, collapsed_wave_function.node_state_per_node_id.get(&first_node_id).unwrap());
+        assert_eq!(&permitted_node_state_id, collapsed_wave_function.node_state_per_node_id.get(&second_node_id).unwrap());
     }
 
     #[test]
@@ -1220,7 +1220,7 @@ mod wave_function_unit_tests {
 
         nodes.push(Node::new(
             Uuid::new_v4().to_string(),
-            NodeStateProbability::get_equal_probability(vec![node_state_id.clone()]),
+            NodeStateProbability::get_equal_probability(&vec![node_state_id.clone()]),
             HashMap::new()
         ));
 
@@ -1232,7 +1232,7 @@ mod wave_function_unit_tests {
 
         nodes.push(Node::new(
             Uuid::new_v4().to_string(),
-            NodeStateProbability::get_equal_probability(neighbor_node_state_ids),
+            NodeStateProbability::get_equal_probability(&neighbor_node_state_ids),
             HashMap::new()
         ));
 
@@ -1256,8 +1256,8 @@ mod wave_function_unit_tests {
         let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse();
         let collapsed_wave_function = collapsed_wave_function_result.unwrap();
 
-        assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
-        assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap());
+        assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node_id.get(&first_node_id).unwrap());
+        assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node_id.get(&second_node_id).unwrap());
     }
 
     #[test]
@@ -1277,13 +1277,13 @@ mod wave_function_unit_tests {
 
         nodes.push(Node::new(
             Uuid::new_v4().to_string(),
-            NodeStateProbability::get_equal_probability(neighbor_node_state_ids),
+            NodeStateProbability::get_equal_probability(&neighbor_node_state_ids),
             HashMap::new()
         ));
 
         nodes.push(Node::new(
             Uuid::new_v4().to_string(),
-            NodeStateProbability::get_equal_probability(vec![node_state_id.clone()]),
+            NodeStateProbability::get_equal_probability(&vec![node_state_id.clone()]),
             HashMap::new()
         ));
 
@@ -1307,8 +1307,8 @@ mod wave_function_unit_tests {
         let collapsed_wave_function_result = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse();
         let collapsed_wave_function = collapsed_wave_function_result.unwrap();
 
-        assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
-        assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap());
+        assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node_id.get(&first_node_id).unwrap());
+        assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node_id.get(&second_node_id).unwrap());
     }
 
     #[test]
@@ -1322,7 +1322,7 @@ mod wave_function_unit_tests {
 
         nodes.push(Node::new(
             String::from("node_1"),
-            NodeStateProbability::get_equal_probability(vec![node_state_id.clone()]),
+            NodeStateProbability::get_equal_probability(&vec![node_state_id.clone()]),
             HashMap::new()
         ));
 
@@ -1334,7 +1334,7 @@ mod wave_function_unit_tests {
 
         nodes.push(Node::new(
             String::from("node_2"),
-            NodeStateProbability::get_equal_probability(neighbor_node_state_ids),
+            NodeStateProbability::get_equal_probability(&neighbor_node_state_ids),
             HashMap::new()
         ));
 
@@ -1366,8 +1366,8 @@ mod wave_function_unit_tests {
 
         let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
 
-        assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
-        assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap());
+        assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node_id.get(&first_node_id).unwrap());
+        assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node_id.get(&second_node_id).unwrap());
     }
 
     #[test]
@@ -1387,13 +1387,13 @@ mod wave_function_unit_tests {
 
         nodes.push(Node::new(
             String::from("node_2"),
-            NodeStateProbability::get_equal_probability(neighbor_node_state_ids),
+            NodeStateProbability::get_equal_probability(&neighbor_node_state_ids),
             HashMap::new()
         ));
 
         nodes.push(Node::new(
             String::from("node_1"),
-            NodeStateProbability::get_equal_probability(vec![node_state_id.clone()]),
+            NodeStateProbability::get_equal_probability(&vec![node_state_id.clone()]),
             HashMap::new()
         ));
 
@@ -1425,8 +1425,8 @@ mod wave_function_unit_tests {
 
         let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
 
-        assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
-        assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap());
+        assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node_id.get(&first_node_id).unwrap());
+        assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node_id.get(&second_node_id).unwrap());
     }
 
     #[test]
@@ -1441,13 +1441,13 @@ mod wave_function_unit_tests {
 
         nodes.push(Node::new(
             Uuid::new_v4().to_string(),
-            NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+            NodeStateProbability::get_equal_probability(&vec![one_node_state_id.clone(), two_node_state_id.clone()]),
             HashMap::new()
         ));
 
         nodes.push(Node::new(
             Uuid::new_v4().to_string(),
-            NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+            NodeStateProbability::get_equal_probability(&vec![one_node_state_id.clone(), two_node_state_id.clone()]),
             HashMap::new()
         ));
 
@@ -1493,7 +1493,7 @@ mod wave_function_unit_tests {
         //assert_eq!(&one_node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
         //assert_eq!(&two_node_state_id, collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap());
 
-        assert_ne!(collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap(), collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
+        assert_ne!(collapsed_wave_function.node_state_per_node_id.get(&second_node_id).unwrap(), collapsed_wave_function.node_state_per_node_id.get(&first_node_id).unwrap());
     }
 
     #[test]
@@ -1511,12 +1511,12 @@ mod wave_function_unit_tests {
 
             nodes.push(Node::new(
                 Uuid::new_v4().to_string(),
-                NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+                NodeStateProbability::get_equal_probability(&vec![one_node_state_id.clone(), two_node_state_id.clone()]),
                 HashMap::new()
             ));
             nodes.push(Node::new(
                 Uuid::new_v4().to_string(),
-                NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+                NodeStateProbability::get_equal_probability(&vec![one_node_state_id.clone(), two_node_state_id.clone()]),
                 HashMap::new()
             ));
 
@@ -1559,7 +1559,7 @@ mod wave_function_unit_tests {
 
             let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
 
-            assert_ne!(collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap(), collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node_id.get(&second_node_id).unwrap(), collapsed_wave_function.node_state_per_node_id.get(&first_node_id).unwrap());
         }
     }
 
@@ -1580,12 +1580,12 @@ mod wave_function_unit_tests {
 
             nodes.push(Node::new(
                 String::from("node_1"),
-                NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone(), three_node_state_id.clone(), four_node_state_id.clone()]),
+                NodeStateProbability::get_equal_probability(&vec![one_node_state_id.clone(), two_node_state_id.clone(), three_node_state_id.clone(), four_node_state_id.clone()]),
                 HashMap::new()
             ));
             nodes.push(Node::new(
                 String::from("node_2"),
-                NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone(), three_node_state_id.clone(), four_node_state_id.clone()]),
+                NodeStateProbability::get_equal_probability(&vec![one_node_state_id.clone(), two_node_state_id.clone(), three_node_state_id.clone(), four_node_state_id.clone()]),
                 HashMap::new()
             ));
 
@@ -1689,17 +1689,17 @@ mod wave_function_unit_tests {
 
         nodes.push(Node::new(
             String::from("node_1"),
-            NodeStateProbability::get_equal_probability(vec![node_state_id.clone()]),
+            NodeStateProbability::get_equal_probability(&vec![node_state_id.clone()]),
             HashMap::new()
         ));
         nodes.push(Node::new(
             String::from("node_2"),
-            NodeStateProbability::get_equal_probability(vec![node_state_id.clone()]),
+            NodeStateProbability::get_equal_probability(&vec![node_state_id.clone()]),
             HashMap::new()
         ));
         nodes.push(Node::new(
             String::from("node_3"),
-            NodeStateProbability::get_equal_probability(vec![node_state_id.clone()]),
+            NodeStateProbability::get_equal_probability(&vec![node_state_id.clone()]),
             HashMap::new()
         ));
 
@@ -1735,9 +1735,9 @@ mod wave_function_unit_tests {
 
         let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
 
-        assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
-        assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap());
-        assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node.get(&third_node_id).unwrap());
+        assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node_id.get(&first_node_id).unwrap());
+        assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node_id.get(&second_node_id).unwrap());
+        assert_eq!(&node_state_id, collapsed_wave_function.node_state_per_node_id.get(&third_node_id).unwrap());
     }
 
     #[test]
@@ -1753,17 +1753,17 @@ mod wave_function_unit_tests {
 
         nodes.push(Node::new(
             String::from("node_1"),
-            NodeStateProbability::get_equal_probability(vec![first_node_state_id.clone(), second_node_state_id.clone(), third_node_state_id.clone()]),
+            NodeStateProbability::get_equal_probability(&vec![first_node_state_id.clone(), second_node_state_id.clone(), third_node_state_id.clone()]),
             HashMap::new()
         ));
         nodes.push(Node::new(
             String::from("node_2"),
-            NodeStateProbability::get_equal_probability(vec![first_node_state_id.clone(), second_node_state_id.clone(), third_node_state_id.clone()]),
+            NodeStateProbability::get_equal_probability(&vec![first_node_state_id.clone(), second_node_state_id.clone(), third_node_state_id.clone()]),
             HashMap::new()
         ));
         nodes.push(Node::new(
             String::from("node_3"),
-            NodeStateProbability::get_equal_probability(vec![first_node_state_id.clone(), second_node_state_id.clone(), third_node_state_id.clone()]),
+            NodeStateProbability::get_equal_probability(&vec![first_node_state_id.clone(), second_node_state_id.clone(), third_node_state_id.clone()]),
             HashMap::new()
         ));
 
@@ -1833,14 +1833,14 @@ mod wave_function_unit_tests {
 
         let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
 
-        debug!("collapsed_wave_function.node_state_per_node: {:?}", collapsed_wave_function.node_state_per_node);
+        debug!("collapsed_wave_function.node_state_per_node: {:?}", collapsed_wave_function.node_state_per_node_id);
 
-        assert_ne!(collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap(), collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
-        assert_ne!(collapsed_wave_function.node_state_per_node.get(&third_node_id).unwrap(), collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
-        assert_ne!(collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap(), collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap());
-        assert_ne!(collapsed_wave_function.node_state_per_node.get(&third_node_id).unwrap(), collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap());
-        assert_ne!(collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap(), collapsed_wave_function.node_state_per_node.get(&third_node_id).unwrap());
-        assert_ne!(collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap(), collapsed_wave_function.node_state_per_node.get(&third_node_id).unwrap());
+        assert_ne!(collapsed_wave_function.node_state_per_node_id.get(&second_node_id).unwrap(), collapsed_wave_function.node_state_per_node_id.get(&first_node_id).unwrap());
+        assert_ne!(collapsed_wave_function.node_state_per_node_id.get(&third_node_id).unwrap(), collapsed_wave_function.node_state_per_node_id.get(&first_node_id).unwrap());
+        assert_ne!(collapsed_wave_function.node_state_per_node_id.get(&first_node_id).unwrap(), collapsed_wave_function.node_state_per_node_id.get(&second_node_id).unwrap());
+        assert_ne!(collapsed_wave_function.node_state_per_node_id.get(&third_node_id).unwrap(), collapsed_wave_function.node_state_per_node_id.get(&second_node_id).unwrap());
+        assert_ne!(collapsed_wave_function.node_state_per_node_id.get(&first_node_id).unwrap(), collapsed_wave_function.node_state_per_node_id.get(&third_node_id).unwrap());
+        assert_ne!(collapsed_wave_function.node_state_per_node_id.get(&second_node_id).unwrap(), collapsed_wave_function.node_state_per_node_id.get(&third_node_id).unwrap());
     }
 
     #[test]
@@ -1856,17 +1856,17 @@ mod wave_function_unit_tests {
 
         nodes.push(Node::new(
             String::from("node_1"),
-            NodeStateProbability::get_equal_probability(vec![first_node_state_id.clone(), second_node_state_id.clone(), third_node_state_id.clone()]),
+            NodeStateProbability::get_equal_probability(&vec![first_node_state_id.clone(), second_node_state_id.clone(), third_node_state_id.clone()]),
             HashMap::new()
         ));
         nodes.push(Node::new(
             String::from("node_2"),
-            NodeStateProbability::get_equal_probability(vec![first_node_state_id.clone(), second_node_state_id.clone(), third_node_state_id.clone()]),
+            NodeStateProbability::get_equal_probability(&vec![first_node_state_id.clone(), second_node_state_id.clone(), third_node_state_id.clone()]),
             HashMap::new()
         ));
         nodes.push(Node::new(
             String::from("node_3"),
-            NodeStateProbability::get_equal_probability(vec![first_node_state_id.clone(), second_node_state_id.clone(), third_node_state_id.clone()]),
+            NodeStateProbability::get_equal_probability(&vec![first_node_state_id.clone(), second_node_state_id.clone(), third_node_state_id.clone()]),
             HashMap::new()
         ));
 
@@ -1936,14 +1936,14 @@ mod wave_function_unit_tests {
 
         let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
 
-        debug!("collapsed_wave_function.node_state_per_node: {:?}", collapsed_wave_function.node_state_per_node);
+        debug!("collapsed_wave_function.node_state_per_node: {:?}", collapsed_wave_function.node_state_per_node_id);
 
-        assert_ne!(collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap(), collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
-        assert_ne!(collapsed_wave_function.node_state_per_node.get(&third_node_id).unwrap(), collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
-        assert_ne!(collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap(), collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap());
-        assert_ne!(collapsed_wave_function.node_state_per_node.get(&third_node_id).unwrap(), collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap());
-        assert_ne!(collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap(), collapsed_wave_function.node_state_per_node.get(&third_node_id).unwrap());
-        assert_ne!(collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap(), collapsed_wave_function.node_state_per_node.get(&third_node_id).unwrap());
+        assert_ne!(collapsed_wave_function.node_state_per_node_id.get(&second_node_id).unwrap(), collapsed_wave_function.node_state_per_node_id.get(&first_node_id).unwrap());
+        assert_ne!(collapsed_wave_function.node_state_per_node_id.get(&third_node_id).unwrap(), collapsed_wave_function.node_state_per_node_id.get(&first_node_id).unwrap());
+        assert_ne!(collapsed_wave_function.node_state_per_node_id.get(&first_node_id).unwrap(), collapsed_wave_function.node_state_per_node_id.get(&second_node_id).unwrap());
+        assert_ne!(collapsed_wave_function.node_state_per_node_id.get(&third_node_id).unwrap(), collapsed_wave_function.node_state_per_node_id.get(&second_node_id).unwrap());
+        assert_ne!(collapsed_wave_function.node_state_per_node_id.get(&first_node_id).unwrap(), collapsed_wave_function.node_state_per_node_id.get(&third_node_id).unwrap());
+        assert_ne!(collapsed_wave_function.node_state_per_node_id.get(&second_node_id).unwrap(), collapsed_wave_function.node_state_per_node_id.get(&third_node_id).unwrap());
     }
 
     #[test]
@@ -1959,17 +1959,17 @@ mod wave_function_unit_tests {
 
         nodes.push(Node::new(
             String::from("node_1"),
-            NodeStateProbability::get_equal_probability(vec![first_node_state_id.clone(), second_node_state_id.clone(), third_node_state_id.clone()]),
+            NodeStateProbability::get_equal_probability(&vec![first_node_state_id.clone(), second_node_state_id.clone(), third_node_state_id.clone()]),
             HashMap::new()
         ));
         nodes.push(Node::new(
             String::from("node_2"),
-            NodeStateProbability::get_equal_probability(vec![first_node_state_id.clone(), second_node_state_id.clone(), third_node_state_id.clone()]),
+            NodeStateProbability::get_equal_probability(&vec![first_node_state_id.clone(), second_node_state_id.clone(), third_node_state_id.clone()]),
             HashMap::new()
         ));
         nodes.push(Node::new(
             String::from("node_3"),
-            NodeStateProbability::get_equal_probability(vec![first_node_state_id.clone(), second_node_state_id.clone(), third_node_state_id.clone()]),
+            NodeStateProbability::get_equal_probability(&vec![first_node_state_id.clone(), second_node_state_id.clone(), third_node_state_id.clone()]),
             HashMap::new()
         ));
 
@@ -2039,14 +2039,14 @@ mod wave_function_unit_tests {
 
         let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
 
-        debug!("collapsed_wave_function.node_state_per_node: {:?}", collapsed_wave_function.node_state_per_node);
+        debug!("collapsed_wave_function.node_state_per_node: {:?}", collapsed_wave_function.node_state_per_node_id);
 
-        assert_ne!(collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap(), collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
-        assert_ne!(collapsed_wave_function.node_state_per_node.get(&third_node_id).unwrap(), collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap());
-        assert_ne!(collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap(), collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap());
-        assert_ne!(collapsed_wave_function.node_state_per_node.get(&third_node_id).unwrap(), collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap());
-        assert_ne!(collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap(), collapsed_wave_function.node_state_per_node.get(&third_node_id).unwrap());
-        assert_ne!(collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap(), collapsed_wave_function.node_state_per_node.get(&third_node_id).unwrap());
+        assert_ne!(collapsed_wave_function.node_state_per_node_id.get(&second_node_id).unwrap(), collapsed_wave_function.node_state_per_node_id.get(&first_node_id).unwrap());
+        assert_ne!(collapsed_wave_function.node_state_per_node_id.get(&third_node_id).unwrap(), collapsed_wave_function.node_state_per_node_id.get(&first_node_id).unwrap());
+        assert_ne!(collapsed_wave_function.node_state_per_node_id.get(&first_node_id).unwrap(), collapsed_wave_function.node_state_per_node_id.get(&second_node_id).unwrap());
+        assert_ne!(collapsed_wave_function.node_state_per_node_id.get(&third_node_id).unwrap(), collapsed_wave_function.node_state_per_node_id.get(&second_node_id).unwrap());
+        assert_ne!(collapsed_wave_function.node_state_per_node_id.get(&first_node_id).unwrap(), collapsed_wave_function.node_state_per_node_id.get(&third_node_id).unwrap());
+        assert_ne!(collapsed_wave_function.node_state_per_node_id.get(&second_node_id).unwrap(), collapsed_wave_function.node_state_per_node_id.get(&third_node_id).unwrap());
     }
 
     #[test]
@@ -2066,17 +2066,17 @@ mod wave_function_unit_tests {
 
             nodes.push(Node::new(
                 String::from("node_1"),
-                NodeStateProbability::get_equal_probability(vec![first_node_state_id.clone(), second_node_state_id.clone(), third_node_state_id.clone()]),
+                NodeStateProbability::get_equal_probability(&vec![first_node_state_id.clone(), second_node_state_id.clone(), third_node_state_id.clone()]),
                 HashMap::new()
             ));
             nodes.push(Node::new(
                 String::from("node_2"),
-                NodeStateProbability::get_equal_probability(vec![first_node_state_id.clone(), second_node_state_id.clone(), third_node_state_id.clone()]),
+                NodeStateProbability::get_equal_probability(&vec![first_node_state_id.clone(), second_node_state_id.clone(), third_node_state_id.clone()]),
                 HashMap::new()
             ));
             nodes.push(Node::new(
                 String::from("node_3"),
-                NodeStateProbability::get_equal_probability(vec![first_node_state_id.clone(), second_node_state_id.clone(), third_node_state_id.clone()]),
+                NodeStateProbability::get_equal_probability(&vec![first_node_state_id.clone(), second_node_state_id.clone(), third_node_state_id.clone()]),
                 HashMap::new()
             ));
 
@@ -2147,9 +2147,9 @@ mod wave_function_unit_tests {
 
             let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
 
-            let first_node_state_id = collapsed_wave_function.node_state_per_node.get(&first_node_id).unwrap();
-            let second_node_state_id = collapsed_wave_function.node_state_per_node.get(&second_node_id).unwrap();
-            let third_node_state_id = collapsed_wave_function.node_state_per_node.get(&third_node_id).unwrap();
+            let first_node_state_id = collapsed_wave_function.node_state_per_node_id.get(&first_node_id).unwrap();
+            let second_node_state_id = collapsed_wave_function.node_state_per_node_id.get(&second_node_id).unwrap();
+            let third_node_state_id = collapsed_wave_function.node_state_per_node_id.get(&third_node_id).unwrap();
             assert_ne!(second_node_state_id, first_node_state_id);
             assert_ne!(third_node_state_id, first_node_state_id);
             assert_ne!(first_node_state_id, second_node_state_id);
@@ -2180,7 +2180,7 @@ mod wave_function_unit_tests {
             node_ids.push(node_id.clone());
             let node = Node::new(
                 node_id,
-                NodeStateProbability::get_equal_probability(node_state_ids.clone()),
+                NodeStateProbability::get_equal_probability(&node_state_ids.clone()),
                 HashMap::new()
             );
             nodes.push(node);
@@ -2229,8 +2229,8 @@ mod wave_function_unit_tests {
         let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
 
         // check that no nodes have the same state
-        for (first_index, (first_node, first_node_state)) in collapsed_wave_function.node_state_per_node.iter().enumerate() {
-            for (second_index, (second_node, second_node_state)) in collapsed_wave_function.node_state_per_node.iter().enumerate() {
+        for (first_index, (first_node, first_node_state)) in collapsed_wave_function.node_state_per_node_id.iter().enumerate() {
+            for (second_index, (second_node, second_node_state)) in collapsed_wave_function.node_state_per_node_id.iter().enumerate() {
                 if first_index == second_index {
                     assert_eq!(first_node, second_node);
                     assert_eq!(first_node_state, second_node_state);
@@ -2265,7 +2265,7 @@ mod wave_function_unit_tests {
             node_ids.push(node_id.clone());
             let node = Node::new(
                 node_id,
-                NodeStateProbability::get_equal_probability(node_state_ids.clone()),
+                NodeStateProbability::get_equal_probability(&node_state_ids.clone()),
                 HashMap::new()
             );
             nodes.push(node);
@@ -2314,8 +2314,8 @@ mod wave_function_unit_tests {
         let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
 
         // check that no nodes have the same state
-        for (first_index, (first_node, first_node_state)) in collapsed_wave_function.node_state_per_node.iter().enumerate() {
-            for (second_index, (second_node, second_node_state)) in collapsed_wave_function.node_state_per_node.iter().enumerate() {
+        for (first_index, (first_node, first_node_state)) in collapsed_wave_function.node_state_per_node_id.iter().enumerate() {
+            for (second_index, (second_node, second_node_state)) in collapsed_wave_function.node_state_per_node_id.iter().enumerate() {
                 if first_index == second_index {
                     assert_eq!(first_node, second_node);
                     assert_eq!(first_node_state, second_node_state);
@@ -2350,7 +2350,7 @@ mod wave_function_unit_tests {
             node_ids.push(node_id.clone());
             let node = Node::new(
                 node_id,
-                NodeStateProbability::get_equal_probability(node_state_ids.clone()),
+                NodeStateProbability::get_equal_probability(&node_state_ids.clone()),
                 HashMap::new()
             );
             nodes.push(node);
@@ -2399,8 +2399,8 @@ mod wave_function_unit_tests {
         let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
 
         // check that no nodes have the same state
-        for (first_index, (first_node, first_node_state)) in collapsed_wave_function.node_state_per_node.iter().enumerate() {
-            for (second_index, (second_node, second_node_state)) in collapsed_wave_function.node_state_per_node.iter().enumerate() {
+        for (first_index, (first_node, first_node_state)) in collapsed_wave_function.node_state_per_node_id.iter().enumerate() {
+            for (second_index, (second_node, second_node_state)) in collapsed_wave_function.node_state_per_node_id.iter().enumerate() {
                 if first_index == second_index {
                     assert_eq!(first_node, second_node);
                     assert_eq!(first_node_state, second_node_state);
@@ -2439,7 +2439,7 @@ mod wave_function_unit_tests {
                 node_ids.push(node_id.clone());
                 let node = Node::new(
                     node_id,
-                    NodeStateProbability::get_equal_probability(node_state_ids.clone()),
+                    NodeStateProbability::get_equal_probability(&node_state_ids.clone()),
                     HashMap::new()
                 );
                 nodes.push(node);
@@ -2525,7 +2525,7 @@ mod wave_function_unit_tests {
             node_ids.push(node_id.clone());
             nodes.push(Node::new(
                 node_id,
-                NodeStateProbability::get_equal_probability(node_state_ids.clone()),
+                NodeStateProbability::get_equal_probability(&node_state_ids.clone()),
                 HashMap::new()
             ));
         }
@@ -2590,7 +2590,7 @@ mod wave_function_unit_tests {
                 let other_node_y: i32 = (other_node_index / nodes_width) % nodes_height;
                 let other_node_z: i32 = (other_node_index / (nodes_width * nodes_height)) % nodes_depth;
                 if node_index != other_node_index && (node_x - other_node_x).abs() <= 1 && (node_y - other_node_y).abs() <= 1 && (node_z - other_node_z).abs() <= 1 {
-                    assert_ne!(collapsed_wave_function.node_state_per_node.get(node_id), collapsed_wave_function.node_state_per_node.get(other_node_id));
+                    assert_ne!(collapsed_wave_function.node_state_per_node_id.get(node_id), collapsed_wave_function.node_state_per_node_id.get(other_node_id));
                 }
             }
         }
@@ -2622,7 +2622,7 @@ mod wave_function_unit_tests {
             node_ids.push(node_id.clone());
             nodes.push(Node::new(
                 node_id,
-                NodeStateProbability::get_equal_probability(node_state_ids.clone()),
+                NodeStateProbability::get_equal_probability(&node_state_ids.clone()),
                 HashMap::new()
             ));
         }
@@ -2687,7 +2687,7 @@ mod wave_function_unit_tests {
                 let other_node_y: i32 = (other_node_index / nodes_width) % nodes_height;
                 let other_node_z: i32 = (other_node_index / (nodes_width * nodes_height)) % nodes_depth;
                 if node_index != other_node_index && (node_x - other_node_x).abs() <= 1 && (node_y - other_node_y).abs() <= 1 && (node_z - other_node_z).abs() <= 1 {
-                    assert_ne!(collapsed_wave_function.node_state_per_node.get(node_id), collapsed_wave_function.node_state_per_node.get(other_node_id));
+                    assert_ne!(collapsed_wave_function.node_state_per_node_id.get(node_id), collapsed_wave_function.node_state_per_node_id.get(other_node_id));
                 }
             }
         }
@@ -2719,7 +2719,7 @@ mod wave_function_unit_tests {
             node_ids.push(node_id.clone());
             nodes.push(Node::new(
                 node_id,
-                NodeStateProbability::get_equal_probability(node_state_ids.clone()),
+                NodeStateProbability::get_equal_probability(&node_state_ids.clone()),
                 HashMap::new()
             ));
         }
@@ -2784,7 +2784,7 @@ mod wave_function_unit_tests {
                 let other_node_y: i32 = (other_node_index / nodes_width) % nodes_height;
                 let other_node_z: i32 = (other_node_index / (nodes_width * nodes_height)) % nodes_depth;
                 if node_index != other_node_index && (node_x - other_node_x).abs() <= 1 && (node_y - other_node_y).abs() <= 1 && (node_z - other_node_z).abs() <= 1 {
-                    assert_ne!(collapsed_wave_function.node_state_per_node.get(node_id), collapsed_wave_function.node_state_per_node.get(other_node_id));
+                    assert_ne!(collapsed_wave_function.node_state_per_node_id.get(node_id), collapsed_wave_function.node_state_per_node_id.get(other_node_id));
                 }
             }
         }
@@ -2826,7 +2826,7 @@ mod wave_function_unit_tests {
                 node_ids.push(node_id.clone());
                 nodes.push(Node::new(
                     node_id,
-                    NodeStateProbability::get_equal_probability(node_state_ids.clone()),
+                    NodeStateProbability::get_equal_probability(&node_state_ids.clone()),
                     HashMap::new()
                 ));
             }
@@ -2892,7 +2892,7 @@ mod wave_function_unit_tests {
                     let other_node_y: i32 = (other_node_index / nodes_width) % nodes_height;
                     let other_node_z: i32 = (other_node_index / (nodes_width * nodes_height)) % nodes_depth;
                     if node_index != other_node_index && (node_x - other_node_x).abs() <= 1 && (node_y - other_node_y).abs() <= 1 && (node_z - other_node_z).abs() <= 1 {
-                        assert_ne!(collapsed_wave_function.node_state_per_node.get(node_id), collapsed_wave_function.node_state_per_node.get(other_node_id));
+                        assert_ne!(collapsed_wave_function.node_state_per_node_id.get(node_id), collapsed_wave_function.node_state_per_node_id.get(other_node_id));
                     }
                 }
             }
@@ -2936,7 +2936,7 @@ mod wave_function_unit_tests {
                 node_ids.push(node_id.clone());
                 nodes.push(Node::new(
                     node_id,
-                    NodeStateProbability::get_equal_probability(node_state_ids.clone()),
+                    NodeStateProbability::get_equal_probability(&node_state_ids.clone()),
                     HashMap::new()
                 ));
             }
@@ -3011,12 +3011,12 @@ mod wave_function_unit_tests {
 
         nodes.push(Node::new(
             Uuid::new_v4().to_string(),
-            NodeStateProbability::get_equal_probability(vec![node_state_id.clone()]),
+            NodeStateProbability::get_equal_probability(&vec![node_state_id.clone()]),
             HashMap::new()
         ));
         nodes.push(Node::new(
             Uuid::new_v4().to_string(),
-            NodeStateProbability::get_equal_probability(vec![node_state_id.clone()]),
+            NodeStateProbability::get_equal_probability(&vec![node_state_id.clone()]),
             HashMap::new()
         ));
 
@@ -3053,7 +3053,7 @@ mod wave_function_unit_tests {
         let collapsed_wave_function = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse().unwrap();
         let loaded_collapsed_wave_function = loaded_wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<String>>(None).collapse().unwrap();
 
-        assert_eq!(collapsed_wave_function.node_state_per_node, loaded_collapsed_wave_function.node_state_per_node);
+        assert_eq!(collapsed_wave_function.node_state_per_node_id, loaded_collapsed_wave_function.node_state_per_node_id);
     }
 
     #[test]
@@ -3074,22 +3074,22 @@ mod wave_function_unit_tests {
 
             nodes.push(Node::new(
                 String::from("node_1"),
-                NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+                NodeStateProbability::get_equal_probability(&vec![one_node_state_id.clone(), two_node_state_id.clone()]),
                 HashMap::new()
             ));
             nodes.push(Node::new(
                 String::from("node_2"),
-                NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+                NodeStateProbability::get_equal_probability(&vec![one_node_state_id.clone(), two_node_state_id.clone()]),
                 HashMap::new()
             ));
             nodes.push(Node::new(
                 String::from("node_3"),
-                NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+                NodeStateProbability::get_equal_probability(&vec![one_node_state_id.clone(), two_node_state_id.clone()]),
                 HashMap::new()
             ));
             nodes.push(Node::new(
                 String::from("node_4"),
-                NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+                NodeStateProbability::get_equal_probability(&vec![one_node_state_id.clone(), two_node_state_id.clone()]),
                 HashMap::new()
             ));
 
@@ -3129,18 +3129,18 @@ mod wave_function_unit_tests {
 
             let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
 
-            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_1").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2").unwrap());
-            assert_eq!(collapsed_wave_function.node_state_per_node.get("node_1").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3").unwrap());
-            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_1").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4").unwrap());
-            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_2").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1").unwrap());
-            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_2").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3").unwrap());
-            assert_eq!(collapsed_wave_function.node_state_per_node.get("node_2").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4").unwrap());
-            assert_eq!(collapsed_wave_function.node_state_per_node.get("node_3").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1").unwrap());
-            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_3").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2").unwrap());
-            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_3").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4").unwrap());
-            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_4").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1").unwrap());
-            assert_eq!(collapsed_wave_function.node_state_per_node.get("node_4").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2").unwrap());
-            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_4").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node_id.get("node_1").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_2").unwrap());
+            assert_eq!(collapsed_wave_function.node_state_per_node_id.get("node_1").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_3").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node_id.get("node_1").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_4").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node_id.get("node_2").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_1").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node_id.get("node_2").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_3").unwrap());
+            assert_eq!(collapsed_wave_function.node_state_per_node_id.get("node_2").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_4").unwrap());
+            assert_eq!(collapsed_wave_function.node_state_per_node_id.get("node_3").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_1").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node_id.get("node_3").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_2").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node_id.get("node_3").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_4").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node_id.get("node_4").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_1").unwrap());
+            assert_eq!(collapsed_wave_function.node_state_per_node_id.get("node_4").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_2").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node_id.get("node_4").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_3").unwrap());
         }
     }
 
@@ -3162,22 +3162,22 @@ mod wave_function_unit_tests {
 
             nodes.push(Node::new(
                 String::from("node_1"),
-                NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+                NodeStateProbability::get_equal_probability(&vec![one_node_state_id.clone(), two_node_state_id.clone()]),
                 HashMap::new()
             ));
             nodes.push(Node::new(
                 String::from("node_2"),
-                NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+                NodeStateProbability::get_equal_probability(&vec![one_node_state_id.clone(), two_node_state_id.clone()]),
                 HashMap::new()
             ));
             nodes.push(Node::new(
                 String::from("node_3"),
-                NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+                NodeStateProbability::get_equal_probability(&vec![one_node_state_id.clone(), two_node_state_id.clone()]),
                 HashMap::new()
             ));
             nodes.push(Node::new(
                 String::from("node_4"),
-                NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+                NodeStateProbability::get_equal_probability(&vec![one_node_state_id.clone(), two_node_state_id.clone()]),
                 HashMap::new()
             ));
 
@@ -3217,18 +3217,18 @@ mod wave_function_unit_tests {
 
             let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
 
-            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_1").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2").unwrap());
-            assert_eq!(collapsed_wave_function.node_state_per_node.get("node_1").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3").unwrap());
-            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_1").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4").unwrap());
-            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_2").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1").unwrap());
-            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_2").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3").unwrap());
-            assert_eq!(collapsed_wave_function.node_state_per_node.get("node_2").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4").unwrap());
-            assert_eq!(collapsed_wave_function.node_state_per_node.get("node_3").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1").unwrap());
-            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_3").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2").unwrap());
-            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_3").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4").unwrap());
-            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_4").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1").unwrap());
-            assert_eq!(collapsed_wave_function.node_state_per_node.get("node_4").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2").unwrap());
-            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_4").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node_id.get("node_1").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_2").unwrap());
+            assert_eq!(collapsed_wave_function.node_state_per_node_id.get("node_1").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_3").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node_id.get("node_1").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_4").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node_id.get("node_2").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_1").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node_id.get("node_2").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_3").unwrap());
+            assert_eq!(collapsed_wave_function.node_state_per_node_id.get("node_2").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_4").unwrap());
+            assert_eq!(collapsed_wave_function.node_state_per_node_id.get("node_3").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_1").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node_id.get("node_3").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_2").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node_id.get("node_3").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_4").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node_id.get("node_4").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_1").unwrap());
+            assert_eq!(collapsed_wave_function.node_state_per_node_id.get("node_4").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_2").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node_id.get("node_4").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_3").unwrap());
         }
     }
 
@@ -3266,22 +3266,22 @@ mod wave_function_unit_tests {
 
             nodes.push(Node::new(
                 String::from("node_1a"),
-                NodeStateProbability::get_equal_probability(vec![two_node_state_id.clone()]),
+                NodeStateProbability::get_equal_probability(&vec![two_node_state_id.clone()]),
                 HashMap::new()
             ));
             nodes.push(Node::new(
                 String::from("node_2a"),
-                NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+                NodeStateProbability::get_equal_probability(&vec![one_node_state_id.clone(), two_node_state_id.clone()]),
                 HashMap::new()
             ));
             nodes.push(Node::new(
                 String::from("node_3a"),
-                NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+                NodeStateProbability::get_equal_probability(&vec![one_node_state_id.clone(), two_node_state_id.clone()]),
                 HashMap::new()
             ));
             nodes.push(Node::new(
                 String::from("node_4a"),
-                NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+                NodeStateProbability::get_equal_probability(&vec![one_node_state_id.clone(), two_node_state_id.clone()]),
                 HashMap::new()
             ));
 
@@ -3296,22 +3296,22 @@ mod wave_function_unit_tests {
 
             nodes.push(Node::new(
                 String::from("node_1b"),
-                NodeStateProbability::get_equal_probability(vec![two_node_state_id.clone()]),
+                NodeStateProbability::get_equal_probability(&vec![two_node_state_id.clone()]),
                 HashMap::new()
             ));
             nodes.push(Node::new(
                 String::from("node_2b"),
-                NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+                NodeStateProbability::get_equal_probability(&vec![one_node_state_id.clone(), two_node_state_id.clone()]),
                 HashMap::new()
             ));
             nodes.push(Node::new(
                 String::from("node_3b"),
-                NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+                NodeStateProbability::get_equal_probability(&vec![one_node_state_id.clone(), two_node_state_id.clone()]),
                 HashMap::new()
             ));
             nodes.push(Node::new(
                 String::from("node_4b"),
-                NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+                NodeStateProbability::get_equal_probability(&vec![one_node_state_id.clone(), two_node_state_id.clone()]),
                 HashMap::new()
             ));
 
@@ -3339,31 +3339,31 @@ mod wave_function_unit_tests {
 
             let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
 
-            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_1a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2a").unwrap());
-            assert_eq!(collapsed_wave_function.node_state_per_node.get("node_1a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3a").unwrap());
-            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_1a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4a").unwrap());
-            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_2a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1a").unwrap());
-            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_2a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3a").unwrap());
-            assert_eq!(collapsed_wave_function.node_state_per_node.get("node_2a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4a").unwrap());
-            assert_eq!(collapsed_wave_function.node_state_per_node.get("node_3a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1a").unwrap());
-            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_3a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2a").unwrap());
-            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_3a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4a").unwrap());
-            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_4a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1a").unwrap());
-            assert_eq!(collapsed_wave_function.node_state_per_node.get("node_4a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2a").unwrap());
-            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_4a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3a").unwrap());
-            assert_eq!(collapsed_wave_function.node_state_per_node.get("node_1a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1b").unwrap());
-            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_1b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2b").unwrap());
-            assert_eq!(collapsed_wave_function.node_state_per_node.get("node_1b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3b").unwrap());
-            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_1b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4b").unwrap());
-            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_2b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1b").unwrap());
-            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_2b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3b").unwrap());
-            assert_eq!(collapsed_wave_function.node_state_per_node.get("node_2b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4b").unwrap());
-            assert_eq!(collapsed_wave_function.node_state_per_node.get("node_3b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1b").unwrap());
-            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_3b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2b").unwrap());
-            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_3b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4b").unwrap());
-            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_4b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1b").unwrap());
-            assert_eq!(collapsed_wave_function.node_state_per_node.get("node_4b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2b").unwrap());
-            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_4b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3b").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node_id.get("node_1a").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_2a").unwrap());
+            assert_eq!(collapsed_wave_function.node_state_per_node_id.get("node_1a").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_3a").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node_id.get("node_1a").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_4a").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node_id.get("node_2a").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_1a").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node_id.get("node_2a").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_3a").unwrap());
+            assert_eq!(collapsed_wave_function.node_state_per_node_id.get("node_2a").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_4a").unwrap());
+            assert_eq!(collapsed_wave_function.node_state_per_node_id.get("node_3a").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_1a").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node_id.get("node_3a").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_2a").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node_id.get("node_3a").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_4a").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node_id.get("node_4a").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_1a").unwrap());
+            assert_eq!(collapsed_wave_function.node_state_per_node_id.get("node_4a").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_2a").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node_id.get("node_4a").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_3a").unwrap());
+            assert_eq!(collapsed_wave_function.node_state_per_node_id.get("node_1a").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_1b").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node_id.get("node_1b").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_2b").unwrap());
+            assert_eq!(collapsed_wave_function.node_state_per_node_id.get("node_1b").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_3b").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node_id.get("node_1b").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_4b").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node_id.get("node_2b").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_1b").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node_id.get("node_2b").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_3b").unwrap());
+            assert_eq!(collapsed_wave_function.node_state_per_node_id.get("node_2b").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_4b").unwrap());
+            assert_eq!(collapsed_wave_function.node_state_per_node_id.get("node_3b").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_1b").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node_id.get("node_3b").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_2b").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node_id.get("node_3b").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_4b").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node_id.get("node_4b").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_1b").unwrap());
+            assert_eq!(collapsed_wave_function.node_state_per_node_id.get("node_4b").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_2b").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node_id.get("node_4b").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_3b").unwrap());
         }
     }
 
@@ -3401,22 +3401,22 @@ mod wave_function_unit_tests {
 
             nodes.push(Node::new(
                 String::from("node_1a"),
-                NodeStateProbability::get_equal_probability(vec![two_node_state_id.clone()]),
+                NodeStateProbability::get_equal_probability(&vec![two_node_state_id.clone()]),
                 HashMap::new()
             ));
             nodes.push(Node::new(
                 String::from("node_2a"),
-                NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+                NodeStateProbability::get_equal_probability(&vec![one_node_state_id.clone(), two_node_state_id.clone()]),
                 HashMap::new()
             ));
             nodes.push(Node::new(
                 String::from("node_3a"),
-                NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+                NodeStateProbability::get_equal_probability(&vec![one_node_state_id.clone(), two_node_state_id.clone()]),
                 HashMap::new()
             ));
             nodes.push(Node::new(
                 String::from("node_4a"),
-                NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+                NodeStateProbability::get_equal_probability(&vec![one_node_state_id.clone(), two_node_state_id.clone()]),
                 HashMap::new()
             ));
 
@@ -3431,22 +3431,22 @@ mod wave_function_unit_tests {
 
             nodes.push(Node::new(
                 String::from("node_1b"),
-                NodeStateProbability::get_equal_probability(vec![two_node_state_id.clone()]),
+                NodeStateProbability::get_equal_probability(&vec![two_node_state_id.clone()]),
                 HashMap::new()
             ));
             nodes.push(Node::new(
                 String::from("node_2b"),
-                NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+                NodeStateProbability::get_equal_probability(&vec![one_node_state_id.clone(), two_node_state_id.clone()]),
                 HashMap::new()
             ));
             nodes.push(Node::new(
                 String::from("node_3b"),
-                NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+                NodeStateProbability::get_equal_probability(&vec![one_node_state_id.clone(), two_node_state_id.clone()]),
                 HashMap::new()
             ));
             nodes.push(Node::new(
                 String::from("node_4b"),
-                NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+                NodeStateProbability::get_equal_probability(&vec![one_node_state_id.clone(), two_node_state_id.clone()]),
                 HashMap::new()
             ));
 
@@ -3474,31 +3474,31 @@ mod wave_function_unit_tests {
 
             let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
 
-            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_1a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2a").unwrap());
-            assert_eq!(collapsed_wave_function.node_state_per_node.get("node_1a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3a").unwrap());
-            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_1a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4a").unwrap());
-            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_2a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1a").unwrap());
-            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_2a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3a").unwrap());
-            assert_eq!(collapsed_wave_function.node_state_per_node.get("node_2a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4a").unwrap());
-            assert_eq!(collapsed_wave_function.node_state_per_node.get("node_3a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1a").unwrap());
-            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_3a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2a").unwrap());
-            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_3a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4a").unwrap());
-            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_4a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1a").unwrap());
-            assert_eq!(collapsed_wave_function.node_state_per_node.get("node_4a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2a").unwrap());
-            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_4a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3a").unwrap());
-            assert_eq!(collapsed_wave_function.node_state_per_node.get("node_1a").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1b").unwrap());
-            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_1b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2b").unwrap());
-            assert_eq!(collapsed_wave_function.node_state_per_node.get("node_1b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3b").unwrap());
-            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_1b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4b").unwrap());
-            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_2b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1b").unwrap());
-            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_2b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3b").unwrap());
-            assert_eq!(collapsed_wave_function.node_state_per_node.get("node_2b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4b").unwrap());
-            assert_eq!(collapsed_wave_function.node_state_per_node.get("node_3b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1b").unwrap());
-            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_3b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2b").unwrap());
-            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_3b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_4b").unwrap());
-            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_4b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_1b").unwrap());
-            assert_eq!(collapsed_wave_function.node_state_per_node.get("node_4b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_2b").unwrap());
-            assert_ne!(collapsed_wave_function.node_state_per_node.get("node_4b").unwrap(), collapsed_wave_function.node_state_per_node.get("node_3b").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node_id.get("node_1a").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_2a").unwrap());
+            assert_eq!(collapsed_wave_function.node_state_per_node_id.get("node_1a").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_3a").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node_id.get("node_1a").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_4a").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node_id.get("node_2a").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_1a").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node_id.get("node_2a").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_3a").unwrap());
+            assert_eq!(collapsed_wave_function.node_state_per_node_id.get("node_2a").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_4a").unwrap());
+            assert_eq!(collapsed_wave_function.node_state_per_node_id.get("node_3a").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_1a").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node_id.get("node_3a").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_2a").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node_id.get("node_3a").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_4a").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node_id.get("node_4a").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_1a").unwrap());
+            assert_eq!(collapsed_wave_function.node_state_per_node_id.get("node_4a").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_2a").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node_id.get("node_4a").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_3a").unwrap());
+            assert_eq!(collapsed_wave_function.node_state_per_node_id.get("node_1a").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_1b").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node_id.get("node_1b").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_2b").unwrap());
+            assert_eq!(collapsed_wave_function.node_state_per_node_id.get("node_1b").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_3b").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node_id.get("node_1b").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_4b").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node_id.get("node_2b").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_1b").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node_id.get("node_2b").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_3b").unwrap());
+            assert_eq!(collapsed_wave_function.node_state_per_node_id.get("node_2b").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_4b").unwrap());
+            assert_eq!(collapsed_wave_function.node_state_per_node_id.get("node_3b").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_1b").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node_id.get("node_3b").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_2b").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node_id.get("node_3b").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_4b").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node_id.get("node_4b").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_1b").unwrap());
+            assert_eq!(collapsed_wave_function.node_state_per_node_id.get("node_4b").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_2b").unwrap());
+            assert_ne!(collapsed_wave_function.node_state_per_node_id.get("node_4b").unwrap(), collapsed_wave_function.node_state_per_node_id.get("node_3b").unwrap());
         }
     }
 
@@ -3521,22 +3521,22 @@ mod wave_function_unit_tests {
 
         nodes.push(Node::new(
             one_node_id.clone(),
-            NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+            NodeStateProbability::get_equal_probability(&vec![one_node_state_id.clone(), two_node_state_id.clone()]),
             HashMap::new()
         ));
         nodes.push(Node::new(
             two_node_id.clone(),
-            NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+            NodeStateProbability::get_equal_probability(&vec![one_node_state_id.clone(), two_node_state_id.clone()]),
             HashMap::new()
         ));
         nodes.push(Node::new(
             three_node_id.clone(),
-            NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+            NodeStateProbability::get_equal_probability(&vec![one_node_state_id.clone(), two_node_state_id.clone()]),
             HashMap::new()
         ));
         nodes.push(Node::new(
             four_node_id.clone(),
-            NodeStateProbability::get_equal_probability(vec![one_node_state_id.clone(), two_node_state_id.clone()]),
+            NodeStateProbability::get_equal_probability(&vec![one_node_state_id.clone(), two_node_state_id.clone()]),
             HashMap::new()
         ));
 
@@ -3603,10 +3603,10 @@ mod wave_function_unit_tests {
 
         let collapsed_wave_function = collapsed_wave_function_result.ok().unwrap();
 
-        assert_eq!(&one_node_state_id, collapsed_wave_function.node_state_per_node.get(&one_node_id).unwrap());
-        assert_eq!(&two_node_state_id, collapsed_wave_function.node_state_per_node.get(&two_node_id).unwrap());
-        assert_eq!(&two_node_state_id, collapsed_wave_function.node_state_per_node.get(&three_node_id).unwrap());
-        assert_eq!(&one_node_state_id, collapsed_wave_function.node_state_per_node.get(&four_node_id).unwrap());
+        assert_eq!(&one_node_state_id, collapsed_wave_function.node_state_per_node_id.get(&one_node_id).unwrap());
+        assert_eq!(&two_node_state_id, collapsed_wave_function.node_state_per_node_id.get(&two_node_id).unwrap());
+        assert_eq!(&two_node_state_id, collapsed_wave_function.node_state_per_node_id.get(&three_node_id).unwrap());
+        assert_eq!(&one_node_state_id, collapsed_wave_function.node_state_per_node_id.get(&four_node_id).unwrap());
     }
 }
 
