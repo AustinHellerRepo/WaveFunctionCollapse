@@ -124,19 +124,47 @@ pub trait HasProximity: Eq + Hash + Clone + std::fmt::Debug + Ord + Serialize + 
     fn get_proximity(&self, other: &Self) -> Proximity where Self: Sized;
 }
 
+pub enum SharedGroupState {
+    InSameGroup,
+    InDifferentGroup,
+}
+
+pub trait HasSharedGroup: Eq + Hash + Clone + std::fmt::Debug + Ord + Serialize + for<'de> Deserialize<'de> {
+    fn get_shared_group_state(&self, other: &Self) -> Option<SharedGroupState> where Self: Sized;
+}
+
 #[derive(std::fmt::Debug, Clone)]
 pub struct ProximityGraphNode<T: Clone> {
     proximity_graph_node_id: String,
     distance_per_proximity_graph_node_id: HashMap<String, f32>,
     tag: T,
+    group_id: Option<String>,
 }
 
 impl<T: Clone> ProximityGraphNode<T> {
-    pub fn new(proximity_graph_node_id: String, distance_per_proximity_graph_node_id: HashMap<String, f32>, tag: T) -> Self {
+    pub fn new(
+        proximity_graph_node_id: String,
+        distance_per_proximity_graph_node_id: HashMap<String, f32>,
+        tag: T,
+    ) -> Self {
         Self {
             proximity_graph_node_id,
             distance_per_proximity_graph_node_id,
             tag,
+            group_id: None,
+        }
+    }
+    pub fn new_in_group(
+        proximity_graph_node_id: String,
+        distance_per_proximity_graph_node_id: HashMap<String, f32>,
+        tag: T,
+        group_id: String,
+    ) -> Self {
+        Self {
+            proximity_graph_node_id,
+            distance_per_proximity_graph_node_id,
+            tag,
+            group_id: Some(group_id),
         }
     }
     pub fn get_id(&self) -> &String {
@@ -145,6 +173,19 @@ impl<T: Clone> ProximityGraphNode<T> {
     pub fn get_tag(&self) -> &T {
         &self.tag
     }
+    pub fn get_group_id(&self) -> &Option<String> {
+        &self.group_id
+    }
+}
+
+#[derive(std::fmt::Debug, Clone, Copy)]
+pub enum VarianceType {
+    // each range of acceptable TValue proximity is calculated by keeping the center set and expanding the practical width, allowing for other rings to overlap with this ring
+    // for example, imagine a Distance { center: 4.0, width: 1.0 } with a current variance of 1.0, this is equal to a Distance { center: 4.0, width: 5.0 }, making nodes that fit within -1.0 to 9.0 valid for these two TValue instances
+    ExpandRingsFromCenter,
+    // each range of acceptable TValue proximity is calcuated by scaling the center away from the origin and expanding the width by the same factor, allowing for rings to keep their lack of overlap with other rings
+    // for example, imagine a Distance { center: 4.0, width: 1.0 } with a current variance of 3.0, this is equal to a Distance { center: 12.0, width: 3.0 }, making nodes that fit within 9.0 and 15.0 valid for these TValue instances
+    ScaleRingsFromOrigin,
 }
 
 #[derive(std::fmt::Debug, Clone)]
@@ -155,13 +196,330 @@ pub enum ProximityGraphError {
 
 pub struct ProximityGraph<T: Clone> {
     nodes: Vec<ProximityGraphNode<T>>,
+    node_index_per_node_id: HashMap<String, usize>,
 }
 
 impl<T: Clone> ProximityGraph<T> {
     pub fn new(nodes: Vec<ProximityGraphNode<T>>) -> Self {
+        let node_index_per_node_id = {
+            let mut node_index_per_node_id = HashMap::with_capacity(nodes.len());
+            for (node_index, node) in nodes.iter().enumerate() {
+                node_index_per_node_id.insert(node.get_id().clone(), node_index);
+            }
+            node_index_per_node_id
+        };
         Self {
             nodes,
+            node_index_per_node_id,
         }
+    }
+    pub fn get_grouped_value_per_proximity_graph_node_id<TValue: HasProximity + HasSharedGroup>(&self, values: Vec<TValue>, maximum_acceptable_distance_variance_factor: f32, acceptable_distance_variance_factor_difference: f32) -> Result<HashMap<String, TValue>, ProximityGraphError> {
+
+        // iterate over the construction and collapsing of the wave function until the best solution is found
+        // first start with the maximum distance being acceptable to ensure that the values can collapse at all
+        // if they can collapse, then begin to binary-search for the optimal configuration by restricting what is an acceptable maximum proximity
+        //      ex: divide in half first, too low? then make it 75% of original maximum, still too low? make it between 75%-100%, etc.
+
+        let mut distance_variance_factor = 0.0;
+        let mut distance_variance_factor_minimum = 0.0;
+        let mut distance_variance_factor_maximum = 0.0;
+        let mut best_collapsed_wave_function = None;
+        let mut is_distance_variance_factor_acceptable = false;
+        let mut iterations = 0;
+        while best_collapsed_wave_function.is_none() || !is_distance_variance_factor_acceptable {
+            //{
+            //    let best_is_what = if best_collapsed_wave_function.is_some() {
+            //        "some"
+            //    }
+            //    else {
+            //        "none"
+            //    };
+            //    println!("best is {} from {} to {} while at {}", best_is_what, distance_variance_factor_minimum, distance_variance_factor_maximum, distance_variance_factor);
+            //}
+            let primary_node_state_ratio_per_node_state_id = {
+                let node_state_ids = values.iter()
+                    .map(|value| {
+                        NodeState::Primary {
+                            state: value.clone(),
+                        }
+                    })
+                    .collect::<Vec<NodeState<TValue>>>();
+                NodeStateProbability::get_equal_probability(&node_state_ids)
+            };
+
+            let (nodes, node_state_collections) = {
+                let mut nodes = Vec::new();
+                let mut node_state_collections = Vec::new();
+
+                // create primary nodes
+                for proximity_graph_node in self.nodes.iter() {
+                    // setup the NodeStateCollections per neighbor
+                    let mut node_state_collection_ids_per_neighbor_node_id: HashMap<String, Vec<String>> = HashMap::new();
+                    for (neighbor_proximity_graph_node_id, neighbor_distance) in proximity_graph_node.distance_per_proximity_graph_node_id.iter() {
+                        let neighbor_distance = *neighbor_distance;
+
+                        let mut node_state_collection_ids: Vec<String> = Vec::new();
+                        if &proximity_graph_node.proximity_graph_node_id != neighbor_proximity_graph_node_id {
+
+                            // we have guaranteed that there exists a neighbor node at this index
+                            let neighbor_proximity_graph_node = self.nodes.get(*self.node_index_per_node_id.get(neighbor_proximity_graph_node_id).unwrap()).unwrap();
+
+                            // collect up each node state
+                            for (current_value_index, current_value) in values.iter().enumerate() {
+                                let current_node_state = NodeState::Primary {
+                                    state: current_value.clone(),
+                                };
+                                let mut other_node_states = Vec::new();
+                                for other_value in values.iter() {
+                                    match current_value.get_proximity(other_value) {
+                                        Proximity::ExclusiveExistence => {
+                                            // do not add the current node state as being able to be in the same final result as this other node state
+                                            // for example, if only one unicorn (of three possible colors) can exist in the final result, then each unicorn has an exclusive existence between each other
+                                            // this is also a way of ensuring that only one instance of this state exists when get_proximity between two identical TValue return ExclusiveExistence
+                                        },
+                                        Proximity::SomeDistanceAway { distance } => {
+                                            let distance_variance = distance.center * distance_variance_factor;
+                                            let from_distance = distance.center - distance_variance - distance.width;
+                                            let to_distance = distance.center + distance_variance + distance.width;
+
+                                            //println!("checking that {} is between {} and {}", normalized_neighbor_distance, from_distance, to_distance);
+                                            if from_distance <= neighbor_distance && neighbor_distance <= to_distance {
+                                                // this neighbor is within range of being in this other state
+
+                                                match current_value.get_shared_group_state(other_value) {
+                                                    Some(shared_group_state) => {
+                                                        match shared_group_state {
+                                                            SharedGroupState::InSameGroup => {
+                                                                // the proximity_graph_node and the neighbor_proximity_graph_node must be in the same group
+                                                                if let (Some(proximity_graph_node_group_id), Some(neighbor_proximity_graph_node_group_id)) = (proximity_graph_node.get_group_id(), neighbor_proximity_graph_node.get_group_id()) {
+                                                                    if proximity_graph_node_group_id == neighbor_proximity_graph_node_group_id {
+                                                                        let other_node_state = NodeState::Primary {
+                                                                            state: other_value.clone(),
+                                                                        };
+                                                                        other_node_states.push(other_node_state);
+                                                                    }
+                                                                }
+                                                            },
+                                                            SharedGroupState::InDifferentGroup => {
+                                                                // the proximity_graph_node and the neighbor_proximity_graph_node must be in different groups
+                                                                if let (Some(proximity_graph_node_group_id), Some(neighbor_proximity_graph_node_group_id)) = (proximity_graph_node.get_group_id(), neighbor_proximity_graph_node.get_group_id()) {
+                                                                    if proximity_graph_node_group_id != neighbor_proximity_graph_node_group_id {
+                                                                        let other_node_state = NodeState::Primary {
+                                                                            state: other_value.clone(),
+                                                                        };
+                                                                        other_node_states.push(other_node_state);
+                                                                    }
+                                                                }
+                                                            },
+                                                        }
+                                                    },
+                                                    None => {
+                                                        let other_node_state = NodeState::Primary {
+                                                            state: other_value.clone(),
+                                                        };
+                                                        other_node_states.push(other_node_state);
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        Proximity::InAnotherDimensionEntirely => {
+                                            // this neighbor being in this other state has no affect on the current node's state
+                                            match current_value.get_shared_group_state(other_value) {
+                                                Some(shared_group_state) => {
+                                                    match shared_group_state {
+                                                        SharedGroupState::InSameGroup => {
+                                                            // the proximity_graph_node and the neighbor_proximity_graph_node must be in the same group
+                                                            if let (Some(proximity_graph_node_group_id), Some(neighbor_proximity_graph_node_group_id)) = (proximity_graph_node.get_group_id(), neighbor_proximity_graph_node.get_group_id()) {
+                                                                if proximity_graph_node_group_id == neighbor_proximity_graph_node_group_id {
+                                                                    let other_node_state = NodeState::Primary {
+                                                                        state: other_value.clone(),
+                                                                    };
+                                                                    other_node_states.push(other_node_state);
+                                                                }
+                                                            }
+                                                        },
+                                                        SharedGroupState::InDifferentGroup => {
+                                                            // the proximity_graph_node and the neighbor_proximity_graph_node must be in different groups
+                                                            if let (Some(proximity_graph_node_group_id), Some(neighbor_proximity_graph_node_group_id)) = (proximity_graph_node.get_group_id(), neighbor_proximity_graph_node.get_group_id()) {
+                                                                if proximity_graph_node_group_id != neighbor_proximity_graph_node_group_id {
+                                                                    let other_node_state = NodeState::Primary {
+                                                                        state: other_value.clone(),
+                                                                    };
+                                                                    other_node_states.push(other_node_state);
+                                                                }
+                                                            }
+                                                        },
+                                                    }
+                                                },
+                                                None => {
+                                                    let other_node_state = NodeState::Primary {
+                                                        state: other_value.clone(),
+                                                    };
+                                                    other_node_states.push(other_node_state);
+                                                }
+                                            }
+                                        },
+                                    }
+                                }
+
+                                // store the results
+                                let node_state_collection_id: String = format!("primary_{}_{}_{}", proximity_graph_node.proximity_graph_node_id, neighbor_proximity_graph_node_id, current_value_index);
+
+                                let node_state_collection = NodeStateCollection::new(
+                                    node_state_collection_id.clone(),
+                                    current_node_state,
+                                    other_node_states,
+                                );
+                                node_state_collections.push(node_state_collection);
+
+                                node_state_collection_ids.push(node_state_collection_id);
+                            }
+                        }
+
+                        let neighbor_node_id = format!("primary_{}", neighbor_proximity_graph_node_id);
+                        node_state_collection_ids_per_neighbor_node_id.insert(neighbor_node_id, node_state_collection_ids);
+                    }
+
+                    let node = Node::new(
+                        format!("primary_{}", proximity_graph_node.proximity_graph_node_id),
+                        primary_node_state_ratio_per_node_state_id.clone(),
+                        node_state_collection_ids_per_neighbor_node_id,
+                    );
+                    nodes.push(node);
+                }
+
+                // create secondary nodes
+                for (value_index, value) in values.iter().enumerate() {
+                    if let Proximity::ExclusiveExistence = value.get_proximity(&value) {
+                        // this value needs to only exist exactly once
+                        let secondary_node_state_ratio_per_node_state_id = {
+                            let mut node_states = Vec::new();
+                            for (node_index, _) in self.nodes.iter().enumerate() {
+                                node_states.push(
+                                    NodeState::Secondary {
+                                        node_index,
+                                        state: value.clone(),
+                                    }
+                                );
+                            };
+                            NodeStateProbability::get_equal_probability(&node_states)
+                        };
+                        let node_state_collection_ids_per_neighbor_node_id = {
+                            let mut node_state_collection_ids_per_neighbor_node_id = HashMap::new();
+
+                            // set the active primary node state
+
+                            for (proximity_graph_node_index, proximity_graph_node) in self.nodes.iter().enumerate() {
+                                let node_state_collection_id = format!("secondary_{}_{}", value_index, proximity_graph_node.proximity_graph_node_id);
+                                let node_state_collection = NodeStateCollection::new(
+                                    node_state_collection_id.clone(),
+                                    NodeState::Secondary {
+                                        node_index: proximity_graph_node_index,
+                                        state: value.clone(),
+                                    },
+                                    vec![NodeState::Primary {
+                                        state: value.clone(),
+                                    }],
+                                );
+                                node_state_collections.push(node_state_collection);
+                                let neighbor_node_id = format!("primary_{}", proximity_graph_node.proximity_graph_node_id);
+                                node_state_collection_ids_per_neighbor_node_id.insert(neighbor_node_id, vec![node_state_collection_id]);
+                            }
+
+                            node_state_collection_ids_per_neighbor_node_id
+
+                            // TODO consider migrating all state logic from primary and secondary layers into secondary layer only
+                        };
+                        let node = Node::new(
+                            format!("secondary_{}", value_index),
+                            secondary_node_state_ratio_per_node_state_id,
+                            node_state_collection_ids_per_neighbor_node_id,
+                        );
+                        nodes.push(node);
+                    }
+                }
+
+                // return results
+                (nodes, node_state_collections)
+            };
+
+            //println!("nodes: {}", nodes.len());
+            //println!("node_state_collections: {}", node_state_collections.len());
+
+            let wave_function = WaveFunction::new(nodes, node_state_collections);
+            let mut collapsable_wave_function = wave_function.get_collapsable_wave_function::<SequentialCollapsableWaveFunction<NodeState<TValue>>>(None);
+            match collapsable_wave_function.collapse() {
+                Ok(collapsed_wave_function) => {
+                    // store this as the best collapsed wave function
+                    best_collapsed_wave_function = Some(collapsed_wave_function);
+
+                    // we need to reduce the variances to better isolate an ideal solution
+                    distance_variance_factor_maximum = distance_variance_factor;
+                    distance_variance_factor = (distance_variance_factor_maximum + distance_variance_factor_minimum) * 0.5;
+
+                    if distance_variance_factor_maximum - distance_variance_factor_minimum <= acceptable_distance_variance_factor_difference {
+                        is_distance_variance_factor_acceptable = true;
+                        //println!("collapsed and found at ({}-{}) at {}", distance_variance_factor_minimum, distance_variance_factor_maximum, distance_variance_factor);
+                    }
+                    else {
+                        //println!("collapsed but {} - {} is not less than {}", distance_variance_factor_maximum, distance_variance_factor_minimum, acceptable_distance_variance_factor_difference);
+                    }
+                },
+                Err(_) => {
+                    // expand or retract the distance variance
+                    // if the distance variance is beyond some measure of the maximum value proximity versus the maximum node distance, return Err
+                    if distance_variance_factor_maximum == 0.0 {
+                        // if we haven't expanded yet, let's start at the maximum acceptable variance
+                        distance_variance_factor_maximum = maximum_acceptable_distance_variance_factor;
+                        distance_variance_factor = maximum_acceptable_distance_variance_factor;
+                    }
+                    else if distance_variance_factor_maximum == maximum_acceptable_distance_variance_factor {
+                        // if we just tried the maximum acceptable distance difference factor, we will never find an acceptable factor
+                        return Err(ProximityGraphError::FailedToMapValuesToNodesAtAnyDistance);
+                    }
+                    else {
+                        distance_variance_factor_minimum = distance_variance_factor;
+                        distance_variance_factor = (distance_variance_factor_maximum + distance_variance_factor_minimum) * 0.5;
+                    }
+
+                    if distance_variance_factor_maximum - distance_variance_factor_minimum <= acceptable_distance_variance_factor_difference {
+                        is_distance_variance_factor_acceptable = true;
+                        //println!("not collapsed and found at ({}-{}) at {}", distance_variance_factor_minimum, distance_variance_factor_maximum, distance_variance_factor);
+                    }
+                    else {
+                        //println!("not collapsed but {} - {} is not less than {}", distance_variance_factor_maximum, distance_variance_factor_minimum, acceptable_distance_variance_factor_difference);
+                    }
+                },
+            }
+
+            //return Err(ProximityGraphError::TestError);
+        
+            iterations += 1;
+            if iterations > 10 {
+                break;
+            }
+        }
+        
+        let best_collapsed_wave_function = best_collapsed_wave_function.expect("We should have already failed when both extremes were tested earlier in the logic.");
+        let mut value_per_proximity_graph_node_id = HashMap::new();
+        for (node_id, node_state) in best_collapsed_wave_function.node_state_per_node_id {
+            match node_state {
+                NodeState::Primary { state } => {
+                    if let Some(proximity_graph_node_id) = node_id.strip_prefix("primary_") {
+                        value_per_proximity_graph_node_id.insert(String::from(proximity_graph_node_id), state);
+                    }
+                    else {
+                        panic!("Unexpected non-primary node ID when node state is in a primary state.");
+                    }
+                },
+                NodeState::Secondary { state: _, node_index: _ } => {
+                    if let Some(_) = node_id.strip_prefix("primary_") {
+                        panic!("Unexpected secondary node state tied to a primary node.");
+                    }
+                },
+            }
+        }
+        Ok(value_per_proximity_graph_node_id)
     }
     pub fn get_value_per_proximity_graph_node_id<TValue: HasProximity>(&self, values: Vec<TValue>, maximum_acceptable_distance_variance_factor: f32, acceptable_distance_variance_factor_difference: f32) -> Result<HashMap<String, TValue>, ProximityGraphError> {
 
@@ -446,6 +804,7 @@ mod proximity_graph_tests {
                     proximity_graph_node_id: format!("node_{}_{}", i, j),
                     distance_per_proximity_graph_node_id,
                     tag: (i, j),
+                    group_id: None,
                 };
                 proximity_graph_nodes.push(proximity_graph_node);
             }
@@ -736,5 +1095,22 @@ mod proximity_graph_tests {
         let values = get_values(x * y);
         let error = proximity_graph.get_value_per_proximity_graph_node_id(values, maximum_acceptable_distance_variance_factor, acceptable_distance_variance_factor_difference);
         assert!(error.is_err());
+    }
+
+    #[ignore = "need to add group logic to IceCreamShop"]
+    #[test_case::test_case(5, 5, 0.0, 0.0)]
+    #[test_case::test_case(4, 4, 1.0, 0.1)]
+    #[test_case::test_case(3, 3, 2.0, 0.1)]
+    fn test_h2s7_icecream_shops_in_grid_in_groups(x: usize, y: usize, maximum_acceptable_distance_variance_factor: f32, acceptable_distance_variance_factor_difference: f32) {
+        let proximity_graph = get_x_by_y_grid_proximity_graph(x, y);
+        let values = get_values(x * y);
+        let value_per_proximity_graph_node_id = proximity_graph.get_value_per_proximity_graph_node_id(values, maximum_acceptable_distance_variance_factor, acceptable_distance_variance_factor_difference).expect("Failed to get value per proximity graph node ID.");
+        println_value_per_proximity_graph_node_id(x, y, &value_per_proximity_graph_node_id);
+        println!("{:?}", value_per_proximity_graph_node_id);
+        assert_eq!(IceCreamShop::AppleCream, *value_per_proximity_graph_node_id.get("node_0_0").unwrap());
+        assert_eq!(IceCreamShop::BananaBoost, *value_per_proximity_graph_node_id.get(format!("node_{}_0", x - 1).as_str()).unwrap());
+        assert_eq!(IceCreamShop::CaramelJuice, *value_per_proximity_graph_node_id.get(format!("node_{}_{}", x - 1, y - 1).as_str()).unwrap());
+        assert_eq!(IceCreamShop::DarkDestiny, *value_per_proximity_graph_node_id.get("node_0_1").unwrap());
+        assert_eq!(IceCreamShop::EternalJoy, *value_per_proximity_graph_node_id.get(format!("node_0_{}", y - 1).as_str()).unwrap());
     }
 }
