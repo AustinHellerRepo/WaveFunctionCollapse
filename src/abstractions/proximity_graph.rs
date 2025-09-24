@@ -765,7 +765,7 @@ impl<T: Clone> ProximityGraph<T> {
 }
 
 #[cfg(test)]
-mod proximity_graph_tests {
+mod ungrouped_proximity_graph_tests {
     // TODO create unit tests
 
     use std::collections::HashMap;
@@ -871,7 +871,7 @@ mod proximity_graph_tests {
         }
     }
 
-    #[derive(Clone, std::fmt::Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+    #[derive(Clone, Copy, std::fmt::Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
     enum IceCreamShop {
         AppleCream,
         BananaBoost,
@@ -1096,21 +1096,242 @@ mod proximity_graph_tests {
         let error = proximity_graph.get_value_per_proximity_graph_node_id(values, maximum_acceptable_distance_variance_factor, acceptable_distance_variance_factor_difference);
         assert!(error.is_err());
     }
+}
 
-    #[ignore = "need to add group logic to IceCreamShop"]
-    #[test_case::test_case(5, 5, 0.0, 0.0)]
-    #[test_case::test_case(4, 4, 1.0, 0.1)]
+#[cfg(test)]
+mod grouped_proximity_graph_tests {
+    // TODO create unit tests
+
+    use std::collections::HashMap;
+
+    use serde::{Deserialize, Serialize};
+
+    use crate::abstractions::proximity_graph::{HasSharedGroup, SharedGroupState};
+
+    use super::{Distance, HasProximity, Proximity, ProximityGraph, ProximityGraphNode};
+
+    fn get_x_by_y_grid_proximity_graph(x: usize, y: usize) -> ProximityGraph<(usize, usize)> {
+        let mut proximity_graph_nodes = Vec::new();
+        for i in 0..x {
+            for j in 0..y {
+                let mut distance_per_proximity_graph_node_id = HashMap::new();
+                for i_other in 0..x {
+                    for j_other in 0..y {
+                        if i != i_other || j != j_other {
+                            let other_proximity_graph_node_id = format!("node_{}_{}", i_other, j_other);
+                            let distance = (
+                                if i < i_other {
+                                    i_other - i
+                                }
+                                else {
+                                    i - i_other
+                                } + if j < j_other {
+                                    j_other - j
+                                }
+                                else {
+                                    j - j_other
+                                }
+                            ) as f32;
+                            distance_per_proximity_graph_node_id.insert(other_proximity_graph_node_id, distance);
+                        }
+                    }
+                }
+                let square_group_index = (i / 2) + ((x as f32) / 2.0).ceil() as usize * (j / 2);
+                print!("{}", square_group_index);
+                let proximity_graph_node = ProximityGraphNode {
+                    proximity_graph_node_id: format!("node_{}_{}", i, j),
+                    distance_per_proximity_graph_node_id,
+                    tag: (i, j),
+                    group_id: Some(format!("group_{}", square_group_index)),
+                };
+                proximity_graph_nodes.push(proximity_graph_node);
+            }
+            println!();
+        }
+        ProximityGraph::new(proximity_graph_nodes)
+    }
+
+    fn get_values(total_values: usize) -> Vec<Family> {
+        let mut values = Vec::with_capacity(total_values);
+        for index in 0..total_values {
+            match index {
+                0 => values.push(Family::Alice),
+                1 => values.push(Family::Bob),
+                2 => values.push(Family::Charlotte),
+                3 => values.push(Family::Daniel),
+                4 => values.push(Family::Emma),
+                5 => values.push(Family::Felix),
+                6 => values.push(Family::Grace),
+                7 => values.push(Family::Henry),
+                8 => values.push(Family::Isabella),
+                9 => values.push(Family::James),
+                _ => values.push(Family::None),
+            }
+        }
+        values
+    }
+
+    fn println_value_per_proximity_graph_node_id(x: usize, y: usize, value_per_proximity_graph_node_id: &HashMap<String, Family>) {
+        let mut character_per_y_per_x = HashMap::new();
+        for i in 0..x {
+            let mut character_per_y = HashMap::new();
+            for j in 0..y {
+                character_per_y.insert(j, None);
+            }
+            character_per_y_per_x.insert(i, character_per_y);
+        }
+        for (proximity_graph_node_id, family) in value_per_proximity_graph_node_id.iter() {
+            let x_and_y: Vec<&str> = proximity_graph_node_id.strip_prefix("node_")
+                .unwrap()
+                .split('_')
+                .collect();
+            let x: usize = x_and_y[0].parse().unwrap();
+            let y: usize = x_and_y[1].parse().unwrap();
+            let character = match family {
+                Family::Alice => "A",
+                Family::Bob => "B",
+                Family::Charlotte => "C",
+                Family::Daniel => "D",
+                Family::Emma => "E",
+                Family::Felix => "F",
+                Family::Grace => "G",
+                Family::Henry => "H",
+                Family::Isabella => "I",
+                Family::James => "J",
+                Family::None => "_",
+            };
+            *character_per_y_per_x.get_mut(&x)
+                .unwrap()
+                .get_mut(&y)
+                .unwrap() = Some(character);
+        }
+
+        for j in 0..y {
+            let mut line = String::new();
+            for i in 0..x {
+                let character = character_per_y_per_x.get(&i)
+                    .unwrap()
+                    .get(&j)
+                    .unwrap()
+                    .unwrap();
+                line.push_str(character);
+            }
+            println!("{}", line);
+        }
+    }
+
+    #[derive(Clone, Copy, std::fmt::Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+    enum Family {
+        Alice,
+        Bob,
+        Charlotte,
+        Daniel,
+        Emma,
+        Felix,
+        Grace,
+        Henry,
+        Isabella,
+        James,
+        None,
+    }
+
+    impl HasProximity for Family {
+        fn get_proximity(&self, other: &Self) -> Proximity where Self: Sized {
+            if matches!(self, Family::None) || matches!(other, Family::None) {
+                return Proximity::InAnotherDimensionEntirely;
+            }
+            if self == other {
+                return Proximity::ExclusiveExistence;
+            }
+            
+            let index = |member: &Family| -> usize {
+                match member {
+                    Family::Alice => 0,
+                    Family::Bob => 1,
+                    Family::Charlotte => 2,
+                    Family::Daniel => 3,
+                    Family::Emma => 4,
+                    Family::Felix => 5,
+                    Family::Grace => 6,
+                    Family::Henry => 7,
+                    Family::Isabella => 8,
+                    Family::James => 9,
+                    Family::None => panic!("Unexpected Family::None.")
+                }
+            };
+
+            let center = (index(self) as isize - index(other) as isize).abs() as f32;
+
+            Proximity::SomeDistanceAway {
+                distance: Distance {
+                    center,
+                    width: 0.0,
+                },
+            }
+        }
+    }
+
+    impl HasSharedGroup for Family {
+        fn get_shared_group_state(&self, other: &Self) -> Option<SharedGroupState> where Self: Sized {
+            let family_members = [*self, *other];
+            if family_members.contains(&Family::Alice) && family_members.contains(&Family::James) {
+                Some(SharedGroupState::InSameGroup)
+            }
+            else if family_members.contains(&Family::Emma) && family_members.contains(&Family::Felix) {
+                Some(SharedGroupState::InDifferentGroup)
+            }
+            else {
+                None
+            }
+        }
+    }
+
+    #[test]
+    fn test_a6b5_get_x_by_y_grid_proximity_graph() {
+        let proximity_graph = get_x_by_y_grid_proximity_graph(2, 2);
+        assert_eq!(4, proximity_graph.nodes.len());
+        for index in 0..4 {
+            assert_eq!(3, proximity_graph.nodes[index].distance_per_proximity_graph_node_id.keys().len());
+        }
+        println!("{:?}", proximity_graph.nodes);
+    }
+
+    #[test_case::test_case(5, 5, 2.0, 1.0)]
+    #[test_case::test_case(4, 4, 2.0, 0.1)]
     #[test_case::test_case(3, 3, 2.0, 0.1)]
-    fn test_h2s7_icecream_shops_in_grid_in_groups(x: usize, y: usize, maximum_acceptable_distance_variance_factor: f32, acceptable_distance_variance_factor_difference: f32) {
+    fn test_b9c4_icecream_shops_in_grid(x: usize, y: usize, maximum_acceptable_distance_variance_factor: f32, acceptable_distance_variance_factor_difference: f32) {
         let proximity_graph = get_x_by_y_grid_proximity_graph(x, y);
         let values = get_values(x * y);
-        let value_per_proximity_graph_node_id = proximity_graph.get_value_per_proximity_graph_node_id(values, maximum_acceptable_distance_variance_factor, acceptable_distance_variance_factor_difference).expect("Failed to get value per proximity graph node ID.");
+        let value_per_proximity_graph_node_id = proximity_graph.get_grouped_value_per_proximity_graph_node_id(values, maximum_acceptable_distance_variance_factor, acceptable_distance_variance_factor_difference).expect("Failed to get value per proximity graph node ID.");
         println_value_per_proximity_graph_node_id(x, y, &value_per_proximity_graph_node_id);
         println!("{:?}", value_per_proximity_graph_node_id);
-        assert_eq!(IceCreamShop::AppleCream, *value_per_proximity_graph_node_id.get("node_0_0").unwrap());
-        assert_eq!(IceCreamShop::BananaBoost, *value_per_proximity_graph_node_id.get(format!("node_{}_0", x - 1).as_str()).unwrap());
-        assert_eq!(IceCreamShop::CaramelJuice, *value_per_proximity_graph_node_id.get(format!("node_{}_{}", x - 1, y - 1).as_str()).unwrap());
-        assert_eq!(IceCreamShop::DarkDestiny, *value_per_proximity_graph_node_id.get("node_0_1").unwrap());
-        assert_eq!(IceCreamShop::EternalJoy, *value_per_proximity_graph_node_id.get(format!("node_0_{}", y - 1).as_str()).unwrap());
+        //assert_eq!(IceCreamShop::AppleCream, *value_per_proximity_graph_node_id.get("node_0_0").unwrap());
+        //assert_eq!(IceCreamShop::BananaBoost, *value_per_proximity_graph_node_id.get(format!("node_{}_0", x - 1).as_str()).unwrap());
+        //assert_eq!(IceCreamShop::CaramelJuice, *value_per_proximity_graph_node_id.get(format!("node_{}_{}", x - 1, y - 1).as_str()).unwrap());
+        //assert_eq!(IceCreamShop::DarkDestiny, *value_per_proximity_graph_node_id.get("node_0_1").unwrap());
+        //assert_eq!(IceCreamShop::EternalJoy, *value_per_proximity_graph_node_id.get(format!("node_0_{}", y - 1).as_str()).unwrap());
+    }
+
+    #[test_case::test_case(6, 6, 0.0, 0.0)]
+    fn test_c8d1_icecream_shops_in_grid(x: usize, y: usize, maximum_acceptable_distance_variance_factor: f32, acceptable_distance_variance_factor_difference: f32) {
+        let proximity_graph = get_x_by_y_grid_proximity_graph(x, y);
+        let values = get_values(x * y);
+        let value_per_proximity_graph_node_id = proximity_graph.get_grouped_value_per_proximity_graph_node_id(values, maximum_acceptable_distance_variance_factor, acceptable_distance_variance_factor_difference).expect("Failed to get value per proximity graph node ID.");
+        println_value_per_proximity_graph_node_id(x, y, &value_per_proximity_graph_node_id);
+        println!("{:?}", value_per_proximity_graph_node_id);
+        //assert_eq!(IceCreamShop::AppleCream, *value_per_proximity_graph_node_id.get("node_0_0").unwrap());
+        //assert_eq!(IceCreamShop::BananaBoost, *value_per_proximity_graph_node_id.get("node_4_0").unwrap());
+        //assert_eq!(IceCreamShop::CaramelJuice, *value_per_proximity_graph_node_id.get("node_4_4").unwrap());
+        //assert_eq!(IceCreamShop::DarkDestiny, *value_per_proximity_graph_node_id.get("node_0_1").unwrap());
+        //assert_eq!(IceCreamShop::EternalJoy, *value_per_proximity_graph_node_id.get("node_0_4").unwrap());
+    }
+
+    #[test_case::test_case(4, 4, 0.5, 0.1)]
+    #[test_case::test_case(3, 3, 1.0, 0.1)]
+    fn test_d4e3_icecream_shops_in_grid(x: usize, y: usize, maximum_acceptable_distance_variance_factor: f32, acceptable_distance_variance_factor_difference: f32) {
+        let proximity_graph = get_x_by_y_grid_proximity_graph(x, y);
+        let values = get_values(x * y);
+        let error = proximity_graph.get_grouped_value_per_proximity_graph_node_id(values, maximum_acceptable_distance_variance_factor, acceptable_distance_variance_factor_difference);
+        assert!(error.is_err());
     }
 }
