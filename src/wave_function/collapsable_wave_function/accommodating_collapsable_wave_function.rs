@@ -1,339 +1,285 @@
-use std::collections::HashSet;
-use std::marker::PhantomData;
-use std::{cell::RefCell, rc::Rc, collections::HashMap};
+use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use bitvec::vec::BitVec;
 use super::collapsable_wave_function::{CollapsableWaveFunction, CollapsableNode, CollapsedNodeState, CollapsedWaveFunction};
 
-/// This struct represents a CollapsableWaveFunction that picks a random node, tries to get each parent to accommodate to the current state of the random node, repeating until all nodes are unrestricted. This is best for finding solutions when the condition problem has many possible solutions and you want a more random solution. If there are very few solutions, the wave function is uncollapsable by design, or there are certain types of cycles in the graph, this algorithm with perform poorly or never complete.
 pub struct AccommodatingCollapsableWaveFunction<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> {
-    collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a, TNodeState>>>>,
-    collapsable_node_per_id: HashMap<&'a str, Rc<RefCell<CollapsableNode<'a, TNodeState>>>>,
-    accommodate_node_ids: Vec<&'a str>,
-    accommodate_node_ids_length: usize,
-    accommodate_node_ids_index: usize,
+    collapsable_nodes: Vec<CollapsableNode<'a, TNodeState>>,
+    accommodate_node_indices: Vec<usize>,
+    accommodate_node_indices_length: usize,
+    accommodate_node_indices_index: usize,
     accommodated_total: usize,
-    impacted_node_ids: HashSet<&'a str>,
-    random_instance: Rc<RefCell<fastrand::Rng>>,
-    node_state_type: PhantomData<TNodeState>
+    impacted_node_indices: HashSet<usize>,
+    random_instance: fastrand::Rng,
+}
+
+fn collect_masks_from_node<T: Eq + Hash + Clone + std::fmt::Debug + Ord>(
+    nodes: &[CollapsableNode<'_, T>],
+    node_index: usize,
+) -> Vec<(usize, BitVec)> {
+    let node = &nodes[node_index];
+    let mut m = Vec::new();
+    if let Some(state) = node.node_state_indexed_view.get() {
+        if let Some(mask_map) = node.mask_per_neighbor_per_state.get(state) {
+            for &neighbor_index in &node.neighbor_node_indices {
+                if let Some(mask) = mask_map.get(&neighbor_index) {
+                    m.push((neighbor_index, mask.clone()));
+                }
+            }
+        }
+    }
+    m
+}
+
+fn collect_masks_for_state<T: Eq + Hash + Clone + std::fmt::Debug + Ord>(
+    nodes: &[CollapsableNode<'_, T>],
+    node_index: usize,
+    state: &T,
+) -> Vec<(usize, BitVec)> {
+    let node = &nodes[node_index];
+    let mut m = Vec::new();
+    if let Some(mask_map) = node.mask_per_neighbor_per_state.get(state) {
+        for &neighbor_index in &node.neighbor_node_indices {
+            if let Some(mask) = mask_map.get(&neighbor_index) {
+                m.push((neighbor_index, mask.clone()));
+            }
+        }
+    }
+    m
+}
+
+/// Check if the parent at parent_index, when in the given state, would restrict the current node
+/// Returns the mask if one exists, None otherwise
+fn get_restricting_mask_from_parent_to_current<T: Eq + Hash + Clone + std::fmt::Debug + Ord>(
+    nodes: &[CollapsableNode<'_, T>],
+    parent_index: usize,
+    current_index: usize,
+    parent_state: &T,
+) -> Option<BitVec> {
+    let parent = &nodes[parent_index];
+    if let Some(mask_map) = parent.mask_per_neighbor_per_state.get(parent_state) {
+        mask_map.get(&current_index).cloned()
+    } else {
+        None
+    }
 }
 
 impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingCollapsableWaveFunction<'a, TNodeState> {
     fn initialize_nodes(&mut self) -> Result<Vec<CollapsedNodeState<TNodeState>>, String> {
-
-        // initialize each collapsable node to its first (random) state, storing them for the return
-        // alter masks for every collapsable node to its neighbors
-        // initialize the collapsable_nodes vector
-
-        let mut initial_node_states: Vec<CollapsedNodeState<TNodeState>> = Vec::new();
-        for wrapped_collapsable_node in self.collapsable_nodes.iter() {
-            let mut collapsable_node = wrapped_collapsable_node.borrow_mut();
-            if !collapsable_node.node_state_indexed_view.try_move_next() {
+        let mut initial = Vec::new();
+        for (idx, node) in self.collapsable_nodes.iter_mut().enumerate() {
+            if !node.node_state_indexed_view.try_move_next() {
                 return Err(String::from("Cannot collapse wave function."));
             }
-            
-            self.accommodate_node_ids.push(collapsable_node.id);
-            let node_state = collapsable_node.node_state_indexed_view.get().unwrap();
-            let collapsed_node_state: CollapsedNodeState<TNodeState> = CollapsedNodeState {
-                node_id: String::from(collapsable_node.id),
-                node_state_id: Some((*node_state).clone())
-            };
-            initial_node_states.push(collapsed_node_state);
+            self.accommodate_node_indices.push(idx);
+            let state = node.node_state_indexed_view.get().unwrap();
+            initial.push(CollapsedNodeState {
+                node_id: String::from(node.id),
+                node_state_id: Some((*state).clone()),
+            });
         }
-        self.accommodate_node_ids_length = self.accommodate_node_ids.len();
-        self.accommodated_total = self.accommodate_node_ids_length;
+        self.accommodate_node_indices_length = self.accommodate_node_indices.len();
+        self.accommodated_total = self.accommodate_node_indices_length;
 
-        for wrapped_collapsable_node in self.collapsable_nodes.iter() {
-            let collapsable_node = wrapped_collapsable_node.borrow();
-            let node_state = collapsable_node.node_state_indexed_view.get().unwrap();
-            let neighbor_node_ids: &Vec<&str> = &collapsable_node.neighbor_node_ids;
-            let mask_per_neighbor_per_state: &HashMap<&TNodeState, HashMap<&str, BitVec>> = &collapsable_node.mask_per_neighbor_per_state;
-            if let Some(mask_per_neighbor) = mask_per_neighbor_per_state.get(node_state) {
-                for neighbor_node_id in neighbor_node_ids.iter() {
-                    if mask_per_neighbor.contains_key(neighbor_node_id) {
-                        let wrapped_neighbor_collapsable_node = self.collapsable_node_per_id.get(neighbor_node_id).unwrap();
-                        let mut neighbor_collapsable_node = wrapped_neighbor_collapsable_node.borrow_mut();
-                        //debug!("looking for mask from parent {:?} to child {:?}.", collapsable_node.id, neighbor_node_id);
-                        //debug!("mask_per_neighbor: {:?}", mask_per_neighbor);
-                        let mask = mask_per_neighbor.get(neighbor_node_id).unwrap();
-                        neighbor_collapsable_node.add_mask(mask);
-                        debug!("adding mask to {:?} when in initialize_nodes", neighbor_node_id);
-                    }
-                }
-            }
+        let mut all_masks = Vec::new();
+        for idx in 0..self.collapsable_nodes.len() {
+            all_masks.extend(collect_masks_from_node(&self.collapsable_nodes, idx));
         }
-
-        Ok(initial_node_states)
+        for (target, mask) in all_masks {
+            self.collapsable_nodes[target].add_mask(&mask);
+        }
+        Ok(initial)
     }
+
     fn is_fully_collapsed(&self) -> bool {
-
-        // returns if the temp_recently_accommodated_nodes is empty
-
         self.accommodated_total == 0
     }
+
     fn prepare_nodes_for_iteration(&mut self) {
-
-        // shuffle collapsable nodes
-        // initialize pointer to first element of collapsable_nodes
-
-        debug!("prior to being prepared: {:?}", self.accommodate_node_ids);
-
-        self.accommodate_node_ids_index = 0;
-        self.random_instance.borrow_mut().shuffle(self.accommodate_node_ids.as_mut_slice());
+        self.accommodate_node_indices_index = 0;
+        self.random_instance.shuffle(&mut self.accommodate_node_indices);
         self.accommodated_total = 0;
-        self.impacted_node_ids.clear();
-     
-        debug!("after being prepared: {:?}", self.accommodate_node_ids);
+        self.impacted_node_indices.clear();
     }
+
     fn is_done_accommodating_nodes(&self) -> bool {
-
-        // returns if pointer is outside the bounds of the collapsable_nodes
-
-        self.accommodate_node_ids_index == self.accommodate_node_ids_length
+        self.accommodate_node_indices_index == self.accommodate_node_indices_length
     }
+
     fn is_current_node_in_conflict(&mut self) -> bool {
+        let ci = self.accommodate_node_indices[self.accommodate_node_indices_index];
+        let node = &self.collapsable_nodes[ci];
+        let mut conflict = node.node_state_indexed_view.is_current_state_restricted();
 
-        // returns if the current state of the current node is restricted and not yet impacted
-        // increment pointer if false
-
-        let current_collapsable_node_id: &str = self.accommodate_node_ids[self.accommodate_node_ids_index];
-        let wrapped_current_collapsable_node = self.collapsable_node_per_id.get(current_collapsable_node_id).unwrap();
-        let current_collapsable_node = wrapped_current_collapsable_node.borrow();
-        let mut is_current_collapsable_node_in_conflict = current_collapsable_node.node_state_indexed_view.is_current_state_restricted();
-
-        if self.impacted_node_ids.contains(current_collapsable_node_id) {
-            is_current_collapsable_node_in_conflict = false;
-        }
-        else {
-            for parent_neighbor_node_id in current_collapsable_node.parent_neighbor_node_ids.iter() {
-                if self.impacted_node_ids.contains(parent_neighbor_node_id) {
-                    is_current_collapsable_node_in_conflict = false;
+        if self.impacted_node_indices.contains(&ci) {
+            conflict = false;
+        } else {
+            for &pi in &node.parent_neighbor_node_indices {
+                if self.impacted_node_indices.contains(&pi) {
+                    conflict = false;
                     break;
                 }
             }
         }
 
-        if !is_current_collapsable_node_in_conflict {
-            self.accommodate_node_ids_index += 1;
-            debug!("node is not in conflict: {:?}", current_collapsable_node_id);
+        if !conflict {
+            self.accommodate_node_indices_index += 1;
         }
-        else {
-            debug!("node is in conflict: {:?}", current_collapsable_node_id);
-        }
-
-        is_current_collapsable_node_in_conflict
+        conflict
     }
+
     fn accommodate_current_node(&mut self) -> Vec<CollapsedNodeState<TNodeState>> {
+        let mut changed_states = Vec::new();
+        let mut state_changes: Vec<(usize, TNodeState, TNodeState, String)> = Vec::new();
 
-        // accommodate this collapsable node, storing the node states for the return
-        // alter mask for neighbors
-        // cache impacted nodes
+        let current_index = self.accommodate_node_indices[self.accommodate_node_indices_index];
+        self.impacted_node_indices.insert(current_index);
 
-        // NOTE: resetting the indexed_view for each accommodating parent significantly reduces the performance of this algorithm
+        // Collect parent indices first
+        let parent_indices: Vec<usize> = self.collapsable_nodes[current_index].parent_neighbor_node_indices.clone();
 
-        let mut changed_parent_node_states: Vec<CollapsedNodeState<TNodeState>> = Vec::new();
-        let mut to_node_state_and_from_node_state_tuple_per_parent_node_id: HashMap<&str, (&TNodeState, &TNodeState)> = HashMap::new();
+        for &parent_index in &parent_indices {
+            self.impacted_node_indices.insert(parent_index);
 
-        // try to get each parent neighbor node to accommodate the current node
-        {
-            let current_collapsable_node_id: &str = self.accommodate_node_ids[self.accommodate_node_ids_index];
-            let wrapped_current_collapsable_node = self.collapsable_node_per_id.get(current_collapsable_node_id).unwrap();
-            let current_collapsable_node = wrapped_current_collapsable_node.borrow();
+            // Read original state and id (owned copies)
+            let original_state: TNodeState = (*self.collapsable_nodes[parent_index].node_state_indexed_view.get().unwrap()).clone();
+            let parent_id = String::from(self.collapsable_nodes[parent_index].id);
 
-            self.impacted_node_ids.insert(current_collapsable_node_id);
+            let mut current_state = original_state.clone();
+            let mut is_restrictive = true;
 
-            // accommodate by making each parent try to move to a good next state
-            for parent_neighbor_node_id in current_collapsable_node.parent_neighbor_node_ids.iter() {
-                self.impacted_node_ids.insert(parent_neighbor_node_id);
+            while is_restrictive {
+                // Get the mask from parent@current_state targeting current_index (owned clone)
+                let restricting_mask = get_restricting_mask_from_parent_to_current(
+                    &self.collapsable_nodes,
+                    parent_index,
+                    current_index,
+                    &current_state,
+                );
 
-                let wrapped_parent_neighbor_node = self.collapsable_node_per_id.get(parent_neighbor_node_id).unwrap();
-                let mut parent_neighbor_node = wrapped_parent_neighbor_node.borrow_mut();
-                let original_node_state = *parent_neighbor_node.node_state_indexed_view.get().unwrap();
-                let mut current_node_state = original_node_state;
-                let mut is_current_node_state_restrictive = true;
-                while is_current_node_state_restrictive {
-                    let is_current_mask_from_parent_restrictive: bool = if parent_neighbor_node.mask_per_neighbor_per_state.contains_key(&current_node_state) {
-                        let mask_per_neighbor = parent_neighbor_node.mask_per_neighbor_per_state.get(&current_node_state).unwrap();
-                        if let Some(mask) = mask_per_neighbor.get(current_collapsable_node_id) {
-                            current_collapsable_node.is_mask_restrictive_to_current_state(mask)
-                        }
-                        else {
-                            false
+                let is_this_restrictive = match restricting_mask {
+                    Some(ref mask) => {
+                        // Check if mask restricts current node — need to read current node state
+                        let current_mask_data = {
+                            let cn = &self.collapsable_nodes[current_index];
+                            cn.node_state_indexed_view.is_mask_restrictive_to_current_state(mask)
+                        };
+                        current_mask_data
+                    }
+                    None => false,
+                };
+
+                if !is_this_restrictive {
+                    is_restrictive = false;
+                    // Move parent to current_state
+                    {
+                        let parent = &mut self.collapsable_nodes[parent_index];
+                        loop {
+                            let cs = parent.node_state_indexed_view.get().unwrap();
+                            if **cs == current_state {
+                                break;
+                            }
+                            parent.node_state_indexed_view.move_next();
                         }
                     }
-                    else {
-                        false
-                    };
-                    if !is_current_mask_from_parent_restrictive {
-                        debug!("found unrestricted mask (or no mask) for neighbor {:?}", parent_neighbor_node_id);
-                        is_current_node_state_restrictive = false;  // leave the while loop for this parent neighbor node
 
-                        if current_node_state != original_node_state {
-                            debug!("the node state had to change to {:?}", current_node_state);
-
-                            // store the changed node state
-                            changed_parent_node_states.push(CollapsedNodeState {
-                                node_id: String::from(*parent_neighbor_node_id),
-                                node_state_id: Some(current_node_state.clone())
-                            });
-                            
-                            to_node_state_and_from_node_state_tuple_per_parent_node_id.insert(parent_neighbor_node_id, (original_node_state, current_node_state));
-                        }
-                        else {
-                            debug!("the node state was already good at {:?}", current_node_state);
-                        }
+                    if current_state != original_state {
+                        changed_states.push(CollapsedNodeState {
+                            node_id: parent_id.clone(),
+                            node_state_id: Some(current_state.clone()),
+                        });
+                        state_changes.push((parent_index, original_state.clone(), current_state.clone(), parent_id.clone()));
                     }
-                    else {
-                        parent_neighbor_node.node_state_indexed_view.move_next();
-                        let next_node_state = *parent_neighbor_node.node_state_indexed_view.get().unwrap();
-                        if next_node_state == original_node_state {
-                            // unable to accommodate the current collapsable node
-                            debug!("Unable to accommodate the current collapsable node {:?} at state {:?}", current_collapsable_node_id, current_collapsable_node.node_state_indexed_view.get().unwrap());
-                            break;
-                        }
-                        current_node_state = next_node_state;
+                } else {
+                    {
+                        let parent = &mut self.collapsable_nodes[parent_index];
+                        parent.node_state_indexed_view.move_next();
                     }
+                    let next_state: TNodeState = (*self.collapsable_nodes[parent_index].node_state_indexed_view.get().unwrap()).clone();
+                    if next_state == original_state {
+                        break;
+                    }
+                    current_state = next_state;
                 }
             }
         }
 
-        // subtract original masks for altered neighbors and add new masks
-        {
-            for (parent_neighbor_node_id, (original_node_state, current_node_state)) in to_node_state_and_from_node_state_tuple_per_parent_node_id.iter() {
-                let wrapped_parent_neighbor_node = self.collapsable_node_per_id.get(parent_neighbor_node_id).unwrap();
-                let parent_neighbor_node = wrapped_parent_neighbor_node.borrow();
-                
-                // inform the impacted neighbors
-                let neighbor_node_ids: &Vec<&str> = &parent_neighbor_node.neighbor_node_ids;
-                let mask_per_neighbor_per_state: &HashMap<&TNodeState, HashMap<&str, BitVec>> = &parent_neighbor_node.mask_per_neighbor_per_state;
-                if let Some(mask_per_neighbor) = mask_per_neighbor_per_state.get(original_node_state) {
-                    for neighbor_node_id in neighbor_node_ids.iter() {
-                        if mask_per_neighbor.contains_key(neighbor_node_id) {
-                            let wrapped_neighbor_collapsable_node = self.collapsable_node_per_id.get(neighbor_node_id).unwrap();
-                            let mut neighbor_collapsable_node = wrapped_neighbor_collapsable_node.borrow_mut();
-                            //debug!("looking for mask from parent {:?} to child {:?}.", collapsable_node.id, neighbor_node_id);
-                            //debug!("mask_per_neighbor: {:?}", mask_per_neighbor);
-                            let mask = mask_per_neighbor.get(neighbor_node_id).unwrap();
-                            neighbor_collapsable_node.subtract_mask(mask);
-                            debug!("subtracting mask to {:?} when in accommodate_current_node", neighbor_node_id);
-                        }
-                    }
-                }
-                if let Some(mask_per_neighbor) = mask_per_neighbor_per_state.get(current_node_state) {
-                    for neighbor_node_id in neighbor_node_ids.iter() {
-                        if mask_per_neighbor.contains_key(neighbor_node_id) {
-                            let wrapped_neighbor_collapsable_node = self.collapsable_node_per_id.get(neighbor_node_id).unwrap();
-                            let mut neighbor_collapsable_node = wrapped_neighbor_collapsable_node.borrow_mut();
-                            //debug!("looking for mask from parent {:?} to child {:?}.", collapsable_node.id, neighbor_node_id);
-                            //debug!("mask_per_neighbor: {:?}", mask_per_neighbor);
-                            let mask = mask_per_neighbor.get(neighbor_node_id).unwrap();
-                            neighbor_collapsable_node.add_mask(mask);
-                            debug!("adding mask to {:?} when in accommodate_current_node", neighbor_node_id);
-                        }
-                    }
-                }
+        // Apply mask changes
+        for (parent_index, original_state, current_state, _id) in state_changes {
+            let subtract = collect_masks_for_state(&self.collapsable_nodes, parent_index, &original_state);
+            for (target, mask) in subtract {
+                self.collapsable_nodes[target].subtract_mask(&mask);
+            }
+            let add = collect_masks_for_state(&self.collapsable_nodes, parent_index, &current_state);
+            for (target, mask) in add {
+                self.collapsable_nodes[target].add_mask(&mask);
             }
         }
 
         self.accommodated_total += 1;
-
-        changed_parent_node_states
+        changed_states
     }
+
     fn get_collapsed_wave_function(&self) -> CollapsedWaveFunction<TNodeState> {
-        let mut node_state_per_node_id: HashMap<String, TNodeState> = HashMap::new();
-        for wrapped_collapsable_node in self.collapsable_nodes.iter() {
-            let collapsable_node = wrapped_collapsable_node.borrow();
-            let node_state: TNodeState = (*collapsable_node.node_state_indexed_view.get().unwrap()).clone();
-            let node_id: String = String::from(collapsable_node.id);
-            debug!("established node {node_id} in state {:?}.", node_state);
-            node_state_per_node_id.insert(node_id, node_state);
+        let mut m = HashMap::new();
+        for node in &self.collapsable_nodes {
+            let state: TNodeState = (*node.node_state_indexed_view.get().unwrap()).clone();
+            m.insert(String::from(node.id), state);
         }
-        CollapsedWaveFunction {
-            node_state_per_node_id
-        }
+        CollapsedWaveFunction { node_state_per_node_id: m }
     }
 }
 
 impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveFunction<'a, TNodeState> for AccommodatingCollapsableWaveFunction<'a, TNodeState> {
     fn new(
-        collapsable_nodes: Vec<Rc<RefCell<CollapsableNode<'a, TNodeState>>>>,
-        collapsable_node_per_id: HashMap<&'a str, Rc<RefCell<CollapsableNode<'a, TNodeState>>>>,
-        random_instance: Rc<RefCell<fastrand::Rng>>
+        collapsable_nodes: Vec<CollapsableNode<'a, TNodeState>>,
+        random_instance: fastrand::Rng,
     ) -> Self {
         AccommodatingCollapsableWaveFunction {
             collapsable_nodes,
-            collapsable_node_per_id,
-            accommodate_node_ids: Vec::new(),
-            accommodate_node_ids_length: 0,
-            accommodate_node_ids_index: 0,
+            accommodate_node_indices: Vec::new(),
+            accommodate_node_indices_length: 0,
+            accommodate_node_indices_index: 0,
             accommodated_total: 0,
-            impacted_node_ids: HashSet::new(),
+            impacted_node_indices: HashSet::new(),
             random_instance,
-            node_state_type: PhantomData
         }
     }
-    fn collapse(&'a mut self) -> Result<CollapsedWaveFunction<TNodeState>, String> {
-        let initialize_result = self.initialize_nodes();
-        if initialize_result.is_err() {
-            return Err(initialize_result.err().unwrap());
+
+    fn collapse(&mut self) -> Result<CollapsedWaveFunction<TNodeState>, String> {
+        let init = self.initialize_nodes();
+        if init.is_err() {
+            return Err(init.err().unwrap());
         }
-
         let mut iterations_total: u32 = 0;
-
-        debug!("about to enter while loop");
         while !self.is_fully_collapsed() {
-            debug!("preparing nodes for iteration");
             self.prepare_nodes_for_iteration();
-            debug!("checking if done accommodating nodes");
             while !self.is_done_accommodating_nodes() {
-                debug!("checking if current node is in conflict");
                 if self.is_current_node_in_conflict() {
-                    debug!("accommodating current node");
                     self.accommodate_current_node();
                 }
                 iterations_total += 1;
             }
         }
         debug!("fully collapsed after {:?} iterations", iterations_total);
-
         Ok(self.get_collapsed_wave_function())
     }
-    fn collapse_into_steps(&'a mut self) -> Result<Vec<CollapsedNodeState<TNodeState>>, String> {
 
-        // initialize each collapsable node to its first (random) state
-        // alter masks for every collapsable node to its neighbors
-        // initialize the collapsable_nodes vector
-        // while not yet fully collapsed
-        //      shuffle collapsable nodes
-        //      initialize pointer to first element of collapsable_nodes
-        //      while pointer is inside the bounds
-        //          if current collapsable node is in conflict and not already impacted
-        //              accommodate this collapsable node
-        //              alter mask for neighbors
-        //              cache impacted nodes
-        //          increment pointer
-        //
-        // NOTE: this could cause an infinite loop for the AB<-->CD unit test
-
-        let mut collapsed_node_states: Vec<CollapsedNodeState<TNodeState>> = Vec::new();
-
-        let initialized_node_states_result = self.initialize_nodes();
-        if initialized_node_states_result.is_err() {
-            return Err(initialized_node_states_result.err().unwrap());
+    fn collapse_into_steps(&mut self) -> Result<Vec<CollapsedNodeState<TNodeState>>, String> {
+        let mut collapsed_node_states = Vec::new();
+        let init = self.initialize_nodes();
+        if init.is_err() {
+            return Err(init.err().unwrap());
         }
-        let initialized_node_states = initialized_node_states_result.unwrap();
-        collapsed_node_states.extend(initialized_node_states);
-
+        collapsed_node_states.extend(init.unwrap());
         while !self.is_fully_collapsed() {
             self.prepare_nodes_for_iteration();
             while !self.is_done_accommodating_nodes() {
                 if self.is_current_node_in_conflict() {
-                    let accommodated_neighbor_node_states = self.accommodate_current_node();
-                    collapsed_node_states.extend(accommodated_neighbor_node_states);
+                    collapsed_node_states.extend(self.accommodate_current_node());
                 }
             }
         }
-
         Ok(collapsed_node_states)
     }
 }
