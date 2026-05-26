@@ -15,7 +15,7 @@ pub struct EntropicCollapsableWaveFunction<'a, TNodeState: Eq + Hash + Clone + s
     cached_mask_per_neighbor_index: IndexMap<usize, BitVec>,
     popped_neighbor_index: Option<usize>,
     popped_mask: Option<BitVec>,
-    possible_states_from_popped_neighbor: Vec<&'a TNodeState>,
+    possible_states_from_popped_neighbor: Vec<usize>,
     great_neighbors_from_popped_neighbor: Vec<usize>,
     great_neighbors_from_popped_neighbor_length: usize,
     explored_great_neighbor_index: Option<usize>,
@@ -76,8 +76,9 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> EntropicCollapsa
         let masks: Vec<(usize, BitVec)> = {
             let node = &self.collapsable_nodes[self.current_collapsable_node_index];
             let mut m = Vec::new();
-            if let Some(state) = node.node_state_indexed_view.get() {
-                if let Some(mask_per_neighbor) = node.mask_per_neighbor_per_state.get(state) {
+            if let Some(state_index) = node.node_state_indexed_view.get_index() {
+                if state_index < node.masks_by_state_index.len() {
+                    let mask_per_neighbor = &node.masks_by_state_index[state_index];
                     for &neighbor_index in &node.neighbor_node_indices {
                         if let Some(mask) = mask_per_neighbor.get(&neighbor_index) {
                             m.push((neighbor_index, mask.clone()));
@@ -111,7 +112,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> EntropicCollapsa
             debug!("is fully restricted after applying mask");
             false
         } else {
-            self.possible_states_from_popped_neighbor = self.collapsable_nodes[popped_neighbor_index].node_state_indexed_view.get_possible_states();
+            self.possible_states_from_popped_neighbor = self.collapsable_nodes[popped_neighbor_index].node_state_indexed_view.get_possible_state_indices();
             self.great_neighbors_from_popped_neighbor = self.collapsable_nodes[popped_neighbor_index].neighbor_node_indices.clone();
             self.great_neighbors_from_popped_neighbor_length = self.great_neighbors_from_popped_neighbor.len();
             debug!("is not fully restricted after applying mask");
@@ -149,8 +150,9 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> EntropicCollapsa
         let masks: Vec<BitVec> = {
             let node = &self.collapsable_nodes[popped_neighbor_index];
             let mut m = Vec::new();
-            for possible_state in self.possible_states_from_popped_neighbor.iter() {
-                if let Some(mask_per_neighbor) = node.mask_per_neighbor_per_state.get(possible_state) {
+            for &possible_state_index in self.possible_states_from_popped_neighbor.iter() {
+                if possible_state_index < node.masks_by_state_index.len() {
+                    let mask_per_neighbor = &node.masks_by_state_index[possible_state_index];
                     if let Some(mask) = mask_per_neighbor.get(&explored_great_neighbor_index) {
                         m.push(mask.clone());
                     }

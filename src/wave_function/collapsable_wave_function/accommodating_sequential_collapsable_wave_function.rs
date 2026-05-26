@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::hash::Hash;
 use bitvec::vec::BitVec;
 use crate::wave_function::indexed_view::IndexedViewMaskState;
@@ -9,9 +9,10 @@ pub struct AccommodatingSequentialCollapsableWaveFunction<'a, TNodeState: Eq + H
     spread_node_indices: Vec<usize>,
     spread_node_indices_length: usize,
     spread_node_indices_index: usize,
-    impacted_node_indices: HashSet<usize>,
+    impacted_node_indices: BitVec,
+    impacted_node_count: usize,
     stash_per_neighbor_node_index: HashMap<usize, IndexedViewMaskState>,
-    original_node_state_per_node_index: HashMap<usize, &'a TNodeState>,
+    original_node_state_per_node_index: HashMap<usize, usize>,
     current_neighbor_node_indices: Vec<usize>,
     great_neighbor_node_indices_per_neighbor_node_index: HashMap<usize, Vec<usize>>,
     nongreat_neighbor_node_indices_per_neighbor_node_index: HashMap<usize, Vec<usize>>,
@@ -28,8 +29,9 @@ fn collect_masks_from_node<T: Eq + Hash + Clone + std::fmt::Debug + Ord>(
 ) -> Vec<(usize, BitVec)> {
     let node = &nodes[node_index];
     let mut m = Vec::new();
-    if let Some(state) = node.node_state_indexed_view.get() {
-        if let Some(mask_map) = node.mask_per_neighbor_per_state.get(state) {
+    if let Some(state_index) = node.node_state_indexed_view.get_index() {
+        if state_index < node.masks_by_state_index.len() {
+            let mask_map = &node.masks_by_state_index[state_index];
             for &neighbor_index in &node.neighbor_node_indices {
                 if let Some(mask) = mask_map.get(&neighbor_index) {
                     m.push((neighbor_index, mask.clone()));
@@ -40,14 +42,15 @@ fn collect_masks_from_node<T: Eq + Hash + Clone + std::fmt::Debug + Ord>(
     m
 }
 
-fn collect_masks_for_state<T: Eq + Hash + Clone + std::fmt::Debug + Ord>(
+fn collect_masks_for_state_index<T: Eq + Hash + Clone + std::fmt::Debug + Ord>(
     nodes: &[CollapsableNode<'_, T>],
     node_index: usize,
-    state: &T,
+    state_index: usize,
 ) -> Vec<(usize, BitVec)> {
     let node = &nodes[node_index];
     let mut m = Vec::new();
-    if let Some(mask_map) = node.mask_per_neighbor_per_state.get(state) {
+    if state_index < node.masks_by_state_index.len() {
+        let mask_map = &node.masks_by_state_index[state_index];
         for &neighbor_index in &node.neighbor_node_indices {
             if let Some(mask) = mask_map.get(&neighbor_index) {
                 m.push((neighbor_index, mask.clone()));
@@ -57,15 +60,16 @@ fn collect_masks_for_state<T: Eq + Hash + Clone + std::fmt::Debug + Ord>(
     m
 }
 
-fn collect_masks_for_state_for_targets<T: Eq + Hash + Clone + std::fmt::Debug + Ord>(
+fn collect_masks_for_state_index_for_targets<T: Eq + Hash + Clone + std::fmt::Debug + Ord>(
     nodes: &[CollapsableNode<'_, T>],
     node_index: usize,
-    state: &T,
+    state_index: usize,
     target_indices: &[usize],
 ) -> Vec<(usize, BitVec)> {
     let node = &nodes[node_index];
     let mut m = Vec::new();
-    if let Some(mask_map) = node.mask_per_neighbor_per_state.get(state) {
+    if state_index < node.masks_by_state_index.len() {
+        let mask_map = &node.masks_by_state_index[state_index];
         for &target in target_indices {
             if let Some(mask) = mask_map.get(&target) {
                 m.push((target, mask.clone()));
@@ -114,7 +118,9 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingSeq
     fn prepare_nodes_for_iteration(&mut self) {
         self.spread_node_indices_index = 0;
         self.random_instance.shuffle(&mut self.spread_node_indices);
-        self.impacted_node_indices.clear();
+        for i in 0..self.impacted_node_count {
+            self.impacted_node_indices.set(i, false);
+        }
     }
 
     fn is_done_spreading_nodes(&self) -> bool {
@@ -141,18 +147,18 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingSeq
                 }
             }
         }
-        if self.impacted_node_indices.contains(&ci) {
+        if self.impacted_node_indices.get(ci).map_or(false, |v| *v) {
             conflict = false;
         } else {
             for &pi in &node.parent_neighbor_node_indices {
-                if self.impacted_node_indices.contains(&pi) {
+                if self.impacted_node_indices.get(pi).map_or(false, |v| *v) {
                     conflict = false;
                     break;
                 }
             }
             if !conflict {
                 for &ni in &node.neighbor_node_indices {
-                    if self.impacted_node_indices.contains(&ni) {
+                    if self.impacted_node_indices.get(ni).map_or(false, |v| *v) {
                         conflict = false;
                         break;
                     }
@@ -176,17 +182,17 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingSeq
         let ci_val = ci;
 
         // Subtract current node's masks from neighbors
-        let state: TNodeState = (*self.collapsable_nodes[ci].node_state_indexed_view.get().unwrap()).clone();
-        let subtract_masks = collect_masks_for_state(&self.collapsable_nodes, ci, &state);
+        let ci_state_index = self.collapsable_nodes[ci].node_state_indexed_view.get_index().unwrap();
+        let subtract_masks = collect_masks_for_state_index(&self.collapsable_nodes, ci, ci_state_index);
         for (target, mask) in subtract_masks {
             self.collapsable_nodes[target].subtract_mask(&mask);
         }
 
         // Collect states and remove neighbor masks
         for &ni in &neighbor_indices {
-            let state = *self.collapsable_nodes[ni].node_state_indexed_view.get().unwrap();
-            self.original_node_state_per_node_index.insert(ni, state);
-            let masks = collect_masks_for_state(&self.collapsable_nodes, ni, state);
+            let ni_state_index = self.collapsable_nodes[ni].node_state_indexed_view.get_index().unwrap();
+            self.original_node_state_per_node_index.insert(ni, ni_state_index);
+            let masks = collect_masks_for_state_index(&self.collapsable_nodes, ni, ni_state_index);
             for (target, mask) in masks {
                 self.collapsable_nodes[target].subtract_mask(&mask);
             }
@@ -199,7 +205,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingSeq
         }
 
         // Add current node masks
-        let add_masks = collect_masks_for_state(&self.collapsable_nodes, ci, &state);
+        let add_masks = collect_masks_for_state_index(&self.collapsable_nodes, ci, ci_state_index);
         for (target, mask) in add_masks {
             self.collapsable_nodes[target].add_mask(&mask);
         }
@@ -253,19 +259,20 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingSeq
         self.is_current_neighbor_node_cycle_required = false;
 
         let neighbor_index = self.current_neighbor_node_indices[self.current_neighbor_node_indices_index];
-        let original_state = self.original_node_state_per_node_index[&neighbor_index];
+        let original_state_index = self.original_node_state_per_node_index[&neighbor_index];
+        let original_state = *self.collapsable_nodes[neighbor_index].node_state_indexed_view.get_state_by_index(original_state_index).unwrap();
 
         let is_successful = self.collapsable_nodes[neighbor_index].node_state_indexed_view.try_move_next_cycle(&original_state);
-        let new_state: TNodeState = (*self.collapsable_nodes[neighbor_index].node_state_indexed_view.get().unwrap()).clone();
+        let new_state_index = self.collapsable_nodes[neighbor_index].node_state_indexed_view.get_index().unwrap();
 
         changed.push(CollapsedNodeState {
             node_id: String::from(self.collapsable_nodes[neighbor_index].id),
-            node_state_id: Some(new_state.clone()),
+            node_state_id: Some((*self.collapsable_nodes[neighbor_index].node_state_indexed_view.get().unwrap()).clone()),
         });
 
         if is_successful {
             let great_indices = self.great_neighbor_node_indices_per_neighbor_node_index.get(&neighbor_index).cloned().unwrap_or_default();
-            let candidate_masks = collect_masks_for_state_for_targets(&self.collapsable_nodes, neighbor_index, &new_state, &great_indices);
+            let candidate_masks = collect_masks_for_state_index_for_targets(&self.collapsable_nodes, neighbor_index, new_state_index, &great_indices);
 
             let mut masked: Vec<usize> = Vec::new();
             let mut rollback = false;
@@ -296,9 +303,9 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingSeq
                 self.is_current_neighbor_node_cycle_required = true;
 
                 let prev_index = self.current_neighbor_node_indices[self.current_neighbor_node_indices_index];
-                let prev_state = (*self.collapsable_nodes[prev_index].node_state_indexed_view.get().unwrap()).clone();
+                let prev_state_index = self.collapsable_nodes[prev_index].node_state_indexed_view.get_index().unwrap();
                 let great_indices = self.great_neighbor_node_indices_per_neighbor_node_index.get(&prev_index).cloned().unwrap_or_default();
-                let masks = collect_masks_for_state_for_targets(&self.collapsable_nodes, prev_index, &prev_state, &great_indices);
+                let masks = collect_masks_for_state_index_for_targets(&self.collapsable_nodes, prev_index, prev_state_index, &great_indices);
                 for (gidx, mask) in masks {
                     self.collapsable_nodes[gidx].subtract_mask(&mask);
                 }
@@ -310,9 +317,9 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingSeq
     fn allow_current_node_neighbor_to_maintain_state(&mut self) {
         let neighbor_index = self.current_neighbor_node_indices[self.current_neighbor_node_indices_index];
         let great_indices = self.great_neighbor_node_indices_per_neighbor_node_index.get(&neighbor_index).cloned().unwrap_or_default();
-        let node_state: TNodeState = (*self.collapsable_nodes[neighbor_index].node_state_indexed_view.get().unwrap()).clone();
+        let node_state_index = self.collapsable_nodes[neighbor_index].node_state_indexed_view.get_index().unwrap();
 
-        let candidate_masks = collect_masks_for_state_for_targets(&self.collapsable_nodes, neighbor_index, &node_state, &great_indices);
+        let candidate_masks = collect_masks_for_state_index_for_targets(&self.collapsable_nodes, neighbor_index, node_state_index, &great_indices);
 
         let mut masked: Vec<usize> = Vec::new();
         let mut rollback = false;
@@ -340,14 +347,16 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> AccommodatingSeq
     fn cleanup_current_node_neighbors(&mut self) {
         if self.current_neighbor_node_indices_index == self.current_neighbor_node_indices_length {
             let ci = self.spread_node_indices[self.spread_node_indices_index];
-            self.impacted_node_indices.insert(ci);
-            self.impacted_node_indices.extend(self.current_neighbor_node_indices.clone());
+            self.impacted_node_indices.set(ci, true);
+            for &ni in &self.current_neighbor_node_indices {
+                self.impacted_node_indices.set(ni, true);
+            }
 
             let neighbor_indices: Vec<usize> = self.current_neighbor_node_indices.clone();
             for &ni in &neighbor_indices {
-                let state: TNodeState = (*self.collapsable_nodes[ni].node_state_indexed_view.get().unwrap()).clone();
+                let ni_state_index = self.collapsable_nodes[ni].node_state_indexed_view.get_index().unwrap();
                 let nongreat = self.nongreat_neighbor_node_indices_per_neighbor_node_index.get(&ni).cloned().unwrap_or_default();
-                let masks = collect_masks_for_state_for_targets(&self.collapsable_nodes, ni, &state, &nongreat);
+                let masks = collect_masks_for_state_index_for_targets(&self.collapsable_nodes, ni, ni_state_index, &nongreat);
                 for (target, mask) in masks {
                     self.collapsable_nodes[target].add_mask(&mask);
                 }
@@ -390,12 +399,14 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableWaveF
         collapsable_nodes: Vec<CollapsableNode<'a, TNodeState>>,
         random_instance: fastrand::Rng,
     ) -> Self {
+        let node_count = collapsable_nodes.len();
         AccommodatingSequentialCollapsableWaveFunction {
             collapsable_nodes,
             spread_node_indices: Vec::new(),
             spread_node_indices_length: 0,
             spread_node_indices_index: 0,
-            impacted_node_indices: HashSet::new(),
+            impacted_node_indices: bitvec::bitvec![0; node_count],
+            impacted_node_count: node_count,
             stash_per_neighbor_node_index: HashMap::new(),
             original_node_state_per_node_index: HashMap::new(),
             current_neighbor_node_indices: Vec::new(),

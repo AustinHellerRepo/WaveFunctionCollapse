@@ -30,6 +30,16 @@ pub struct IndexedView<TNodeState: Clone + Eq + Hash + Debug> {
 }
 
 impl<TNodeState: Clone + Ord + Eq + Hash + Debug> IndexedView<TNodeState> {
+    /// Returns the current state index (i.e., index_mapping[index]) — the actual index into node_state_ids.
+    pub fn get_index(&self) -> Option<usize> {
+        self.index.map(|i| self.index_mapping[i])
+    }
+
+    /// Returns the state reference at a given state index (into node_state_ids).
+    pub fn get_state_by_index(&self, state_index: usize) -> Option<&TNodeState> {
+        self.node_state_ids.get(state_index)
+    }
+
     pub fn new(node_state_ids: Vec<TNodeState>, node_state_ratios: Vec<f32>) -> Self {
         let node_state_ids_length: usize = node_state_ids.len();
         let mut index_per_node_state_id: HashMap<TNodeState, usize> = HashMap::new();
@@ -346,6 +356,22 @@ impl<TNodeState: Clone + Ord + Eq + Hash + Debug> IndexedView<TNodeState> {
         }
         self.entropy.unwrap()
     }
+    /// Returns the indices of possible (non-restricted) states.
+    pub fn get_possible_state_indices(&self) -> Vec<usize> {
+        let mut possible_indices: Vec<usize> = Vec::new();
+        if let Some(index) = self.index {
+            let mapped_index = self.index_mapping[index];
+            possible_indices.push(mapped_index);
+        } else {
+            for index in 0..self.node_state_ids_length {
+                if !self.is_restricted_at_index[index] {
+                    possible_indices.push(index);
+                }
+            }
+        }
+        possible_indices
+    }
+
     pub fn get_possible_states(&self) -> Vec<TNodeState> {
         let mut possible_states: Vec<TNodeState> = Vec::new();
         if let Some(index) = self.index {

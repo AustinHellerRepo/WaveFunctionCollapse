@@ -52,8 +52,10 @@ pub struct CollapsableNode<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug +
     // the full list of possible node states, masked by internal references to neighbor masks
     pub node_state_indexed_view: IndexedView<&'a TNodeState>,
     // the mapped view that this node's neighbors will have a reference to and pull their masks from
-    // keyed by neighbor node index
+    // keyed by state reference (for backward compat) and neighbor node index
     pub mask_per_neighbor_per_state: HashMap<&'a TNodeState, HashMap<usize, BitVec>>,
+    // same data indexed by state index for O(1) lookup (parallel to mask_per_neighbor_per_state)
+    pub masks_by_state_index: Vec<HashMap<usize, BitVec>>,
     // the index of traversed nodes based on the sorted vector of nodes as they are chosen for state determination
     pub current_chosen_from_sort_index: Option<usize>,
     // the neighbors that are pointing to this collapsable node (stored as indices)
@@ -65,6 +67,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableNode<
         id: &'a str,
         node_state_collection_ids_per_neighbor_node_id: &'a HashMap<String, Vec<String>>,
         mask_per_neighbor_per_state: HashMap<&'a TNodeState, HashMap<usize, BitVec>>,
+        masks_by_state_index: Vec<HashMap<usize, BitVec>>,
         node_state_indexed_view: IndexedView<&'a TNodeState>,
     ) -> Self {
         // get the neighbors for this node
@@ -81,6 +84,7 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> CollapsableNode<
             neighbor_node_indices,
             node_state_indexed_view,
             mask_per_neighbor_per_state,
+            masks_by_state_index,
             current_chosen_from_sort_index: None,
             parent_neighbor_node_indices: Vec::new(),
         }

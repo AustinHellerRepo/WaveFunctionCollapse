@@ -33,8 +33,9 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> SequentialCollap
         let masks_to_apply: Vec<(usize, BitVec)> = {
             let current = &self.collapsable_nodes[self.current_collapsable_node_index];
             let mut m = Vec::new();
-            if let Some(state) = current.node_state_indexed_view.get() {
-                if let Some(mask_per_neighbor) = current.mask_per_neighbor_per_state.get(state) {
+            if let Some(state_index) = current.node_state_indexed_view.get_index() {
+                if state_index < current.masks_by_state_index.len() {
+                    let mask_per_neighbor = &current.masks_by_state_index[state_index];
                     for &neighbor_index in &current.neighbor_node_indices {
                         if let Some(mask) = mask_per_neighbor.get(&neighbor_index) {
                             m.push((neighbor_index, mask.clone()));
@@ -98,8 +99,9 @@ impl<'a, TNodeState: Eq + Hash + Clone + std::fmt::Debug + Ord> SequentialCollap
             let indices_to_reverse: Vec<usize> = {
                 let current = &self.collapsable_nodes[self.current_collapsable_node_index];
                 let mut idxs = Vec::new();
-                if let Some(state) = current.node_state_indexed_view.get() {
-                    if let Some(mask_per_neighbor) = current.mask_per_neighbor_per_state.get(state) {
+                if let Some(state_index) = current.node_state_indexed_view.get_index() {
+                    if state_index < current.masks_by_state_index.len() {
+                        let mask_per_neighbor = &current.masks_by_state_index[state_index];
                         for &neighbor_index in &current.neighbor_node_indices {
                             if mask_per_neighbor.contains_key(&neighbor_index) {
                                 idxs.push(neighbor_index);

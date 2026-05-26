@@ -349,10 +349,23 @@ impl<
                 .remove(&node_index)
                 .unwrap();
 
+            // Build state-index lookup: state_index -> HashMap<usize, BitVec>
+            let num_states = node.node_state_ids.len();
+            let mut masks_by_state_index: Vec<HashMap<usize, BitVec>> = Vec::with_capacity(num_states);
+            for state_idx in 0..num_states {
+                let state = &node.node_state_ids[state_idx];
+                if let Some(mask_map) = mask_per_neighbor_per_state.get(state) {
+                    masks_by_state_index.push(mask_map.clone());
+                } else {
+                    masks_by_state_index.push(HashMap::new());
+                }
+            }
+
             let mut collapsable_node = CollapsableNode::new(
                 node.id.as_str(),
                 &node.node_state_collection_ids_per_neighbor_node_id,
                 mask_per_neighbor_per_state,
+                masks_by_state_index,
                 node_state_indexed_view,
             );
 
